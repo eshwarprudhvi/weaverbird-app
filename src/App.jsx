@@ -172,6 +172,56 @@ function App() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // 2. Check for updates from Firestore
+  const checkUpdate = async (isManual = false) => {
+    try {
+      if (!isConfigured) {
+        setUpdateDebugInfo(prev => ({ ...prev, status: "Firestore not configured" }));
+        if (isManual) alert("Firestore is not configured.");
+        return;
+      }
+      setUpdateDebugInfo(prev => ({ ...prev, status: "Checking Firestore..." }));
+      const updateRef = doc(db, "system", "update");
+      const snap = await getDoc(updateRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const latestVersion = data.version ? data.version.trim() : "";
+        const zipUrl = data.url ? data.url.trim() : "";
+        setUpdateDebugInfo(prev => ({ 
+          ...prev, 
+          latestVersion: latestVersion || "None", 
+          latestUrl: zipUrl || "None", 
+          status: "Fetched database info" 
+        }));
+
+        if (latestVersion && latestVersion !== WEB_APP_VERSION && zipUrl) {
+          setUpdateDebugInfo(prev => ({ ...prev, status: `Downloading v${latestVersion}...` }));
+          console.log(`OTA Update available: local v${WEB_APP_VERSION} -> latest v${latestVersion}`);
+          
+          // Notify user
+          alert(`Installing WeaverBird update v${latestVersion}. The app will restart automatically.`);
+          
+          const downloadResult = await CapacitorUpdater.download({
+            url: zipUrl,
+            version: latestVersion
+          });
+          setUpdateDebugInfo(prev => ({ ...prev, status: "Applying update..." }));
+          await CapacitorUpdater.set(downloadResult);
+        } else {
+          setUpdateDebugInfo(prev => ({ ...prev, status: "Already up to date" }));
+          if (isManual) alert("App is already up to date!");
+        }
+      } else {
+        setUpdateDebugInfo(prev => ({ ...prev, status: "Firestore config document 'system/update' not found" }));
+        if (isManual) alert("Update config document not found in database.");
+      }
+    } catch (err) {
+      console.error("Auto-update check failed:", err);
+      setUpdateDebugInfo(prev => ({ ...prev, status: "Error", error: err.message || String(err) }));
+      if (isManual) alert(`Update check failed: ${err.message || err}`);
+    }
+  };
+
   // Automatic Over-The-Air (OTA) Updates via Capgo & Firestore config
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
@@ -182,54 +232,8 @@ function App() {
         console.warn("CapacitorUpdater notifyAppReady failed:", err);
       }
 
-      // 2. Check for updates from Firestore
-      const checkUpdate = async () => {
-        try {
-          if (!isConfigured) {
-            setUpdateDebugInfo(prev => ({ ...prev, status: "Firestore not configured" }));
-            return;
-          }
-          setUpdateDebugInfo(prev => ({ ...prev, status: "Checking Firestore..." }));
-          const updateRef = doc(db, "system", "update");
-          const snap = await getDoc(updateRef);
-          if (snap.exists()) {
-            const data = snap.data();
-            const latestVersion = data.version ? data.version.trim() : "";
-            const zipUrl = data.url ? data.url.trim() : "";
-            setUpdateDebugInfo(prev => ({ 
-              ...prev, 
-              latestVersion: latestVersion || "None", 
-              latestUrl: zipUrl || "None", 
-              status: "Fetched database info" 
-            }));
-
-            if (latestVersion && latestVersion !== WEB_APP_VERSION && zipUrl) {
-              setUpdateDebugInfo(prev => ({ ...prev, status: `Downloading v${latestVersion}...` }));
-              console.log(`OTA Update available: local v${WEB_APP_VERSION} -> latest v${latestVersion}`);
-              
-              // Notify user
-              alert(`Installing WeaverBird update v${latestVersion}. The app will restart automatically.`);
-              
-              const downloadResult = await CapacitorUpdater.download({
-                url: zipUrl,
-                version: latestVersion
-              });
-              setUpdateDebugInfo(prev => ({ ...prev, status: "Applying update..." }));
-              await CapacitorUpdater.set(downloadResult);
-            } else {
-              setUpdateDebugInfo(prev => ({ ...prev, status: "Already up to date" }));
-            }
-          } else {
-            setUpdateDebugInfo(prev => ({ ...prev, status: "Firestore config document 'system/update' not found" }));
-          }
-        } catch (err) {
-          console.error("Auto-update check failed:", err);
-          setUpdateDebugInfo(prev => ({ ...prev, status: "Error", error: err.message || String(err) }));
-        }
-      };
-
       // Add a 5s delay on startup to prevent blocking the UI layout load
-      const timer = setTimeout(checkUpdate, 5000);
+      const timer = setTimeout(() => checkUpdate(false), 5000);
       return () => clearTimeout(timer);
     } else {
       setUpdateDebugInfo(prev => ({ ...prev, status: "Not native platform" }));
@@ -3729,8 +3733,29 @@ function App() {
                     maxWidth: "280px",
                     textAlign: "left"
                   }}>
-                    <div style={{ fontWeight: 700, color: "var(--accent-gold-dark)", textTransform: "uppercase", fontSize: "9px", letterSpacing: "1px", borderBottom: "1px solid var(--border)", paddingBottom: "2px", marginBottom: "2px" }}>
-                      OTA Update Status
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "2px", marginBottom: "2px" }}>
+                      <span style={{ fontWeight: 700, color: "var(--accent-gold-dark)", textTransform: "uppercase", fontSize: "9px", letterSpacing: "1px" }}>
+                        OTA Update Status
+                      </span>
+                      <button 
+                        onClick={() => checkUpdate(true)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: "2px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          color: "var(--accent-gold-dark)",
+                          opacity: 0.8,
+                          transition: "opacity 0.2s"
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                        onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
+                        title="Check for update"
+                      >
+                        <RotateCcw size={10} />
+                      </button>
                     </div>
                     <div><strong>Status:</strong> {updateDebugInfo.status}</div>
                     <div><strong>DB Version:</strong> {updateDebugInfo.latestVersion}</div>
@@ -4369,7 +4394,21 @@ function App() {
                             color: "var(--text-muted)",
                             fontWeight: 600
                           }}>
-                            {lastEmailBackupDate ? new Date(lastEmailBackupDate).toLocaleDateString() : "Pending"}
+                            {lastEmailBackupDate ? (
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                <span>Last: {new Date(lastEmailBackupDate).toLocaleDateString()}</span>
+                                <span style={{ fontSize: "10px", color: "var(--accent-gold)", marginTop: "2px", fontWeight: "normal" }}>
+                                  {(() => {
+                                    const lastSent = new Date(lastEmailBackupDate).getTime();
+                                    const nextBackupTime = lastSent + (3 * 24 * 60 * 60 * 1000);
+                                    const diffMs = nextBackupTime - Date.now();
+                                    const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+                                    if (diffDays <= 0) return "Next: Due today";
+                                    return `Next: In ${diffDays} day${diffDays > 1 ? "s" : ""}`;
+                                  })()}
+                                </span>
+                              </div>
+                            ) : "Pending"}
                           </span>
                         </div>
                       </>
