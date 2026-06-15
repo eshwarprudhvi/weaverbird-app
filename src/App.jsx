@@ -1340,6 +1340,24 @@ function App() {
 
   // Toggle Task Complete
   const handleToggleTask = (taskId, projId = activeProjectId) => {
+    const targetProj = projects.find((p) => p.id === projId);
+    if (targetProj) {
+      const task = targetProj.tasks.find((t) => t.id === taskId);
+      if (task && !task.completed) {
+        const uncompletedDeps = (task.dependencies || [])
+          .map((depId) => targetProj.tasks.find((t) => t.id === depId))
+          .filter((t) => t && !t.completed);
+        
+        if (uncompletedDeps.length > 0) {
+          const depNames = uncompletedDeps.map((t) => `"${t.name}"`).join(", ");
+          alert(
+            `Cannot complete this task. It depends on preceding tasks: ${depNames} which are not yet completed.`
+          );
+          return;
+        }
+      }
+    }
+
     setProjects(
       projects.map((p) => {
         if (p.id === projId) {
@@ -1376,6 +1394,8 @@ function App() {
   // Clear Completed Materials
   const handleClearCompletedMaterials = () => {
     if (!activeProjectId) return;
+    const confirmClear = window.confirm("Are you sure you want to clear all completed materials?");
+    if (!confirmClear) return;
     setProjects(
       projects.map((p) => {
         if (p.id === activeProjectId) {
@@ -1392,6 +1412,8 @@ function App() {
   // Clear Completed Tasks
   const handleClearCompletedTasks = () => {
     if (!activeProjectId) return;
+    const confirmClear = window.confirm("Are you sure you want to clear all completed tasks?");
+    if (!confirmClear) return;
     setProjects(
       projects.map((p) => {
         if (p.id === activeProjectId) {
@@ -1518,7 +1540,7 @@ function App() {
         })
       );
     } else if (type === "task") {
-      const { priority } = editItemModal;
+      const { priority, dependencies } = editItemModal;
       setProjects(
         projects.map((p) => {
           if (p.id === projectId) {
@@ -1526,7 +1548,12 @@ function App() {
               ...p,
               tasks: p.tasks.map((t) =>
                 t.id === itemId
-                  ? { ...t, name, priority: priority || "medium" }
+                  ? {
+                      ...t,
+                      name,
+                      priority: priority || "medium",
+                      dependencies: dependencies || [],
+                    }
                   : t
               ),
             };
@@ -3225,6 +3252,7 @@ function App() {
                                             itemId: task.id,
                                             name: task.name,
                                             priority: task.priority || "medium",
+                                            dependencies: task.dependencies || [],
                                           })
                                         }
                                       >
@@ -5368,23 +5396,94 @@ function App() {
                   )}
 
                   {editItemModal.type === "task" && (
-                    <div className="form-group">
-                      <label>Task Priority</label>
-                      <select
-                        className="form-control"
-                        value={editItemModal.priority || "medium"}
-                        onChange={(e) =>
-                          setEditItemModal({
-                            ...editItemModal,
-                            priority: e.target.value,
-                          })
-                        }
-                      >
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                      </select>
-                    </div>
+                    <>
+                      <div className="form-group">
+                        <label>Task Priority</label>
+                        <select
+                          className="form-control"
+                          value={editItemModal.priority || "medium"}
+                          onChange={(e) =>
+                            setEditItemModal({
+                              ...editItemModal,
+                              priority: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="high">High</option>
+                          <option value="medium">Medium</option>
+                          <option value="low">Low</option>
+                        </select>
+                      </div>
+
+                      {/* Dependencies Multi-select Grid */}
+                      {(() => {
+                        const activeProj = projects.find(p => p.id === editItemModal.projectId);
+                        const otherTasks = activeProj ? (activeProj.tasks || []).filter(t => t.id !== editItemModal.itemId) : [];
+                        if (otherTasks.length === 0) return null;
+                        
+                        return (
+                          <div className="form-group" style={{ marginTop: "14px" }}>
+                            <label style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px", display: "block" }}>Dependencies (Preceding Tasks)</label>
+                            <div style={{
+                              maxHeight: "120px",
+                              overflowY: "auto",
+                              border: "1px solid var(--border)",
+                              borderRadius: "8px",
+                              padding: "8px 12px",
+                              backgroundColor: "var(--bg-app)",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "8px",
+                              marginTop: "4px"
+                            }}>
+                              {otherTasks.map(ot => {
+                                const isChecked = (editItemModal.dependencies || []).includes(ot.id);
+                                return (
+                                  <label key={ot.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer", color: "var(--text-title)", margin: 0 }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        if (!isChecked) {
+                                           const hasCycle = (tasksList, startId, targetId) => {
+                                             const visited = new Set();
+                                             const check = (currId) => {
+                                               if (currId === targetId) return true;
+                                               if (visited.has(currId)) return false;
+                                               visited.add(currId);
+                                               const t = tasksList.find(x => x.id === currId);
+                                               if (!t || !t.dependencies) return false;
+                                               for (const dId of t.dependencies) {
+                                                 if (check(dId)) return true;
+                                               }
+                                               return false;
+                                             };
+                                             return check(startId);
+                                           };
+
+                                           if (hasCycle(activeProj.tasks || [], ot.id, editItemModal.itemId)) {
+                                             alert(`Cannot add "${ot.name}" as a dependency because it already depends on this task, creating a circular loop.`);
+                                             return;
+                                           }
+                                         }
+                                         const newDeps = isChecked
+                                           ? (editItemModal.dependencies || []).filter(id => id !== ot.id)
+                                           : [...(editItemModal.dependencies || []), ot.id];
+                                         setEditItemModal({
+                                           ...editItemModal,
+                                           dependencies: newDeps
+                                         });
+                                       }}
+                                    />
+                                    {ot.name}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
                   )}
 
                   {editItemModal.type === "meeting" && (
