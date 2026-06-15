@@ -41,7 +41,7 @@ import {
   Mail,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.0.2";
+const WEB_APP_VERSION = "1.0.1";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = [
@@ -239,6 +239,15 @@ function App() {
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
+  const [updateDebugInfo, setUpdateDebugInfo] = useState({
+    status: "Idle",
+    latestVersion: "Unknown",
+    latestUrl: "None",
+    isNative: Capacitor.isNativePlatform(),
+    dbConfigured: isConfigured,
+    error: "None"
+  });
+
   useEffect(() => {
     const handleResize = () => {
       // If window innerHeight is significantly smaller than the screen height, keyboard is open
@@ -265,15 +274,26 @@ function App() {
       // 2. Check for updates from Firestore
       const checkUpdate = async () => {
         try {
-          if (!isConfigured) return;
+          if (!isConfigured) {
+            setUpdateDebugInfo(prev => ({ ...prev, status: "Firestore not configured" }));
+            return;
+          }
+          setUpdateDebugInfo(prev => ({ ...prev, status: "Checking Firestore..." }));
           const updateRef = doc(db, "system", "update");
           const snap = await getDoc(updateRef);
           if (snap.exists()) {
             const data = snap.data();
             const latestVersion = data.version;
             const zipUrl = data.url;
+            setUpdateDebugInfo(prev => ({ 
+              ...prev, 
+              latestVersion: latestVersion || "None", 
+              latestUrl: zipUrl || "None", 
+              status: "Fetched database info" 
+            }));
 
             if (latestVersion && latestVersion !== WEB_APP_VERSION && zipUrl) {
+              setUpdateDebugInfo(prev => ({ ...prev, status: `Downloading v${latestVersion}...` }));
               console.log(`OTA Update available: local v${WEB_APP_VERSION} -> latest v${latestVersion}`);
               
               // Notify user
@@ -283,17 +303,25 @@ function App() {
                 url: zipUrl,
                 version: latestVersion
               });
+              setUpdateDebugInfo(prev => ({ ...prev, status: "Applying update..." }));
               await CapacitorUpdater.set(downloadResult);
+            } else {
+              setUpdateDebugInfo(prev => ({ ...prev, status: "Already up to date" }));
             }
+          } else {
+            setUpdateDebugInfo(prev => ({ ...prev, status: "Firestore config document 'system/update' not found" }));
           }
         } catch (err) {
           console.error("Auto-update check failed:", err);
+          setUpdateDebugInfo(prev => ({ ...prev, status: "Error", error: err.message || String(err) }));
         }
       };
 
       // Add a 5s delay on startup to prevent blocking the UI layout load
       const timer = setTimeout(checkUpdate, 5000);
       return () => clearTimeout(timer);
+    } else {
+      setUpdateDebugInfo(prev => ({ ...prev, status: "Not native platform" }));
     }
   }, [isConfigured]);
 
@@ -3774,6 +3802,34 @@ function App() {
                   >
                     Version: v{WEB_APP_VERSION}
                   </span>
+
+                  {/* Update System Monitor Card */}
+                  <div style={{
+                    marginTop: "12px",
+                    padding: "8px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--bg-main)",
+                    fontSize: "10px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                    width: "80%",
+                    maxWidth: "280px",
+                    textAlign: "left"
+                  }}>
+                    <div style={{ fontWeight: 700, color: "var(--accent-gold-dark)", textTransform: "uppercase", fontSize: "9px", letterSpacing: "1px", borderBottom: "1px solid var(--border)", paddingBottom: "2px", marginBottom: "2px" }}>
+                      OTA Update Status
+                    </div>
+                    <div><strong>Status:</strong> {updateDebugInfo.status}</div>
+                    <div><strong>DB Version:</strong> {updateDebugInfo.latestVersion}</div>
+                    {updateDebugInfo.isNative && (
+                      <div style={{ wordBreak: "break-all", fontSize: "9px", color: "var(--text-muted)" }}><strong>DB URL:</strong> {updateDebugInfo.latestUrl}</div>
+                    )}
+                    {updateDebugInfo.error !== "None" && (
+                      <div style={{ color: "#ef4444" }}><strong>Error:</strong> {updateDebugInfo.error}</div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Settings list */}
