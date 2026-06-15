@@ -4,10 +4,11 @@ import { jsPDF } from "jspdf";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
+import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import { Share } from "@capacitor/share";
 import { Network } from "@capacitor/network";
 import { db, isConfigured } from "./firebase";
-import { collection, doc, setDoc, onSnapshot, deleteDoc } from "firebase/firestore";
+import { collection, doc, setDoc, onSnapshot, deleteDoc, getDocs, getDoc } from "firebase/firestore";
 import {
   Folder,
   Calendar,
@@ -35,7 +36,12 @@ import {
   GripVertical,
   AlertTriangle,
   LogOut,
+  Undo,
+  RotateCcw,
+  Mail,
 } from "lucide-react";
+
+const WEB_APP_VERSION = "1.0.1";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = [
@@ -216,6 +222,11 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [deletedProjectIds, setDeletedProjectIds] = useState(() => {
+    const saved = localStorage.getItem("ipm_deleted_project_ids");
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [schedule, setSchedule] = useState(() => {
     const saved = localStorage.getItem("ipm_schedule");
     return saved ? JSON.parse(saved) : [];
@@ -240,6 +251,51 @@ function App() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Automatic Over-The-Air (OTA) Updates via Capgo & Firestore config
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      // 1. Notify Capacitor that the app loaded successfully (prevents rollback)
+      try {
+        CapacitorUpdater.notifyAppReady();
+      } catch (err) {
+        console.warn("CapacitorUpdater notifyAppReady failed:", err);
+      }
+
+      // 2. Check for updates from Firestore
+      const checkUpdate = async () => {
+        try {
+          if (!isConfigured) return;
+          const updateRef = doc(db, "system", "update");
+          const snap = await getDoc(updateRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            const latestVersion = data.version;
+            const zipUrl = data.url;
+
+            if (latestVersion && latestVersion !== WEB_APP_VERSION && zipUrl) {
+              console.log(`OTA Update available: local v${WEB_APP_VERSION} -> latest v${latestVersion}`);
+              
+              // Notify user
+              alert(`Installing WeaverBird update v${latestVersion}. The app will restart automatically.`);
+              
+              const downloadResult = await CapacitorUpdater.download({
+                url: zipUrl,
+                version: latestVersion
+              });
+              await CapacitorUpdater.set(downloadResult);
+            }
+          }
+        } catch (err) {
+          console.error("Auto-update check failed:", err);
+        }
+      };
+
+      // Add a 5s delay on startup to prevent blocking the UI layout load
+      const timer = setTimeout(checkUpdate, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [isConfigured]);
 
   const [isNetworkOnline, setIsNetworkOnline] = useState(navigator.onLine);
 
@@ -314,6 +370,8 @@ function App() {
   // Modals state
   const [isNewProjModalOpen, setIsNewProjModalOpen] = useState(false);
   const [isNewMeetingModalOpen, setIsNewMeetingModalOpen] = useState(false);
+  const [isTrashBinOpen, setIsTrashBinOpen] = useState(false);
+  const [isBackupsListOpen, setIsBackupsListOpen] = useState(false);
   const [editItemModal, setEditItemModal] = useState(null); // { type: 'project'|'material'|'task'|'meeting', projectId?, itemId, name, description?, time?, day? }
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [reportPreview, setReportPreview] = useState(null);
@@ -350,9 +408,52 @@ function App() {
   });
   const [authorizedUsers, setAuthorizedUsers] = useState([]);
   const isRemoteChange = useRef(false);
+  const prevProjectsRef = useRef([]);
   const [isConnectingCloud, setIsConnectingCloud] = useState(false);
   const [hasLoadedProjectsFromCloud, setHasLoadedProjectsFromCloud] = useState(false);
   const [hasLoadedScheduleFromCloud, setHasLoadedScheduleFromCloud] = useState(false);
+
+  // EmailJS & Email Automation States
+  const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem("ipm_emailjs_service_id") || "");
+  const [emailJsTemplateId, setEmailJsTemplateId] = useState(() => localStorage.getItem("ipm_emailjs_template_id") || "");
+  const [emailJsPublicKey, setEmailJsPublicKey] = useState(() => localStorage.getItem("ipm_emailjs_public_key") || "");
+  const [googleScriptUrl, setGoogleScriptUrl] = useState(() => localStorage.getItem("ipm_google_script_url") || "");
+  const [recipientEmail, setRecipientEmail] = useState(userEmail || "");
+  const [customRecipientEmail, setCustomRecipientEmail] = useState("");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [lastEmailBackupDate, setLastEmailBackupDate] = useState("");
+  const [backupRecipients, setBackupRecipients] = useState(() => {
+    const saved = localStorage.getItem("ipm_backup_recipients");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newRecipientInput, setNewRecipientInput] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem("ipm_backup_recipients", JSON.stringify(backupRecipients));
+  }, [backupRecipients]);
+
+  useEffect(() => {
+    localStorage.setItem("ipm_emailjs_service_id", emailJsServiceId);
+  }, [emailJsServiceId]);
+
+  useEffect(() => {
+    localStorage.setItem("ipm_emailjs_template_id", emailJsTemplateId);
+  }, [emailJsTemplateId]);
+
+  useEffect(() => {
+    localStorage.setItem("ipm_emailjs_public_key", emailJsPublicKey);
+  }, [emailJsPublicKey]);
+
+  useEffect(() => {
+    localStorage.setItem("ipm_google_script_url", googleScriptUrl);
+  }, [googleScriptUrl]);
+
+  // Keep recipientEmail in sync with logged-in userEmail if empty
+  useEffect(() => {
+    if (userEmail && !recipientEmail) {
+      setRecipientEmail(userEmail);
+    }
+  }, [userEmail, recipientEmail]);
 
   // Handle native Android hardware back button (natural back behavior)
   useEffect(() => {
@@ -441,17 +542,30 @@ function App() {
     }
   };
 
-  // Sync projects to cloud (shared with partners)
-  const syncProjectsToCloud = async (newProjects) => {
+  // Sync individual project document to cloud
+  const syncProjectToCloud = async (project) => {
     if (!isConfigured || !db || !cloudSyncEnabled || !isAuthorized || !userEmail) return;
     try {
-      const dataDocRef = doc(db, "app_data", "weaverbird_data");
-      await setDoc(dataDocRef, {
-        projects: newProjects,
+      const projDocRef = doc(db, "projects", project.id);
+      await setDoc(projDocRef, {
+        ...project,
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (err) {
-      console.error("Failed to sync projects to cloud:", err);
+      console.error(`Failed to sync project ${project.id} to cloud:`, err);
+    }
+  };
+
+  // Delete individual project document from cloud and add to deleted_projects collection
+  const deleteProjectFromCloud = async (projectId) => {
+    if (!isConfigured || !db || !cloudSyncEnabled || !isAuthorized || !userEmail) return;
+    try {
+      await deleteDoc(doc(db, "projects", projectId));
+      await setDoc(doc(db, "deleted_projects", projectId), {
+        deletedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error(`Failed to delete project ${projectId} from cloud:`, err);
     }
   };
 
@@ -470,16 +584,49 @@ function App() {
     }
   };
 
-  // Sync projects state to localStorage and cloud
+  // Sync projects state to localStorage and cloud incrementally
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     localStorage.setItem("ipm_projects", JSON.stringify(projects));
-    if (!cloudSyncEnabled || hasLoadedProjectsFromCloud) {
-      if (!isRemoteChange.current) {
-        syncProjectsToCloud(projects);
-      }
+    saveProjectBackup(projects);
+
+    if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail && hasLoadedProjectsFromCloud) {
+      checkAndTriggerAutoEmail(projects, userEmail.toLowerCase().trim());
     }
-  }, [projects, hasLoadedProjectsFromCloud, cloudSyncEnabled]);
+
+    if (!cloudSyncEnabled || !hasLoadedProjectsFromCloud) {
+      prevProjectsRef.current = projects;
+      return;
+    }
+
+    if (isRemoteChange.current) {
+      prevProjectsRef.current = projects;
+      return;
+    }
+
+    // Detect granular differences (Added, Modified, or Deleted projects)
+    const prevMap = new Map((prevProjectsRef.current || []).map((p) => [p.id, p]));
+    const currentMap = new Map(projects.map((p) => [p.id, p]));
+
+    // 1. Check for additions and modifications
+    projects.forEach((proj) => {
+      const prevProj = prevMap.get(proj.id);
+      if (!prevProj) {
+        syncProjectToCloud(proj);
+      } else if (JSON.stringify(prevProj) !== JSON.stringify(proj)) {
+        syncProjectToCloud(proj);
+      }
+    });
+
+    // 2. Check for deletions
+    (prevProjectsRef.current || []).forEach((prevProj) => {
+      if (!currentMap.has(prevProj.id)) {
+        deleteProjectFromCloud(prevProj.id);
+      }
+    });
+
+    prevProjectsRef.current = projects;
+  }, [projects, hasLoadedProjectsFromCloud, cloudSyncEnabled, isAuthorized, userEmail]);
 
   // Sync schedule state to localStorage and cloud, and schedule local alerts
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -508,6 +655,7 @@ function App() {
     const cleanEmail = userEmail.toLowerCase().trim();
     let unsubscribeUsers = () => {};
     let unsubscribeData = () => {};
+    let unsubscribeDeleted = () => {};
     let unsubscribeSchedule = () => {};
 
     try {
@@ -555,33 +703,148 @@ function App() {
         console.error("Error listening to users list:", error);
       });
 
-      // 2. Listen to real-time shared projects sync edits
-      const dataDocRef = doc(db, "app_data", "weaverbird_data");
-      unsubscribeData = onSnapshot(dataDocRef, (docSnap) => {
+      // 2. Listen to real-time shared deleted project IDs (deleted_projects collection)
+      const deletedColRef = collection(db, "deleted_projects");
+      unsubscribeDeleted = onSnapshot(deletedColRef, (deletedSnap) => {
         try {
-          if (docSnap.exists()) {
-            const cloudData = docSnap.data();
-            
-            isRemoteChange.current = true;
-            
-            if (cloudData.projects) {
-              setProjects(cloudData.projects);
-              localStorage.setItem("ipm_projects", JSON.stringify(cloudData.projects));
-            }
-
-            setTimeout(() => {
-              isRemoteChange.current = false;
-            }, 100);
-          }
-          setHasLoadedProjectsFromCloud(true);
+          const cloudDeletedIds = [];
+          deletedSnap.forEach((docSnap) => {
+            cloudDeletedIds.push(docSnap.id);
+          });
+          
+          setDeletedProjectIds((prev) => {
+            const combined = [...new Set([...prev, ...cloudDeletedIds])];
+            localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(combined));
+            return combined;
+          });
         } catch (err) {
-          console.error("Error processing app projects snapshot:", err);
+          console.error("Error processing deleted projects snapshot:", err);
+        }
+      }, (error) => {
+        console.error("Error listening to deleted projects:", error);
+      });
+
+      // 3. Listen to real-time shared projects (projects collection)
+      const projectsColRef = collection(db, "projects");
+      unsubscribeData = onSnapshot(projectsColRef, (querySnapshot) => {
+        try {
+          isRemoteChange.current = true;
+          
+          const cloudProjects = [];
+          querySnapshot.forEach((docSnap) => {
+            cloudProjects.push({ ...docSnap.data(), id: docSnap.id });
+          });
+
+          setProjects((prevProjects) => {
+            // Read latest deleted IDs directly to avoid closure stale state
+            const savedDeletedRaw = localStorage.getItem("ipm_deleted_project_ids");
+            const currentDeletedIds = savedDeletedRaw ? JSON.parse(savedDeletedRaw) : [];
+
+            // Perform Safe Merge
+            const allProjectsMap = new Map();
+            
+            // Add local projects first
+            prevProjects.forEach((p) => {
+              if (!currentDeletedIds.includes(p.id)) {
+                allProjectsMap.set(p.id, p);
+              }
+            });
+            
+            // Add/overwrite with cloud projects (using smart conflict-free merge)
+            cloudProjects.forEach((cloudProj) => {
+              if (currentDeletedIds.includes(cloudProj.id)) return;
+
+              const localProj = allProjectsMap.get(cloudProj.id);
+              if (!localProj) {
+                allProjectsMap.set(cloudProj.id, cloudProj);
+              } else {
+                // Perform smart merge based on updatedAt and offline updates
+                const localTime = localProj.updatedAt ? new Date(localProj.updatedAt).getTime() : 0;
+                const cloudTime = cloudProj.updatedAt ? new Date(cloudProj.updatedAt).getTime() : 0;
+
+                const localIsNewer = localTime >= cloudTime;
+                const baseProj = localIsNewer ? localProj : cloudProj;
+                const otherProj = localIsNewer ? cloudProj : localProj;
+
+                // Merge materials
+                const baseMaterials = baseProj.materials || [];
+                const otherMaterials = otherProj.materials || [];
+                const mergedMaterials = [...baseMaterials];
+                otherMaterials.forEach((item) => {
+                  if (!baseMaterials.some((m) => m.id === item.id)) {
+                    mergedMaterials.push(item);
+                  }
+                });
+
+                // Merge tasks
+                const baseTasks = baseProj.tasks || [];
+                const otherTasks = otherProj.tasks || [];
+                const mergedTasks = [...baseTasks];
+                otherTasks.forEach((item) => {
+                  if (!baseTasks.some((t) => t.id === item.id)) {
+                    mergedTasks.push(item);
+                  }
+                });
+
+                allProjectsMap.set(cloudProj.id, {
+                  ...baseProj,
+                  materials: mergedMaterials,
+                  tasks: mergedTasks
+                });
+              }
+            });
+            
+            const mergedList = Array.from(allProjectsMap.values());
+            localStorage.setItem("ipm_projects", JSON.stringify(mergedList));
+            
+            // Upload any local projects that are not yet in the cloud (excluding deleted ones)
+            mergedList.forEach((p) => {
+              const inCloud = cloudProjects.some((cp) => cp.id === p.id);
+              if (!inCloud) {
+                setTimeout(() => {
+                  syncProjectToCloud(p);
+                }, 200);
+              }
+            });
+
+            // Delete any project document in the cloud if it is in currentDeletedIds
+            currentDeletedIds.forEach((deletedId) => {
+              const inCloud = cloudProjects.some((cp) => cp.id === deletedId);
+              if (inCloud) {
+                setTimeout(() => {
+                  deleteProjectFromCloud(deletedId);
+                }, 200);
+              }
+            });
+
+            prevProjectsRef.current = mergedList;
+            return mergedList;
+          });
+
+          setTimeout(() => {
+            isRemoteChange.current = false;
+          }, 100);
+          setHasLoadedProjectsFromCloud(true);
+
+          // Fetch daily backups from cloud to synchronize local cache
+          const backupsColRef = collection(db, "users", cleanEmail, "backups");
+          getDocs(backupsColRef).then((querySnapshot) => {
+            const cloudBackups = [];
+            querySnapshot.forEach((docSnap) => {
+              cloudBackups.push(docSnap.data());
+            });
+            // Sort by timestamp descending
+            cloudBackups.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            localStorage.setItem("ipm_projects_backups_daily", JSON.stringify(cloudBackups));
+          }).catch((err) => console.error("Error syncing cloud backups list:", err));
+        } catch (err) {
+          console.error("Error processing projects collection snapshot:", err);
         }
       }, (error) => {
         console.error("Error listening to projects updates:", error);
       });
 
-      // 3. Listen to real-time private schedule sync edits (private per user)
+      // 4. Listen to real-time private schedule sync edits (private per user)
       const scheduleDocRef = doc(db, "users", cleanEmail, "private", "meetings");
       unsubscribeSchedule = onSnapshot(scheduleDocRef, (docSnap) => {
         try {
@@ -614,6 +877,7 @@ function App() {
     return () => {
       unsubscribeUsers();
       unsubscribeData();
+      unsubscribeDeleted();
       unsubscribeSchedule();
     };
   }, [cloudSyncEnabled, userEmail]);
@@ -728,7 +992,7 @@ function App() {
 
       // 3. Pending materials for any project -> Daily at 2:00 PM (One notification per project for direct routing)
       const projectsWithPendingMaterials = projects.filter((p) =>
-        p.materials?.some((m) => !m.completed)
+        !p.isTrashed && p.materials?.some((m) => !m.completed)
       );
       projectsWithPendingMaterials.forEach((p) => {
         let scheduleTime = new Date();
@@ -762,10 +1026,96 @@ function App() {
     rescheduleNotifications();
   }, [projects, schedule]);
 
+  // Save local project backup (retaining recent edits and 30 days of daily snapshots)
+  const saveProjectBackup = (currentProjects) => {
+    if (!currentProjects || currentProjects.length === 0) return;
+    try {
+      const now = new Date();
+      const todayDateStr = now.toISOString().split("T")[0];
+
+      // --- 1. RECENT BACKUPS (Short-term, last 5 edits with 5-minute cooldown) ---
+      const savedRecentRaw = localStorage.getItem("ipm_projects_backups_recent");
+      const recentBackups = savedRecentRaw ? JSON.parse(savedRecentRaw) : [];
+      const lastRecent = recentBackups[0];
+      
+      let updatedRecent = [...recentBackups];
+      
+      if (!lastRecent || JSON.stringify(lastRecent.projects) !== JSON.stringify(currentProjects)) {
+        if (lastRecent && (now - new Date(lastRecent.timestamp)) < 5 * 60 * 1000) {
+          lastRecent.projects = currentProjects;
+          lastRecent.timestamp = now.toISOString();
+          updatedRecent = [...recentBackups];
+        } else {
+          updatedRecent = [{ timestamp: now.toISOString(), projects: currentProjects }, ...recentBackups].slice(0, 5);
+        }
+        localStorage.setItem("ipm_projects_backups_recent", JSON.stringify(updatedRecent));
+      }
+
+      // --- 2. DAILY BACKUPS (Long-term, one per day, keeps last 30 days) ---
+      const savedDailyRaw = localStorage.getItem("ipm_projects_backups_daily");
+      const dailyBackups = savedDailyRaw ? JSON.parse(savedDailyRaw) : [];
+      const existingDailyIndex = dailyBackups.findIndex(b => b.date === todayDateStr);
+      
+      let updatedDaily = [...dailyBackups];
+      if (existingDailyIndex !== -1) {
+        dailyBackups[existingDailyIndex].projects = currentProjects;
+        dailyBackups[existingDailyIndex].timestamp = now.toISOString();
+        updatedDaily = [...dailyBackups];
+      } else {
+        const newDaily = {
+          date: todayDateStr,
+          timestamp: now.toISOString(),
+          projects: currentProjects
+        };
+        updatedDaily = [newDaily, ...dailyBackups].slice(0, 30);
+      }
+      localStorage.setItem("ipm_projects_backups_daily", JSON.stringify(updatedDaily));
+
+      // --- 3. CLOUD BACKUPS SYNC & RETENTION (Saves to cloud, retains last 30 days) ---
+      if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
+        const cleanEmail = userEmail.toLowerCase().trim();
+        const backupDocRef = doc(db, "users", cleanEmail, "backups", todayDateStr);
+        
+        setDoc(backupDocRef, {
+          date: todayDateStr,
+          timestamp: now.toISOString(),
+          projects: currentProjects
+        }, { merge: true }).then(() => {
+          // Fetch backups list to enforce 30-day retention
+          const backupsColRef = collection(db, "users", cleanEmail, "backups");
+          getDocs(backupsColRef).then((querySnapshot) => {
+            const backupsList = [];
+            querySnapshot.forEach((docSnap) => {
+              backupsList.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            // Sort lexicographically by date descending (latest first)
+            backupsList.sort((a, b) => b.date.localeCompare(a.date));
+            
+            // Delete backups beyond the 30th latest daily snapshot
+            if (backupsList.length > 30) {
+              const oldBackups = backupsList.slice(30);
+              oldBackups.forEach((old) => {
+                deleteDoc(doc(db, "users", cleanEmail, "backups", old.id))
+                  .catch((e) => console.error("Error deleting old backup:", e));
+              });
+            }
+          }).catch((err) => console.error("Error retrieving backups list for retention check:", err));
+        }).catch((err) => console.error("Error uploading daily backup to Firestore:", err));
+      }
+    } catch (err) {
+      console.error("Failed to save project backup:", err);
+    }
+  };
+
   // --- PERSISTENCE ---
   useEffect(() => {
     localStorage.setItem("ipm_projects", JSON.stringify(projects));
+    saveProjectBackup(projects);
   }, [projects]);
+
+  useEffect(() => {
+    localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(deletedProjectIds));
+  }, [deletedProjectIds]);
 
   useEffect(() => {
     localStorage.setItem("ipm_schedule", JSON.stringify(schedule));
@@ -781,14 +1131,17 @@ function App() {
     }
   }, [theme]);
 
+  // --- ACTIVE PROJECTS FILTERING ---
+  const activeProjects = projects.filter(p => !p.isTrashed);
+
   // --- STATS CALCULATION ---
-  const ongoingProjectsCount = projects.filter(
+  const ongoingProjectsCount = activeProjects.filter(
     (p) => p.status === "ongoing"
   ).length;
-  const notStartedProjectsCount = projects.filter(
+  const notStartedProjectsCount = activeProjects.filter(
     (p) => p.status === "not-started"
   ).length;
-  const completedProjectsCount = projects.filter(
+  const completedProjectsCount = activeProjects.filter(
     (p) => p.status === "completed"
   ).length;
 
@@ -805,12 +1158,12 @@ function App() {
     (s) => !s.completed
   ).length;
 
-  const totalTasksCompleted = projects.reduce(
+  const totalTasksCompleted = activeProjects.reduce(
     (acc, p) => acc + (p.tasks?.filter((t) => t.completed).length || 0),
     0
   );
   // eslint-disable-next-line no-unused-vars
-  const totalMaterialsOrdered = projects.reduce(
+  const totalMaterialsOrdered = activeProjects.reduce(
     (acc, p) => acc + (p.materials?.length || 0),
     0
   );
@@ -825,7 +1178,7 @@ function App() {
     });
 
   // --- FILTERED LISTS ---
-  const filteredProjects = projects.filter((project) => {
+  const filteredProjects = activeProjects.filter((project) => {
     const matchesSearch =
       project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       project.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -834,7 +1187,7 @@ function App() {
     return matchesSearch && matchesStatus;
   });
 
-  const activeProject = projects.find((p) => p.id === activeProjectId);
+  const activeProject = activeProjects.find((p) => p.id === activeProjectId);
 
   // --- HANDLERS ---
   const toggleTheme = () => {
@@ -922,11 +1275,18 @@ function App() {
     setIsNewProjModalOpen(false);
   };
 
-  // Delete Project
+  // Delete Project (Move to Recycle Bin)
   const handleDeleteProject = (projId, e) => {
     e.stopPropagation(); // Stop navigation click
-    if (window.confirm("Are you sure you want to delete this project?")) {
-      setProjects(projects.filter((p) => p.id !== projId));
+    if (window.confirm("Are you sure you want to move this project to the Recycle Bin (Trash)?")) {
+      setProjects(
+        projects.map((p) => {
+          if (p.id === projId) {
+            return { ...p, isTrashed: true, trashedAt: new Date().toISOString() };
+          }
+          return p;
+        })
+      );
       if (activeProjectId === projId) {
         setActiveProjectId(null);
       }
@@ -1425,128 +1785,450 @@ function App() {
     });
   };
 
+  // --- EMAIL UTILITIES AND AUTOMATED REPORT SYNC ---
+
+  // Helper to generate a PDF of ALL active projects (used for automatic backup emails)
+  const generateAllProjectsPDF = (allProjects) => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("WeaverBird", 20, 25);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(180, 150, 100); // gold
+    doc.text("INTERIOR STUDIO - ALL PROJECTS BACKUP SUMMARY", 20, 31);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, 150, 25);
+    
+    doc.setDrawColor(212, 175, 55);
+    doc.setLineWidth(0.8);
+    doc.line(20, 36, 190, 36);
+    
+    let y = 45;
+    
+    const activeProjects = allProjects.filter(p => !p.isTrashed);
+    
+    if (activeProjects.length === 0) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(11);
+      doc.text("No active projects found in the studio database.", 20, y);
+    } else {
+      activeProjects.forEach((proj, idx) => {
+        // Page boundary check
+        if (y > 250) {
+          doc.addPage();
+          y = 25;
+        }
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${idx + 1}. Project: ${proj.name}`, 20, y);
+        y += 6;
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Status: ${proj.status.toUpperCase()} | Deadline: ${proj.completionDate || "Not set"}`, 20, y);
+        y += 5;
+        
+        doc.setFont("helvetica", "italic");
+        doc.text(`Description: ${proj.description || "No description provided."}`, 20, y);
+        y += 6;
+        
+        // Filter pending tasks and materials
+        const pendingMats = (proj.materials || []).filter(m => !m.completed);
+        const pendingTasks = (proj.tasks || []).filter(t => !t.completed);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(15, 23, 42);
+        doc.text(`Pending Materials: ${pendingMats.length} | Pending Tasks: ${pendingTasks.length}`, 20, y);
+        y += 6;
+
+        if (pendingMats.length > 0) {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text("  Pending Materials List:", 20, y);
+          y += 5;
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(51, 65, 85);
+          pendingMats.forEach((m) => {
+            if (y > 270) { doc.addPage(); y = 25; }
+            doc.text(`    • ${m.name}`, 20, y);
+            y += 5;
+          });
+        }
+
+        if (pendingTasks.length > 0) {
+          if (y > 270) { doc.addPage(); y = 25; }
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text("  Pending Tasks List:", 20, y);
+          y += 5;
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(51, 65, 85);
+          pendingTasks.forEach((t) => {
+            if (y > 270) { doc.addPage(); y = 25; }
+            const priorityStr = (t.priority || "medium").toUpperCase();
+            doc.text(`    • ${t.name} [${priorityStr}]`, 20, y);
+            y += 5;
+          });
+        }
+        y += 8; // Gap
+      });
+    }
+    
+    return doc;
+  };
+
+  // Shared helper to generate a PDF for a single project report
+  const generateSingleProjectPDF = (report) => {
+    const doc = new jsPDF();
+    
+    // WeaverBird Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("WeaverBird", 20, 25);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(180, 150, 100); // gold
+    doc.text("INTERIOR STUDIO", 20, 31);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, 150, 25);
+    
+    // Gold Divider Line
+    doc.setDrawColor(212, 175, 55);
+    doc.setLineWidth(0.8);
+    doc.line(20, 36, 190, 36);
+    
+    // Project Details box background
+    doc.setFillColor(248, 250, 252);
+    doc.rect(20, 42, 170, 22, "F");
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.rect(20, 42, 170, 22, "S");
+    
+    // Project Details Text
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Project Name: ${report.projectName}`, 25, 49);
+    
+    doc.setFont("helvetica", "normal");
+    const targetDateStr = report.targetDate ? new Date(report.targetDate).toLocaleDateString("en-GB") : "No Date Set";
+    doc.text(`Target Date: ${targetDateStr}`, 25, 57);
+
+    // Days Left section on the right side of the details box
+    if (report.targetDate) {
+      const target = new Date(report.targetDate);
+      const today = new Date();
+      target.setHours(0,0,0,0);
+      today.setHours(0,0,0,0);
+      const diffTime = target.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      doc.setFont("helvetica", "bold");
+      if (diffDays < 0) {
+        doc.setTextColor(239, 68, 68); // Red for overdue
+        doc.text(`${Math.abs(diffDays)} Days Overdue`, 135, 53);
+      } else if (diffDays === 0) {
+        doc.setTextColor(212, 175, 55); // Gold for due today
+        doc.text("Due Today", 135, 53);
+      } else {
+        doc.setTextColor(34, 197, 94); // Green for active days left
+        doc.text(`${diffDays} Days Left`, 135, 53);
+      }
+    }
+    
+    // Report Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text(report.title, 20, 76);
+    
+    let y = 86;
+    
+    // Materials list
+    if (report.type === "materials" || report.type === "both") {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(100, 116, 139);
+      doc.text("PENDING MATERIALS", 20, y);
+      y += 8;
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(51, 65, 85);
+      if (report.materials && report.materials.length > 0) {
+        report.materials.forEach((m, idx) => {
+          doc.text(`${idx + 1}. ${m.name}`, 25, y);
+          doc.text("Pending", 155, y);
+          y += 8;
+          if (y > 270) { doc.addPage(); y = 20; }
+        });
+      } else {
+        doc.text("No pending materials.", 25, y);
+        y += 8;
+      }
+      y += 6;
+    }
+    
+    // Tasks list
+    if (report.type === "tasks" || report.type === "both") {
+      if (y > 250) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(100, 116, 139);
+      doc.text("PENDING WORKS", 20, y);
+      y += 8;
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(51, 65, 85);
+      if (report.tasks && report.tasks.length > 0) {
+        report.tasks.forEach((t, idx) => {
+          const pStr = (t.priority || "medium").toUpperCase();
+          doc.text(`${idx + 1}. ${t.name}`, 25, y);
+          doc.text(`[Priority: ${pStr}]`, 155, y);
+          y += 8;
+          if (y > 270) { doc.addPage(); y = 20; }
+        });
+      } else {
+        doc.text("No pending works.", 25, y);
+        y += 8;
+      }
+    }
+    
+    return doc;
+  };
+
+  // Main Email sender helper (Supports Google Apps Script or EmailJS fallback)
+  const sendEmailWithAttachment = async (recipient, subject, bodyMessage, pdfDoc, attachmentName = "weaverbird_report.pdf") => {
+    const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || googleScriptUrl;
+
+    // Get the Base64 representation of the PDF from jsPDF
+    const dataUri = pdfDoc.output("datauristring");
+    const base64pdf = dataUri.split(",")[1];
+
+    if (scriptUrl) {
+      // Send via Google Apps Script Web App
+      try {
+        const payload = {
+          to: recipient,
+          subject: subject,
+          body: bodyMessage,
+          attachmentName: attachmentName,
+          attachmentBase64: base64pdf
+        };
+
+        // We use mode: "no-cors" and Content-Type: "text/plain" to bypass CORS preflight restrictions in browsers
+        await fetch(scriptUrl, {
+          method: "POST",
+          mode: "no-cors",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        // Since no-cors returns an opaque response, we assume success if no exception was thrown
+        return true;
+      } catch (error) {
+        console.error("Google Apps Script sending failed:", error);
+        return false;
+      }
+    }
+
+    // Fallback to EmailJS
+    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || emailJsServiceId;
+    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || emailJsTemplateId;
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || emailJsPublicKey;
+
+    if (!serviceId || !templateId || !publicKey) {
+      console.warn("Email configuration is missing.");
+      return false;
+    }
+
+    try {
+      const payload = {
+        service_id: serviceId,
+        template_id: templateId,
+        user_id: publicKey,
+        template_params: {
+          to_email: recipient,
+          subject: subject,
+          message: bodyMessage,
+          from_name: "Weaverbird App",
+          attachment: base64pdf
+        }
+      };
+
+      const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        return true;
+      } else {
+        const errorText = await response.text();
+        console.error("EmailJS sending failed:", errorText);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error sending email via EmailJS:", error);
+      return false;
+    }
+  };
+
+  // Helper to send a project report manually
+  const handleEmailReportManually = async () => {
+    if (!reportPreview) return;
+    
+    const targetEmail = recipientEmail === "custom" ? customRecipientEmail : recipientEmail;
+    if (!targetEmail || !targetEmail.trim() || !targetEmail.includes("@")) {
+      alert("Please enter or select a valid recipient email.");
+      return;
+    }
+    
+    const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || googleScriptUrl;
+    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || emailJsServiceId;
+    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || emailJsTemplateId;
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || emailJsPublicKey;
+
+    if (!scriptUrl && (!serviceId || !templateId || !publicKey)) {
+      alert("Email configuration is missing. Please set VITE_GOOGLE_SCRIPT_URL in your .env file, or configure your EmailJS credentials.");
+      return;
+    }
+
+    setIsSendingEmail(true);
+
+    try {
+      // Create the single project PDF using the shared generator function
+      const doc = generateSingleProjectPDF(reportPreview);
+      
+      const emailSubject = `Weaverbird Report: ${reportPreview.projectName} - ${reportPreview.title}`;
+      const emailMessage = `Hello,\n\nPlease find attached the ${reportPreview.title} PDF for project "${reportPreview.projectName}" generated from the Weaverbird Interior Studio app.`;
+      
+      const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, doc, `${reportPreview.projectName.replace(/\s+/g, '_')}_report.pdf`);
+      
+      if (success) {
+        alert(`PDF report successfully emailed to ${targetEmail}!`);
+      } else {
+        alert("Failed to email report. Please check configurations.");
+      }
+    } catch (err) {
+      console.error("Error generating/mailing report:", err);
+      alert("An error occurred while preparing the email.");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  // Trigger manual full studio backup report
+  const handleSendManualBackup = async () => {
+    const targetEmail = recipientEmail === "custom" ? customRecipientEmail : recipientEmail;
+    if (!targetEmail || !targetEmail.trim() || !targetEmail.includes("@")) {
+      alert("Please select or enter a valid recipient email.");
+      return;
+    }
+
+    const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || googleScriptUrl;
+    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || emailJsServiceId;
+    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || emailJsTemplateId;
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || emailJsPublicKey;
+
+    if (!scriptUrl && (!serviceId || !templateId || !publicKey)) {
+      alert("Email configuration is missing. Please set VITE_GOOGLE_SCRIPT_URL in your .env file, or configure your EmailJS credentials.");
+      return;
+    }
+
+    setIsSendingEmail(true);
+    try {
+      const backupPdf = generateAllProjectsPDF(projects);
+      const emailSubject = `Manual Backup: Weaverbird Studio`;
+      const emailMessage = `Hello,\n\nHere is a manual backup report containing a summary of all active projects in the Weaverbird Interior Studio dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
+      
+      const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, backupPdf, `weaverbird_studio_backup_${new Date().toISOString().split("T")[0]}.pdf`);
+      
+      if (success) {
+        alert(`Backup PDF successfully emailed to ${targetEmail}!`);
+      } else {
+        alert("Failed to send backup email. Please verify the mail configuration.");
+      }
+    } catch (err) {
+      console.error("Manual backup send failed:", err);
+      alert("An error occurred while sending the backup email.");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  // Auto-backup scheduler checks and triggers the 3-day backup email
+  const checkAndTriggerAutoEmail = async (currentProjects, cleanEmail) => {
+    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || emailJsServiceId;
+    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || emailJsTemplateId;
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || emailJsPublicKey;
+
+    if (!serviceId || !templateId || !publicKey || !cleanEmail) return;
+    
+    try {
+      const userDocRef = doc(db, "users", cleanEmail);
+      const userSnap = await getDoc(userDocRef);
+      
+      let lastSent = 0;
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        if (data.lastEmailBackupAt) {
+          lastSent = new Date(data.lastEmailBackupAt).getTime();
+          setLastEmailBackupDate(data.lastEmailBackupAt);
+        }
+      }
+      
+      const nowTime = Date.now();
+      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+      
+      if (nowTime - lastSent >= threeDaysMs) {
+        console.log("Triggering 3-day automated email backup...");
+        const backupPdf = generateAllProjectsPDF(currentProjects);
+        const emailSubject = `Automated 3-Day Backup: Weaverbird Studio`;
+        const emailMessage = `Hello,\n\nThis is your automated 3-day backup report containing a summary of all active projects in your Weaverbird Interior Studio dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
+        
+        const success = await sendEmailWithAttachment(cleanEmail, emailSubject, emailMessage, backupPdf, `weaverbird_studio_backup_${new Date().toISOString().split("T")[0]}.pdf`);
+        
+        if (success) {
+          const timestamp = new Date().toISOString();
+          await setDoc(userDocRef, { lastEmailBackupAt: timestamp }, { merge: true });
+          setLastEmailBackupDate(timestamp);
+          console.log("Automated 3-day backup email sent successfully!");
+        } else {
+          console.warn("Automated backup email failed to send.");
+        }
+      }
+    } catch (err) {
+      console.error("Error processing automated backup email:", err);
+    }
+  };
+
   // Local PDF File Download/Write handler for phones and web browsers
   const handleDownloadPDF = async () => {
     if (!reportPreview) return;
 
     try {
-      const doc = new jsPDF();
-      
-      // WeaverBird Header
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(22);
-      doc.text("WeaverBird", 20, 25);
-      
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(180, 150, 100); // gold
-      doc.text("INTERIOR STUDIO", 20, 31);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, 150, 25);
-      
-      // Gold Divider Line
-      doc.setDrawColor(212, 175, 55);
-      doc.setLineWidth(0.8);
-      doc.line(20, 36, 190, 36);
-      
-      // Project Details box background
-      doc.setFillColor(248, 250, 252);
-      doc.rect(20, 42, 170, 22, "F");
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.3);
-      doc.rect(20, 42, 170, 22, "S");
-      
-      // Project Details Text
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      doc.text(`Project Name: ${reportPreview.projectName}`, 25, 49);
-      
-      doc.setFont("helvetica", "normal");
-      const targetDateStr = reportPreview.targetDate ? new Date(reportPreview.targetDate).toLocaleDateString("en-GB") : "No Date Set";
-      doc.text(`Target Date: ${targetDateStr}`, 25, 57);
-
-      // Days Left section on the right side of the details box
-      if (reportPreview.targetDate) {
-        const target = new Date(reportPreview.targetDate);
-        const today = new Date();
-        target.setHours(0,0,0,0);
-        today.setHours(0,0,0,0);
-        const diffTime = target.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        doc.setFont("helvetica", "bold");
-        if (diffDays < 0) {
-          doc.setTextColor(239, 68, 68); // Red for overdue
-          doc.text(`${Math.abs(diffDays)} Days Overdue`, 135, 53);
-        } else if (diffDays === 0) {
-          doc.setTextColor(212, 175, 55); // Gold for due today
-          doc.text("Due Today", 135, 53);
-        } else {
-          doc.setTextColor(34, 197, 94); // Green for active days left
-          doc.text(`${diffDays} Days Left`, 135, 53);
-        }
-      }
-      
-      // Report Title
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(15, 23, 42);
-      doc.text(reportPreview.title, 20, 76);
-      
-      let y = 86;
-      
-      // Materials list
-      if (reportPreview.type === "materials" || reportPreview.type === "both") {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(100, 116, 139);
-        doc.text("PENDING MATERIALS", 20, y);
-        y += 8;
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(51, 65, 85);
-        if (reportPreview.materials.length > 0) {
-          reportPreview.materials.forEach((m, idx) => {
-            doc.text(`${idx + 1}. ${m.name}`, 25, y);
-            doc.text("Pending", 155, y);
-            y += 8;
-            if (y > 270) { doc.addPage(); y = 20; }
-          });
-        } else {
-          doc.text("No pending materials.", 25, y);
-          y += 8;
-        }
-        y += 6;
-      }
-      
-      // Tasks list
-      if (reportPreview.type === "tasks" || reportPreview.type === "both") {
-        if (y > 250) { doc.addPage(); y = 20; }
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(100, 116, 139);
-        doc.text("PENDING WORKS", 20, y);
-        y += 8;
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(51, 65, 85);
-        if (reportPreview.tasks.length > 0) {
-          reportPreview.tasks.forEach((t, idx) => {
-            const pStr = (t.priority || "medium").toUpperCase();
-            doc.text(`${idx + 1}. ${t.name}`, 25, y);
-            doc.text(`[Priority: ${pStr}]`, 155, y);
-            y += 8;
-            if (y > 270) { doc.addPage(); y = 20; }
-          });
-        } else {
-          doc.text("No pending works.", 25, y);
-          y += 8;
-        }
-      }
+      // Create the single project PDF using the shared generator function
+      const doc = generateSingleProjectPDF(reportPreview);
       
       const fileName = `WeaverBird_${reportPreview.projectName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
       
@@ -1595,123 +2277,8 @@ function App() {
     if (!reportPreview) return;
 
     try {
-      const doc = new jsPDF();
-      
-      // WeaverBird Header
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(22);
-      doc.text("WeaverBird", 20, 25);
-      
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(180, 150, 100); // gold
-      doc.text("INTERIOR STUDIO", 20, 31);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, 150, 25);
-      
-      // Gold Divider Line
-      doc.setDrawColor(212, 175, 55);
-      doc.setLineWidth(0.8);
-      doc.line(20, 36, 190, 36);
-      
-      // Project Details box background
-      doc.setFillColor(248, 250, 252);
-      doc.rect(20, 42, 170, 22, "F");
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.3);
-      doc.rect(20, 42, 170, 22, "S");
-      
-      // Project Details Text
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      doc.text(`Project Name: ${reportPreview.projectName}`, 25, 49);
-      
-      doc.setFont("helvetica", "normal");
-      const targetDateStrShare = reportPreview.targetDate ? new Date(reportPreview.targetDate).toLocaleDateString("en-GB") : "No Date Set";
-      doc.text(`Target Date: ${targetDateStrShare}`, 25, 57);
-
-      // Days Left section on the right side of the details box
-      if (reportPreview.targetDate) {
-        const target = new Date(reportPreview.targetDate);
-        const today = new Date();
-        target.setHours(0,0,0,0);
-        today.setHours(0,0,0,0);
-        const diffTime = target.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        doc.setFont("helvetica", "bold");
-        if (diffDays < 0) {
-          doc.setTextColor(239, 68, 68); // Red for overdue
-          doc.text(`${Math.abs(diffDays)} Days Overdue`, 135, 53);
-        } else if (diffDays === 0) {
-          doc.setTextColor(212, 175, 55); // Gold for due today
-          doc.text("Due Today", 135, 53);
-        } else {
-          doc.setTextColor(34, 197, 94); // Green for active days left
-          doc.text(`${diffDays} Days Left`, 135, 53);
-        }
-      }
-      
-      // Report Title
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(15, 23, 42);
-      doc.text(reportPreview.title, 20, 76);
-      
-      let y = 86;
-      
-      // Materials list
-      if (reportPreview.type === "materials" || reportPreview.type === "both") {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(100, 116, 139);
-        doc.text("PENDING MATERIALS", 20, y);
-        y += 8;
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(51, 65, 85);
-        if (reportPreview.materials.length > 0) {
-          reportPreview.materials.forEach((m, idx) => {
-            doc.text(`${idx + 1}. ${m.name}`, 25, y);
-            doc.text("Pending", 155, y);
-            y += 8;
-            if (y > 270) { doc.addPage(); y = 20; }
-          });
-        } else {
-          doc.text("No pending materials.", 25, y);
-          y += 8;
-        }
-        y += 6;
-      }
-      
-      // Tasks list
-      if (reportPreview.type === "tasks" || reportPreview.type === "both") {
-        if (y > 250) { doc.addPage(); y = 20; }
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(100, 116, 139);
-        doc.text("PENDING WORKS", 20, y);
-        y += 8;
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(51, 65, 85);
-        if (reportPreview.tasks.length > 0) {
-          reportPreview.tasks.forEach((t, idx) => {
-            const pStr = (t.priority || "medium").toUpperCase();
-            doc.text(`${idx + 1}. ${t.name}`, 25, y);
-            doc.text(`[Priority: ${pStr}]`, 155, y);
-            y += 8;
-            if (y > 270) { doc.addPage(); y = 20; }
-          });
-        } else {
-          doc.text("No pending works.", 25, y);
-          y += 8;
-        }
-      }
+      // Create the single project PDF using the shared generator function
+      const doc = generateSingleProjectPDF(reportPreview);
       
       const fileName = `WeaverBird_${reportPreview.projectName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
       
@@ -3108,25 +3675,37 @@ function App() {
           {currentTab === "profile" && (
             <>
               <div className="app-header fade-in">
-                <div className="header-left">
-                  <div className="header-title-container">
+                  <div
+                    style={{ display: "flex", flexDirection: "column" }}
+                  >
                     <span
-                      className="header-subtitle"
-                      style={{ fontWeight: 700, color: "var(--accent-gold)" }}
+                      className="header-brand"
+                      style={{
+                        fontSize: "22px",
+                        fontWeight: "800",
+                        color: "var(--text-title)",
+                        fontFamily: "var(--font-title)",
+                        lineHeight: "1.1",
+                        letterSpacing: "-0.5px",
+                      }}
                     >
                       WeaverBird
                     </span>
-                    <h1
+                    <span
+                      className="header-subtitle"
                       style={{
-                        letterSpacing: "2px",
+                        fontSize: "10px",
+                        fontWeight: "600",
+                        color: "var(--accent-gold-dark)",
                         textTransform: "uppercase",
-                        fontSize: "18px",
+                        letterSpacing: "3.5px",
+                        marginTop: "2px",
+                        display: "block",
                       }}
                     >
                       Interior Studio
-                    </h1>
+                    </span>
                   </div>
-                </div>
                 <div className="header-right">
                   <button
                     className="icon-btn"
@@ -3181,6 +3760,20 @@ function App() {
                   >
                     Interior Studio
                   </p>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--text-muted)",
+                      backgroundColor: "var(--bg-main)",
+                      padding: "4px 8px",
+                      borderRadius: "12px",
+                      border: "1px solid var(--border)",
+                      marginTop: "4px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Version: v{WEB_APP_VERSION}
+                  </span>
                 </div>
 
                 {/* Settings list */}
@@ -3533,6 +4126,315 @@ function App() {
                 </div>
 
                 <div className="settings-section">
+                  <div className="settings-section-title">Data Security & Recovery</div>
+
+                  {/* Recycle Bin row */}
+                  <div 
+                    className="settings-row"
+                    onClick={() => setIsTrashBinOpen(true)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                  >
+                    <div className="settings-row-left">
+                      <Trash2 size={16} className="settings-row-icon" />
+                      <span>Recycle Bin (Trash)</span>
+                    </div>
+                    <span style={{ 
+                      fontSize: "12px", 
+                      backgroundColor: "rgba(212, 175, 55, 0.15)", 
+                      color: "var(--accent-gold)", 
+                      padding: "2px 8px", 
+                      borderRadius: "12px",
+                      fontWeight: 600
+                    }}>
+                      {projects.filter(p => p.isTrashed).length} item(s)
+                    </span>
+                  </div>
+
+                  {/* Local Backups row */}
+                  <div 
+                    className="settings-row"
+                    onClick={() => setIsBackupsListOpen(true)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                  >
+                    <div className="settings-row-left">
+                      <Clock size={16} className="settings-row-icon" />
+                      <span>Restore Backup Snapshots</span>
+                    </div>
+                    <span style={{ 
+                      fontSize: "12px", 
+                      color: "var(--text-muted)",
+                      fontWeight: 600
+                    }}>
+                      View history
+                    </span>
+                  </div>
+                </div>
+
+                {userRole === "admin" && (
+                  <div className="settings-section">
+                    <div className="settings-section-title">Email Reports & Automation</div>
+                    
+                    {/* Part 1: Quick Send Manual Backup */}
+                    <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "12px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                        Send Manual Studio Backup
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                        Send a complete PDF report of all active projects immediately:
+                      </div>
+                      
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                        <select
+                          value={recipientEmail}
+                          onChange={(e) => setRecipientEmail(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            backgroundColor: "var(--bg-main)",
+                            color: "var(--text-main)",
+                            fontSize: "12.5px"
+                          }}
+                        >
+                          {userEmail && <option value={userEmail.toLowerCase().trim()}>Myself ({userEmail})</option>}
+                          
+                          {/* Custom backupRecipients list */}
+                          {backupRecipients.map(email => (
+                            <option key={email} value={email}>{email} (Recipient)</option>
+                          ))}
+                          
+                          {/* Other partners */}
+                          {authorizedUsers.map(u => u.email.toLowerCase().trim())
+                            .filter(email => email !== userEmail.toLowerCase().trim() && !backupRecipients.includes(email))
+                            .map(email => (
+                              <option key={email} value={email}>{email} (Partner)</option>
+                            ))
+                          }
+                          
+                          <option value="custom">Other Email...</option>
+                        </select>
+                        
+                        <button
+                          onClick={handleSendManualBackup}
+                          disabled={isSendingEmail}
+                          style={{
+                            width: "100%",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "8px",
+                            padding: "10px 16px",
+                            backgroundColor: isSendingEmail ? "var(--border)" : "var(--accent-gold)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "8px",
+                            fontWeight: "700",
+                            fontSize: "12.5px",
+                            cursor: isSendingEmail ? "not-allowed" : "pointer",
+                            transition: "all 0.2s ease",
+                            boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSendingEmail) {
+                              e.currentTarget.style.backgroundColor = "var(--accent-gold-dark)";
+                              e.currentTarget.style.boxShadow = "0 6px 14px rgba(212, 175, 55, 0.25)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSendingEmail) {
+                              e.currentTarget.style.backgroundColor = "var(--accent-gold)";
+                              e.currentTarget.style.boxShadow = "0 4px 10px rgba(212, 175, 55, 0.15)";
+                            }
+                          }}
+                        >
+                          {isSendingEmail ? (
+                            <>
+                              <div className="spinner-mini" />
+                              <span>Sending...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail size={13} />
+                              <span>Send Now</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {recipientEmail === "custom" && (
+                        <input
+                          type="email"
+                          placeholder="partner@example.com"
+                          value={customRecipientEmail}
+                          onChange={(e) => setCustomRecipientEmail(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            backgroundColor: "var(--bg-main)",
+                            color: "var(--text-main)",
+                            fontSize: "12.5px"
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Google Apps Script Integration Config */}
+                    <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                        Google Apps Script Web App URL
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                        Paste your Google Script URL to send email reports for free using your Gmail account:
+                      </div>
+
+                      {import.meta.env.VITE_GOOGLE_SCRIPT_URL ? (
+                        <div style={{ 
+                          width: "100%", 
+                          padding: "8px 12px", 
+                          backgroundColor: "rgba(34, 197, 94, 0.1)", 
+                          border: "1px solid rgba(34, 197, 94, 0.2)", 
+                          color: "#22c55e",
+                          borderRadius: "8px", 
+                          fontSize: "12px",
+                          fontWeight: 600
+                        }}>
+                          ✓ Configured via environment variable (.env)
+                        </div>
+                      ) : (
+                        <input
+                          type="url"
+                          placeholder="https://script.google.com/macros/s/.../exec"
+                          value={googleScriptUrl}
+                          onChange={(e) => setGoogleScriptUrl(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            backgroundColor: "var(--bg-main)",
+                            color: "var(--text-main)",
+                            fontSize: "12.5px"
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Part 2: Mailing List Directory Manager */}
+                    <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                        Mailing List Directory
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                        Manage which email addresses appear in your quick-select mailing directory:
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                        <input
+                          type="email"
+                          placeholder="client-or-partner@example.com"
+                          value={newRecipientInput}
+                          onChange={(e) => setNewRecipientInput(e.target.value)}
+                          style={{
+                            flex: 1,
+                            padding: "8px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            backgroundColor: "var(--bg-main)",
+                            color: "var(--text-main)",
+                            fontSize: "12.5px"
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            const cleanInput = newRecipientInput.toLowerCase().trim();
+                            if (!cleanInput || !cleanInput.includes("@")) {
+                              alert("Please enter a valid email address.");
+                              return;
+                            }
+                            if (backupRecipients.includes(cleanInput)) {
+                              alert("This email is already in the list.");
+                              return;
+                            }
+                            setBackupRecipients([...backupRecipients, cleanInput]);
+                            setNewRecipientInput("");
+                          }}
+                          style={{
+                            padding: "8px 16px",
+                            backgroundColor: "var(--accent-gold)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "8px",
+                            fontWeight: 600,
+                            fontSize: "12.5px",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {backupRecipients.length > 0 ? (
+                        <div style={{
+                          width: "100%",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "6px",
+                          maxHeight: "120px",
+                          overflowY: "auto",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                          padding: "8px",
+                          backgroundColor: "var(--bg-main)",
+                          marginTop: "4px"
+                        }}>
+                          {backupRecipients.map(email => (
+                            <div key={email} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "4px 8px", borderBottom: "1px solid rgba(0,0,0,0.03)" }}>
+                              <span style={{ color: "var(--text-main)" }}>{email}</span>
+                              <button
+                                onClick={() => {
+                                  setBackupRecipients(backupRecipients.filter(e => e !== email));
+                                }}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: "#ef4444",
+                                  cursor: "pointer",
+                                  padding: "2px"
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", marginTop: "4px" }}>
+                          No custom recipient emails added. Add above to build your quick mailing list directory.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Part 3: Automated backup status row */}
+                    <div className="settings-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "default" }}>
+                      <div className="settings-row-left">
+                        <Mail size={16} className="settings-row-icon" style={{ color: "var(--text-muted)", marginRight: "8px" }} />
+                        <span>3-Day Auto Backup Email</span>
+                      </div>
+                      <span style={{ 
+                        fontSize: "12px", 
+                        color: "var(--text-muted)",
+                        fontWeight: 600
+                      }}>
+                        {lastEmailBackupDate ? new Date(lastEmailBackupDate).toLocaleDateString() : "Pending"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="settings-section">
                   <div className="settings-section-title">Database & Sync</div>
 
                   <div
@@ -3790,6 +4692,450 @@ function App() {
                   >
                     Share PDF Report
                   </button>
+
+                  {/* Email PDF Section */}
+                  <div style={{
+                    marginTop: "12px",
+                    borderTop: "1px dashed var(--border)",
+                    paddingTop: "16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px"
+                  }}>
+                    <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>
+                      Email PDF Report to Partner
+                    </label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <select
+                          value={recipientEmail}
+                          onChange={(e) => setRecipientEmail(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            backgroundColor: "var(--bg-main)",
+                            color: "var(--text-main)",
+                            fontSize: "13px"
+                          }}
+                        >
+                          {userEmail && <option value={userEmail.toLowerCase().trim()}>Myself ({userEmail})</option>}
+                          
+                          {/* Custom backupRecipients list */}
+                          {backupRecipients.map(email => (
+                            <option key={email} value={email}>{email} (Recipient)</option>
+                          ))}
+                          
+                          {/* Other partners */}
+                          {authorizedUsers.map(u => u.email.toLowerCase().trim())
+                            .filter(email => email !== userEmail.toLowerCase().trim() && !backupRecipients.includes(email))
+                            .map(email => (
+                              <option key={email} value={email}>{email} (Partner)</option>
+                            ))
+                          }
+                          
+                          <option value="custom">Other Email...</option>
+                        </select>
+                        
+                        <button
+                          onClick={handleEmailReportManually}
+                          disabled={isSendingEmail}
+                          style={{
+                            width: "100%",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "8px",
+                            padding: "10px 16px",
+                            backgroundColor: isSendingEmail ? "var(--border)" : "var(--accent-gold)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "8px",
+                            fontWeight: "700",
+                            fontSize: "13px",
+                            cursor: isSendingEmail ? "not-allowed" : "pointer",
+                            transition: "all 0.2s ease",
+                            boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSendingEmail) {
+                              e.currentTarget.style.backgroundColor = "var(--accent-gold-dark)";
+                              e.currentTarget.style.boxShadow = "0 6px 14px rgba(212, 175, 55, 0.25)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSendingEmail) {
+                              e.currentTarget.style.backgroundColor = "var(--accent-gold)";
+                              e.currentTarget.style.boxShadow = "0 4px 10px rgba(212, 175, 55, 0.15)";
+                            }
+                          }}
+                        >
+                          {isSendingEmail ? (
+                            <>
+                              <div className="spinner-mini" />
+                              <span>Sending...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail size={13} />
+                              <span>Send</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {recipientEmail === "custom" && (
+                        <input
+                          type="email"
+                          placeholder="partner@example.com"
+                          value={customRecipientEmail}
+                          onChange={(e) => setCustomRecipientEmail(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            backgroundColor: "var(--bg-main)",
+                            color: "var(--text-main)",
+                            fontSize: "13px"
+                          }}
+                        />
+                      )}
+                    </div>
+                    {!(import.meta.env.VITE_EMAILJS_SERVICE_ID || emailJsServiceId) && (
+                      <span style={{ fontSize: "11px", color: "#ef4444" }}>
+                        ⚠️ Email service is not configured in the application environment (.env).
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Recycle Bin (Trash) Modal */}
+          {isTrashBinOpen && (
+            <div className="modal-overlay" onClick={() => setIsTrashBinOpen(false)} style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px", width: "100%", borderRadius: "16px", padding: "24px", maxHeight: "85vh" }}>
+                <div className="modal-header" style={{ marginBottom: "20px" }}>
+                  <h3>Recycle Bin (Trash)</h3>
+                  <button className="icon-btn" onClick={() => setIsTrashBinOpen(false)}>
+                    <ArrowLeft size={18} style={{ transform: "rotate(-90deg)" }} />
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "400px", overflowY: "auto", padding: "8px 0" }}>
+                  {projects.filter(p => p.isTrashed).length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
+                      <Trash2 size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
+                      <p style={{ fontSize: "14px" }}>Your Recycle Bin is empty.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        {userRole !== "admin" && (
+                          <span style={{ fontSize: "11.5px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                            * Only Administrators can permanently empty trash.
+                          </span>
+                        )}
+                        {userRole === "admin" && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to permanently delete all projects in the trash? This cannot be undone!")) {
+                                const trashedIds = projects.filter(p => p.isTrashed).map(p => p.id);
+                                setProjects(projects.filter(p => !p.isTrashed));
+                                setDeletedProjectIds(prev => [...new Set([...prev, ...trashedIds])]);
+                              }
+                            }}
+                            style={{
+                              padding: "8px 12px",
+                              backgroundColor: "rgba(239, 68, 68, 0.1)",
+                              color: "#ef4444",
+                              border: "1px solid rgba(239, 68, 68, 0.2)",
+                              borderRadius: "8px",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              marginLeft: "auto"
+                            }}
+                          >
+                            <Trash2 size={13} />
+                            Empty Trash
+                          </button>
+                        )}
+                      </div>
+
+                      {projects.filter(p => p.isTrashed).map((p) => (
+                        <div key={p.id} style={{
+                          padding: "16px",
+                          borderRadius: "12px",
+                          border: "1px solid var(--border)",
+                          backgroundColor: "var(--bg-card)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "12px"
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+                            <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-main)" }}>{p.name}</span>
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                              Trashed on: {p.trashedAt ? new Date(p.trashedAt).toLocaleString() : "Unknown"}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            {/* Restore Button */}
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to restore the project "${p.name}"?`)) {
+                                  setProjects(projects.map(proj => proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null } : proj));
+                                  alert(`Successfully restored "${p.name}"!`);
+                                }
+                              }}
+                              style={{
+                                padding: "6px 12px",
+                                backgroundColor: "rgba(34, 197, 94, 0.1)",
+                                color: "#22c55e",
+                                border: "1px solid rgba(34, 197, 94, 0.2)",
+                                borderRadius: "8px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                            >
+                              <Undo size={12} />
+                              Restore
+                            </button>
+
+                            {/* Delete Permanently Button - Admin Only */}
+                            {userRole === "admin" && (
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to permanently delete "${p.name}"? This cannot be undone!`)) {
+                                    setProjects(projects.filter(proj => proj.id !== p.id));
+                                    setDeletedProjectIds(prev => [...new Set([...prev, p.id])]);
+                                  }
+                                }}
+                                style={{
+                                  padding: "6px 10px",
+                                  backgroundColor: "transparent",
+                                  color: "#ef4444",
+                                  border: "1px solid rgba(239, 68, 68, 0.2)",
+                                  borderRadius: "8px",
+                                  fontSize: "12px",
+                                  cursor: "pointer"
+                                }}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Local Backups Modal */}
+          {isBackupsListOpen && (
+            <div className="modal-overlay" onClick={() => setIsBackupsListOpen(false)} style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px", width: "100%", borderRadius: "16px", padding: "24px", maxHeight: "85vh" }}>
+                <div className="modal-header" style={{ marginBottom: "20px" }}>
+                  <h3>Local Backup Snapshots</h3>
+                  <button className="icon-btn" onClick={() => setIsBackupsListOpen(false)}>
+                    <ArrowLeft size={18} style={{ transform: "rotate(-90deg)" }} />
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "400px", overflowY: "auto", padding: "8px 0" }}>
+                  <p style={{ fontSize: "12.5px", color: "var(--text-muted)", lineHeight: "1.5" }}>
+                    The app saves backup snapshots of your projects locally before sync modifications are made. If you ever lose data, select a timestamped backup below to restore your projects state.
+                  </p>
+
+                  {userRole !== "admin" && (
+                    <div style={{
+                      padding: "10px 14px",
+                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                      color: "#ef4444",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      lineHeight: "1.4"
+                    }}>
+                      ⚠️ Admin-Only Action: You can view the backup history list, but only administrators can execute a restore.
+                    </div>
+                  )}
+
+                  {(() => {
+                    const savedRecentRaw = localStorage.getItem("ipm_projects_backups_recent");
+                    const recentBackups = savedRecentRaw ? JSON.parse(savedRecentRaw) : [];
+
+                    const savedDailyRaw = localStorage.getItem("ipm_projects_backups_daily");
+                    const dailyBackups = savedDailyRaw ? JSON.parse(savedDailyRaw) : [];
+
+                    if (recentBackups.length === 0 && dailyBackups.length === 0) {
+                      return (
+                        <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
+                          <Clock size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
+                          <p style={{ fontSize: "14px" }}>No backup snapshots found yet.</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                        {/* Recent Section */}
+                        {recentBackups.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                            <h4 style={{ margin: "0 0 4px 0", fontSize: "13px", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                              Recent Changes (Session Backup)
+                            </h4>
+                            {recentBackups.map((b, index) => (
+                              <div key={`recent-${index}`} style={{
+                                padding: "12px 16px",
+                                borderRadius: "12px",
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--bg-card)",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: "12px"
+                              }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
+                                  <span style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text-main)" }}>
+                                    {new Date(b.timestamp).toLocaleString()}
+                                  </span>
+                                  <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                                    {b.projects.length} project(s)
+                                  </span>
+                                </div>
+                                {userRole === "admin" ? (
+                                  <button
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to restore the backup from ${new Date(b.timestamp).toLocaleString()}?`)) {
+                                      isRemoteChange.current = false;
+                                      b.projects.forEach((proj) => {
+                                         syncProjectToCloud(proj);
+                                       });
+                                       projects.forEach((proj) => {
+                                         if (!b.projects.some(bp => bp.id === proj.id)) {
+                                           deleteProjectFromCloud(proj.id);
+                                         }
+                                       });
+                                       setProjects(b.projects);
+                                      setIsBackupsListOpen(false);
+                                      alert("Backup successfully restored!");
+                                    }
+                                  }}
+                                  style={{
+                                    padding: "6px 12px",
+                                    backgroundColor: "rgba(212, 175, 55, 0.1)",
+                                    color: "var(--accent-gold)",
+                                    border: "1px solid rgba(212, 175, 55, 0.2)",
+                                    borderRadius: "8px",
+                                    fontSize: "11.5px",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px"
+                                  }}
+                                >
+                                  <RotateCcw size={11} />
+                                  Restore
+                                </button>
+                                ) : (
+                                  <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", border: "1px dashed var(--border)", padding: "4px 8px", borderRadius: "6px" }}>
+                                    Admin Only
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Daily Section */}
+                        {dailyBackups.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
+                            <h4 style={{ margin: "0 0 4px 0", fontSize: "13px", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                              Daily Checkpoints (Last 30 Days)
+                            </h4>
+                            {dailyBackups.map((b, index) => (
+                              <div key={`daily-${index}`} style={{
+                                padding: "12px 16px",
+                                borderRadius: "12px",
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--bg-card)",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: "12px"
+                              }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
+                                  <span style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text-main)" }}>
+                                    {new Date(b.timestamp).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                  </span>
+                                  <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                                    Saved at {new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {b.projects.length} project(s)
+                                  </span>
+                                </div>
+                                {userRole === "admin" ? (
+                                  <button
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to restore the daily backup from ${new Date(b.timestamp).toLocaleDateString()}?`)) {
+                                      isRemoteChange.current = false;
+                                      b.projects.forEach((proj) => {
+                                         syncProjectToCloud(proj);
+                                       });
+                                       projects.forEach((proj) => {
+                                         if (!b.projects.some(bp => bp.id === proj.id)) {
+                                           deleteProjectFromCloud(proj.id);
+                                         }
+                                       });
+                                       setProjects(b.projects);
+                                      setIsBackupsListOpen(false);
+                                      alert("Daily backup successfully restored!");
+                                    }
+                                  }}
+                                  style={{
+                                    padding: "6px 12px",
+                                    backgroundColor: "var(--accent-gold-dark)",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "8px",
+                                    fontSize: "11.5px",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px"
+                                  }}
+                                >
+                                  <RotateCcw size={11} />
+                                  Restore
+                                </button>
+                                ) : (
+                                  <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", border: "1px dashed var(--border)", padding: "4px 8px", borderRadius: "6px" }}>
+                                    Admin Only
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
