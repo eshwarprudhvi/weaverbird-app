@@ -44,98 +44,7 @@ import {
 const WEB_APP_VERSION = "1.0.1";
 
 // Default initial data to populate localStorage if empty
-const INITIAL_PROJECTS = [
-  {
-    id: "1",
-    name: "Riverside Plaza Phase 2",
-    description:
-      "Commercial interior buildout for a tech client, focusing on open space design and acoustic balancing.",
-    status: "ongoing",
-    materials: [
-      { id: "m1", name: "Structural Steel Beams (12m)", completed: false },
-      { id: "m2", name: "High-Grade Portland Cement", completed: false },
-      { id: "m3", name: "Glass Curtain Wall Panels", completed: false },
-      { id: "m4", name: "Foundation Concrete (B25)", completed: true },
-      { id: "m5", name: "Rebar Steel Mesh", completed: true },
-    ],
-    tasks: [
-      { id: "t1", name: "Install HVAC ducting - Floor 4", completed: false },
-      { id: "t2", name: "Electrical wiring inspection", completed: false },
-      { id: "t3", name: "Drywall framing - Floor 3", completed: true },
-    ],
-  },
-  {
-    id: "2",
-    name: "Quantum Infrastructure",
-    description:
-      "High-tech data center interior layout, cable trays installation, and server cooling ventilation setup.",
-    status: "ongoing",
-    materials: [
-      { id: "m6", name: "Fiber Optic Cabling (2km)", completed: false },
-      { id: "m7", name: "Server Rack Cabinets", completed: false },
-      { id: "m8", name: "Patch Panels Cat6A", completed: true },
-    ],
-    tasks: [
-      {
-        id: "t4",
-        name: "Server configuration & network setup",
-        completed: false,
-      },
-      { id: "t5", name: "Cabling containment inspection", completed: false },
-      { id: "t6", name: "Rack mounting & ground testing", completed: true },
-    ],
-  },
-  {
-    id: "3",
-    name: "Supply Chain Audit",
-    description:
-      "Logistics center interior workspace remodeling, optimizing office layout and security desks placement.",
-    status: "not-started",
-    materials: [
-      { id: "m9", name: "Audit Documentation Folders", completed: false },
-    ],
-    tasks: [
-      {
-        id: "t7",
-        name: "Initial meeting with logistics suppliers",
-        completed: false,
-      },
-      {
-        id: "t8",
-        name: "Gather shipping manifests and layout blueprints",
-        completed: false,
-      },
-    ],
-  },
-  {
-    id: "4",
-    name: "Nexus App Refresh",
-    description:
-      "Digital display installation and smart conference room integrations across three corporate floors.",
-    status: "completed",
-    materials: [
-      { id: "m10", name: 'OLED Display Screens (65")', completed: true },
-      { id: "m11", name: "Smart Wall Switches", completed: true },
-    ],
-    tasks: [
-      {
-        id: "t9",
-        name: "Wall mount calibration and sensor testing",
-        completed: true,
-      },
-      { id: "t10", name: "Firmware updates & IoT setup", completed: true },
-    ],
-  },
-  {
-    id: "5",
-    name: "Strategic Onboarding 2024",
-    description:
-      "Corporate training center design, including modular desks, presentation podium, and acoustic partitions.",
-    status: "ongoing",
-    materials: [],
-    tasks: [],
-  },
-];
+const INITIAL_PROJECTS = []
 
 const INITIAL_SCHEDULE = [
   {
@@ -237,6 +146,8 @@ function App() {
     return saved || "light";
   });
 
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isEmailReportsOpen, setIsEmailReportsOpen] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const [updateDebugInfo, setUpdateDebugInfo] = useState({
@@ -3848,51 +3759,6 @@ function App() {
                       <span className="slider"></span>
                     </label>
                   </div>
-
-                  <div
-                    className="settings-row"
-                    onClick={async () => {
-                      try {
-                        await LocalNotifications.schedule({
-                          notifications: [
-                            {
-                              id: 999,
-                              title: "WeaverBird Test Alert",
-                              body: "This is a test notification. Tapping this will open the app!",
-                              schedule: { at: new Date(Date.now() + 5000) },
-                              extra: { tab: "schedule" },
-                            },
-                          ],
-                        });
-                        alert(
-                          "Test notification scheduled! Close the app or lock your screen. It will trigger in 5 seconds."
-                        );
-                      // eslint-disable-next-line no-unused-vars
-                      } catch (err) {
-                        alert(
-                          "Local notifications are not supported in web browsers. Build the APK to test on your phone."
-                        );
-                      }
-                    }}
-                  >
-                    <div className="settings-row-left">
-                      <Sliders
-                        size={16}
-                        className="settings-row-icon"
-                        style={{ color: "var(--accent-gold-dark)" }}
-                      />
-                      <span>Test Notifications</span>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--accent-gold-dark)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Send in 5s
-                    </span>
-                  </div>
                 </div>
 
                 <div className="settings-section">
@@ -4027,156 +3893,166 @@ function App() {
                   {/* ADMIN PANEL - Only displays if current user is admin */}
                   {cloudSyncEnabled && isConfigured && userRole === "admin" && isAuthorized && (
                     <div className="settings-row" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: "12px", padding: "16px 20px", borderTop: "1px solid var(--border)" }}>
-                      <span style={{ fontWeight: 600, color: "var(--accent-gold-dark)", fontSize: "13px", letterSpacing: "1px", textTransform: "uppercase" }}>Admin Access Panel</span>
+                      <div 
+                        onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", width: "100%" }}
+                      >
+                        <span style={{ fontWeight: 600, color: "var(--accent-gold-dark)", fontSize: "13px", letterSpacing: "1px", textTransform: "uppercase" }}>Admin Access Panel</span>
+                        {isAdminPanelOpen ? <ChevronUp size={16} style={{ color: "var(--accent-gold-dark)" }} /> : <ChevronDown size={16} style={{ color: "var(--accent-gold-dark)" }} />}
+                      </div>
                       
-                      {/* Invite new user */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        <label style={{ fontSize: "11px", color: "var(--text-muted)" }}>Invite Partner / Subcontractor Email:</label>
-                        <input
-                          id="invite-email-input"
-                          type="email"
-                          placeholder="partner@weaverbird.com"
-                          style={{
-                            width: "100%",
-                            padding: "10px 14px",
-                            borderRadius: "8px",
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--bg-card)",
-                            color: "var(--text-main)",
-                            fontSize: "13.5px",
-                            outline: "none"
-                          }}
-                        />
-                        <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-                          <select
-                            id="invite-role-select"
-                            defaultValue="editor"
-                            style={{
-                              flex: 1,
-                              padding: "10px",
-                              borderRadius: "8px",
-                              border: "1px solid var(--border)",
-                              backgroundColor: "var(--bg-card)",
-                              color: "var(--text-main)",
-                              fontSize: "13px",
-                              outline: "none"
-                            }}
-                          >
-                            <option value="editor">Editor Access</option>
-                            <option value="admin">Admin Access</option>
-                          </select>
-                          <button
-                            onClick={async () => {
-                              const emailEl = document.getElementById("invite-email-input");
-                              const roleEl = document.getElementById("invite-role-select");
-                              const emailVal = emailEl?.value?.toLowerCase()?.trim();
-                              const roleVal = roleEl?.value;
-                              
-                              if (!emailVal || !emailVal.includes("@")) {
-                                alert("Please enter a valid email to invite.");
-                                return;
-                              }
-                              try {
-                                await setDoc(doc(db, "users", emailVal), { role: roleVal });
-                                alert(`Successfully granted ${roleVal} access to ${emailVal}!`);
-                                if (emailEl) emailEl.value = "";
-                              } catch (err) {
-                                alert(`Failed to add user: ${err.message}`);
-                              }
-                            }}
-                            style={{
-                              padding: "10px 20px",
-                              borderRadius: "8px",
-                              backgroundColor: "var(--accent-gold-dark)",
-                              color: "white",
-                              border: "none",
-                              fontSize: "13px",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
-                            }}
-                          >
-                            Add Partner
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Authorized users list */}
-                      <div style={{ marginTop: "8px" }}>
-                        <label style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Users With Access ({authorizedUsers.length})</label>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
-                          {authorizedUsers.map(u => (
-                            <div
-                              key={u.email}
+                      {isAdminPanelOpen && (
+                        <>
+                          {/* Invite new user */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
+                            <label style={{ fontSize: "11px", color: "var(--text-muted)" }}>Invite Partner / Subcontractor Email:</label>
+                            <input
+                              id="invite-email-input"
+                              type="email"
+                              placeholder="partner@weaverbird.com"
                               style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                padding: "8px 12px",
+                                width: "100%",
+                                padding: "10px 14px",
                                 borderRadius: "8px",
-                                backgroundColor: "var(--bg-body)",
-                                border: "1px solid var(--border)"
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--bg-card)",
+                                color: "var(--text-main)",
+                                fontSize: "13.5px",
+                                outline: "none"
                               }}
-                            >
-                              <div style={{ display: "flex", flexDirection: "column" }}>
-                                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)" }}>{u.email}</span>
-                                <span style={{ fontSize: "10px", color: "var(--accent-gold)" }}>Role: {u.role.toUpperCase()}</span>
-                              </div>
-                              
-                              {u.email !== userEmail.toLowerCase().trim() ? (
-                                <div style={{ display: "flex", gap: "6px" }}>
-                                  <select
-                                    value={u.role}
-                                    onChange={async (e) => {
-                                      try {
-                                        await setDoc(doc(db, "users", u.email), { role: e.target.value });
-                                      } catch (err) {
-                                        alert(`Failed to update role: ${err.message}`);
-                                      }
-                                    }}
-                                    style={{
-                                      padding: "4px",
-                                      borderRadius: "6px",
-                                      border: "1px solid var(--border)",
-                                      backgroundColor: "var(--bg-card)",
-                                      color: "var(--text-main)",
-                                      fontSize: "11px"
-                                    }}
-                                  >
-                                    <option value="editor">Editor</option>
-                                    <option value="admin">Admin</option>
-                                  </select>
-                                  <button
-                                    onClick={async () => {
-                                      if (confirm(`Are you sure you want to revoke access for ${u.email}?`)) {
-                                        try {
-                                          await deleteDoc(doc(db, "users", u.email));
-                                        } catch (err) {
-                                          alert(`Failed to revoke access: ${err.message}`);
-                                        }
-                                      }
-                                    }}
-                                    style={{
-                                      padding: "4px 8px",
-                                      borderRadius: "6px",
-                                      backgroundColor: "#ef4444",
-                                      color: "white",
-                                      border: "none",
-                                      fontSize: "11px",
-                                      fontWeight: 600,
-                                      cursor: "pointer"
-                                    }}
-                                  >
-                                    Revoke
-                                  </button>
-                                </div>
-                              ) : (
-                                <span style={{ fontSize: "10px", color: "var(--text-muted)", fontStyle: "italic" }}>You</span>
-                              )}
+                            />
+                            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                              <select
+                                id="invite-role-select"
+                                defaultValue="editor"
+                                style={{
+                                  flex: 1,
+                                  padding: "10px",
+                                  borderRadius: "8px",
+                                  border: "1px solid var(--border)",
+                                  backgroundColor: "var(--bg-card)",
+                                  color: "var(--text-main)",
+                                  fontSize: "13px",
+                                  outline: "none"
+                                }}
+                              >
+                                <option value="editor">Editor Access</option>
+                                <option value="admin">Admin Access</option>
+                              </select>
+                              <button
+                                onClick={async () => {
+                                  const emailEl = document.getElementById("invite-email-input");
+                                  const roleEl = document.getElementById("invite-role-select");
+                                  const emailVal = emailEl?.value?.toLowerCase()?.trim();
+                                  const roleVal = roleEl?.value;
+                                  
+                                  if (!emailVal || !emailVal.includes("@")) {
+                                    alert("Please enter a valid email to invite.");
+                                    return;
+                                  }
+                                  try {
+                                    await setDoc(doc(db, "users", emailVal), { role: roleVal });
+                                    alert(`Successfully granted ${roleVal} access to ${emailVal}!`);
+                                    if (emailEl) emailEl.value = "";
+                                  } catch (err) {
+                                    alert(`Failed to add user: ${err.message}`);
+                                  }
+                                }}
+                                style={{
+                                  padding: "10px 20px",
+                                  borderRadius: "8px",
+                                  backgroundColor: "var(--accent-gold-dark)",
+                                  color: "white",
+                                  border: "none",
+                                  fontSize: "13px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
+                                }}
+                              >
+                                Add Partner
+                              </button>
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                          </div>
+
+                          {/* Authorized users list */}
+                          <div style={{ marginTop: "8px" }}>
+                            <label style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Users With Access ({authorizedUsers.length})</label>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
+                              {authorizedUsers.map(u => (
+                                <div
+                                  key={u.email}
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    padding: "8px 12px",
+                                    borderRadius: "8px",
+                                    backgroundColor: "var(--bg-body)",
+                                    border: "1px solid var(--border)"
+                                  }}
+                                >
+                                  <div style={{ display: "flex", flexDirection: "column" }}>
+                                    <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)" }}>{u.email}</span>
+                                    <span style={{ fontSize: "10px", color: "var(--accent-gold)" }}>Role: {u.role.toUpperCase()}</span>
+                                  </div>
+                                  
+                                  {u.email !== userEmail.toLowerCase().trim() ? (
+                                    <div style={{ display: "flex", gap: "6px" }}>
+                                      <select
+                                        value={u.role}
+                                        onChange={async (e) => {
+                                          try {
+                                            await setDoc(doc(db, "users", u.email), { role: e.target.value });
+                                          } catch (err) {
+                                            alert(`Failed to update role: ${err.message}`);
+                                          }
+                                        }}
+                                        style={{
+                                          padding: "4px",
+                                          borderRadius: "6px",
+                                          border: "1px solid var(--border)",
+                                          backgroundColor: "var(--bg-card)",
+                                          color: "var(--text-main)",
+                                          fontSize: "11px"
+                                        }}
+                                      >
+                                        <option value="editor">Editor</option>
+                                        <option value="admin">Admin</option>
+                                      </select>
+                                      <button
+                                        onClick={async () => {
+                                          if (confirm(`Are you sure you want to revoke access for ${u.email}?`)) {
+                                            try {
+                                              await deleteDoc(doc(db, "users", u.email));
+                                            } catch (err) {
+                                              alert(`Failed to revoke access: ${err.message}`);
+                                            }
+                                          }
+                                        }}
+                                        style={{
+                                          padding: "4px 8px",
+                                          borderRadius: "6px",
+                                          backgroundColor: "#ef4444",
+                                          color: "white",
+                                          border: "none",
+                                          fontSize: "11px",
+                                          fontWeight: 600,
+                                          cursor: "pointer"
+                                        }}
+                                      >
+                                        Revoke
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: "10px", color: "var(--text-muted)", fontStyle: "italic" }}>You</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -4228,265 +4104,276 @@ function App() {
 
                 {userRole === "admin" && (
                   <div className="settings-section">
-                    <div className="settings-section-title">Email Reports & Automation</div>
+                    <div 
+                      className="settings-section-title" 
+                      onClick={() => setIsEmailReportsOpen(!isEmailReportsOpen)}
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                    >
+                      <span>Email Reports & Automation</span>
+                      {isEmailReportsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
                     
-                    {/* Part 1: Quick Send Manual Backup */}
-                    <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "12px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
-                        Send Manual Studio Backup
-                      </div>
-                      <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
-                        Send a complete PDF report of all active projects immediately:
-                      </div>
-                      
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-                        <select
-                          value={recipientEmail}
-                          onChange={(e) => setRecipientEmail(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--bg-main)",
-                            color: "var(--text-main)",
-                            fontSize: "12.5px"
-                          }}
-                        >
-                          {userEmail && <option value={userEmail.toLowerCase().trim()}>Myself ({userEmail})</option>}
+                    {isEmailReportsOpen && (
+                      <>
+                        {/* Part 1: Quick Send Manual Backup */}
+                        <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "12px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                          <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                            Send Manual Studio Backup
+                          </div>
+                          <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                            Send a complete PDF report of all active projects immediately:
+                          </div>
                           
-                          {/* Custom backupRecipients list */}
-                          {backupRecipients.map(email => (
-                            <option key={email} value={email}>{email} (Recipient)</option>
-                          ))}
-                          
-                          {/* Other partners */}
-                          {authorizedUsers.map(u => u.email.toLowerCase().trim())
-                            .filter(email => email !== userEmail.toLowerCase().trim() && !backupRecipients.includes(email))
-                            .map(email => (
-                              <option key={email} value={email}>{email} (Partner)</option>
-                            ))
-                          }
-                          
-                          <option value="custom">Other Email...</option>
-                        </select>
-                        
-                        <button
-                          onClick={handleSendManualBackup}
-                          disabled={isSendingEmail}
-                          style={{
-                            width: "100%",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "8px",
-                            padding: "10px 16px",
-                            backgroundColor: isSendingEmail ? "var(--border)" : "var(--accent-gold)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "8px",
-                            fontWeight: "700",
-                            fontSize: "12.5px",
-                            cursor: isSendingEmail ? "not-allowed" : "pointer",
-                            transition: "all 0.2s ease",
-                            boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!isSendingEmail) {
-                              e.currentTarget.style.backgroundColor = "var(--accent-gold-dark)";
-                              e.currentTarget.style.boxShadow = "0 6px 14px rgba(212, 175, 55, 0.25)";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!isSendingEmail) {
-                              e.currentTarget.style.backgroundColor = "var(--accent-gold)";
-                              e.currentTarget.style.boxShadow = "0 4px 10px rgba(212, 175, 55, 0.15)";
-                            }
-                          }}
-                        >
-                          {isSendingEmail ? (
-                            <>
-                              <div className="spinner-mini" />
-                              <span>Sending...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Mail size={13} />
-                              <span>Send Now</span>
-                            </>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                            <select
+                              value={recipientEmail}
+                              onChange={(e) => setRecipientEmail(e.target.value)}
+                              style={{
+                                width: "100%",
+                                padding: "10px 12px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--bg-main)",
+                                color: "var(--text-main)",
+                                fontSize: "12.5px"
+                              }}
+                            >
+                              {userEmail && <option value={userEmail.toLowerCase().trim()}>Myself ({userEmail})</option>}
+                              
+                              {/* Custom backupRecipients list */}
+                              {backupRecipients.map(email => (
+                                <option key={email} value={email}>{email} (Recipient)</option>
+                              ))}
+                              
+                              {/* Other partners */}
+                              {authorizedUsers.map(u => u.email.toLowerCase().trim())
+                                .filter(email => email !== userEmail.toLowerCase().trim() && !backupRecipients.includes(email))
+                                .map(email => (
+                                  <option key={email} value={email}>{email} (Partner)</option>
+                                ))
+                              }
+                              
+                              <option value="custom">Other Email...</option>
+                            </select>
+                            
+                            <button
+                              onClick={handleSendManualBackup}
+                              disabled={isSendingEmail}
+                              style={{
+                                width: "100%",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "8px",
+                                padding: "10px 16px",
+                                backgroundColor: isSendingEmail ? "var(--border)" : "var(--accent-gold)",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "8px",
+                                fontWeight: "700",
+                                fontSize: "12.5px",
+                                cursor: isSendingEmail ? "not-allowed" : "pointer",
+                                transition: "all 0.2s ease",
+                                boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!isSendingEmail) {
+                                  e.currentTarget.style.backgroundColor = "var(--accent-gold-dark)";
+                                  e.currentTarget.style.boxShadow = "0 6px 14px rgba(212, 175, 55, 0.25)";
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isSendingEmail) {
+                                  e.currentTarget.style.backgroundColor = "var(--accent-gold)";
+                                  e.currentTarget.style.boxShadow = "0 4px 10px rgba(212, 175, 55, 0.15)";
+                                }
+                              }}
+                            >
+                              {isSendingEmail ? (
+                                <>
+                                  <div className="spinner-mini" />
+                                  <span>Sending...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Mail size={13} />
+                                  <span>Send Now</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {recipientEmail === "custom" && (
+                            <input
+                              type="email"
+                              placeholder="partner@example.com"
+                              value={customRecipientEmail}
+                              onChange={(e) => setCustomRecipientEmail(e.target.value)}
+                              style={{
+                                width: "100%",
+                                padding: "10px 12px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--bg-main)",
+                                color: "var(--text-main)",
+                                fontSize: "12.5px"
+                              }}
+                            />
                           )}
-                        </button>
-                      </div>
-
-                      {recipientEmail === "custom" && (
-                        <input
-                          type="email"
-                          placeholder="partner@example.com"
-                          value={customRecipientEmail}
-                          onChange={(e) => setCustomRecipientEmail(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--bg-main)",
-                            color: "var(--text-main)",
-                            fontSize: "12.5px"
-                          }}
-                        />
-                      )}
-                    </div>
-
-                    {/* Google Apps Script Integration Config */}
-                    <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
-                        Google Apps Script Web App URL
-                      </div>
-                      <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
-                        Paste your Google Script URL to send email reports for free using your Gmail account:
-                      </div>
-
-                      {import.meta.env.VITE_GOOGLE_SCRIPT_URL ? (
-                        <div style={{ 
-                          width: "100%", 
-                          padding: "8px 12px", 
-                          backgroundColor: "rgba(34, 197, 94, 0.1)", 
-                          border: "1px solid rgba(34, 197, 94, 0.2)", 
-                          color: "#22c55e",
-                          borderRadius: "8px", 
-                          fontSize: "12px",
-                          fontWeight: 600
-                        }}>
-                          ✓ Configured via environment variable (.env)
                         </div>
-                      ) : (
-                        <input
-                          type="url"
-                          placeholder="https://script.google.com/macros/s/.../exec"
-                          value={googleScriptUrl}
-                          onChange={(e) => setGoogleScriptUrl(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--bg-main)",
-                            color: "var(--text-main)",
-                            fontSize: "12.5px"
-                          }}
-                        />
-                      )}
-                    </div>
 
-                    {/* Part 2: Mailing List Directory Manager */}
-                    <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
-                        Mailing List Directory
-                      </div>
-                      <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
-                        Manage which email addresses appear in your quick-select mailing directory:
-                      </div>
+                        {/* Google Apps Script Integration Config */}
+                        <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                          <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                            Google Apps Script Web App URL
+                          </div>
+                          <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                            Paste your Google Script URL to send email reports for free using your Gmail account:
+                          </div>
 
-                      <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-                        <input
-                          type="email"
-                          placeholder="client-or-partner@example.com"
-                          value={newRecipientInput}
-                          onChange={(e) => setNewRecipientInput(e.target.value)}
-                          style={{
-                            flex: 1,
-                            padding: "8px 12px",
-                            borderRadius: "8px",
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--bg-main)",
-                            color: "var(--text-main)",
-                            fontSize: "12.5px"
-                          }}
-                        />
-                        <button
-                          onClick={() => {
-                            const cleanInput = newRecipientInput.toLowerCase().trim();
-                            if (!cleanInput || !cleanInput.includes("@")) {
-                              alert("Please enter a valid email address.");
-                              return;
-                            }
-                            if (backupRecipients.includes(cleanInput)) {
-                              alert("This email is already in the list.");
-                              return;
-                            }
-                            setBackupRecipients([...backupRecipients, cleanInput]);
-                            setNewRecipientInput("");
-                          }}
-                          style={{
-                            padding: "8px 16px",
-                            backgroundColor: "var(--accent-gold)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "8px",
-                            fontWeight: 600,
-                            fontSize: "12.5px",
-                            cursor: "pointer"
-                          }}
-                        >
-                          Add
-                        </button>
-                      </div>
-
-                      {backupRecipients.length > 0 ? (
-                        <div style={{
-                          width: "100%",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "6px",
-                          maxHeight: "120px",
-                          overflowY: "auto",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          padding: "8px",
-                          backgroundColor: "var(--bg-main)",
-                          marginTop: "4px"
-                        }}>
-                          {backupRecipients.map(email => (
-                            <div key={email} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "4px 8px", borderBottom: "1px solid rgba(0,0,0,0.03)" }}>
-                              <span style={{ color: "var(--text-main)" }}>{email}</span>
-                              <button
-                                onClick={() => {
-                                  setBackupRecipients(backupRecipients.filter(e => e !== email));
-                                }}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  color: "#ef4444",
-                                  cursor: "pointer",
-                                  padding: "2px"
-                                }}
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                          {import.meta.env.VITE_GOOGLE_SCRIPT_URL ? (
+                            <div style={{ 
+                              width: "100%", 
+                              padding: "8px 12px", 
+                              backgroundColor: "rgba(34, 197, 94, 0.1)", 
+                              border: "1px solid rgba(34, 197, 94, 0.2)", 
+                              color: "#22c55e",
+                              borderRadius: "8px", 
+                              fontSize: "12px",
+                              fontWeight: 600
+                            }}>
+                              ✓ Configured via environment variable (.env)
                             </div>
-                          ))}
+                          ) : (
+                            <input
+                              type="url"
+                              placeholder="https://script.google.com/macros/s/.../exec"
+                              value={googleScriptUrl}
+                              onChange={(e) => setGoogleScriptUrl(e.target.value)}
+                              style={{
+                                width: "100%",
+                                padding: "10px 12px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--bg-main)",
+                                color: "var(--text-main)",
+                                fontSize: "12.5px"
+                              }}
+                            />
+                          )}
                         </div>
-                      ) : (
-                        <div style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", marginTop: "4px" }}>
-                          No custom recipient emails added. Add above to build your quick mailing list directory.
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Part 3: Automated backup status row */}
-                    <div className="settings-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "default" }}>
-                      <div className="settings-row-left">
-                        <Mail size={16} className="settings-row-icon" style={{ color: "var(--text-muted)", marginRight: "8px" }} />
-                        <span>3-Day Auto Backup Email</span>
-                      </div>
-                      <span style={{ 
-                        fontSize: "12px", 
-                        color: "var(--text-muted)",
-                        fontWeight: 600
-                      }}>
-                        {lastEmailBackupDate ? new Date(lastEmailBackupDate).toLocaleDateString() : "Pending"}
-                      </span>
-                    </div>
+                        {/* Part 2: Mailing List Directory Manager */}
+                        <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                          <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                            Mailing List Directory
+                          </div>
+                          <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                            Manage which email addresses appear in your quick-select mailing directory:
+                          </div>
+
+                          <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                            <input
+                              type="email"
+                              placeholder="client-or-partner@example.com"
+                              value={newRecipientInput}
+                              onChange={(e) => setNewRecipientInput(e.target.value)}
+                              style={{
+                                flex: 1,
+                                padding: "8px 12px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--bg-main)",
+                                color: "var(--text-main)",
+                                fontSize: "12.5px"
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                const cleanInput = newRecipientInput.toLowerCase().trim();
+                                if (!cleanInput || !cleanInput.includes("@")) {
+                                  alert("Please enter a valid email address.");
+                                  return;
+                                }
+                                if (backupRecipients.includes(cleanInput)) {
+                                  alert("This email is already in the list.");
+                                  return;
+                                }
+                                setBackupRecipients([...backupRecipients, cleanInput]);
+                                setNewRecipientInput("");
+                              }}
+                              style={{
+                                padding: "8px 16px",
+                                backgroundColor: "var(--accent-gold)",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "8px",
+                                fontWeight: 600,
+                                fontSize: "12.5px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              Add
+                            </button>
+                          </div>
+
+                          {backupRecipients.length > 0 ? (
+                            <div style={{
+                              width: "100%",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "6px",
+                              maxHeight: "120px",
+                              overflowY: "auto",
+                              border: "1px solid var(--border)",
+                              borderRadius: "8px",
+                              padding: "8px",
+                              backgroundColor: "var(--bg-main)",
+                              marginTop: "4px"
+                            }}>
+                              {backupRecipients.map(email => (
+                                <div key={email} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "4px 8px", borderBottom: "1px solid rgba(0,0,0,0.03)" }}>
+                                  <span style={{ color: "var(--text-main)" }}>{email}</span>
+                                  <button
+                                    onClick={() => {
+                                      setBackupRecipients(backupRecipients.filter(e => e !== email));
+                                    }}
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      color: "#ef4444",
+                                      cursor: "pointer",
+                                      padding: "2px"
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", marginTop: "4px" }}>
+                              No custom recipient emails added. Add above to build your quick mailing list directory.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Part 3: Automated backup status row */}
+                        <div className="settings-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "default" }}>
+                          <div className="settings-row-left">
+                            <Mail size={16} className="settings-row-icon" style={{ color: "var(--text-muted)", marginRight: "8px" }} />
+                            <span>3-Day Auto Backup Email</span>
+                          </div>
+                          <span style={{ 
+                            fontSize: "12px", 
+                            color: "var(--text-muted)",
+                            fontWeight: 600
+                          }}>
+                            {lastEmailBackupDate ? new Date(lastEmailBackupDate).toLocaleDateString() : "Pending"}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -4529,7 +4416,7 @@ function App() {
                     <span
                       style={{ fontSize: "12px", color: "var(--text-muted)" }}
                     >
-                      1.0.4 (Production)
+                      {WEB_APP_VERSION} (Production)
                     </span>
                   </div>
                 </div>
