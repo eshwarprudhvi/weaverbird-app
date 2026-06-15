@@ -41,7 +41,7 @@ import {
   Mail,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.0.3";
+const WEB_APP_VERSION = "1.0.4";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
@@ -5006,6 +5006,11 @@ function App() {
                                   onClick={() => {
                                     if (window.confirm(`Are you sure you want to restore the backup from ${new Date(b.timestamp).toLocaleString()}?`)) {
                                       isRemoteChange.current = false;
+                                      const restoredIds = b.projects.map(bp => bp.id);
+                                      const updatedDeletedIds = deletedProjectIds.filter(id => !restoredIds.includes(id));
+                                      setDeletedProjectIds(updatedDeletedIds);
+                                      localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(updatedDeletedIds));
+                                      
                                       b.projects.forEach((proj) => {
                                          syncProjectToCloud(proj);
                                        });
@@ -5076,6 +5081,11 @@ function App() {
                                   onClick={() => {
                                     if (window.confirm(`Are you sure you want to restore the daily backup from ${new Date(b.timestamp).toLocaleDateString()}?`)) {
                                       isRemoteChange.current = false;
+                                      const restoredIds = b.projects.map(bp => bp.id);
+                                      const updatedDeletedIds = deletedProjectIds.filter(id => !restoredIds.includes(id));
+                                      setDeletedProjectIds(updatedDeletedIds);
+                                      localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(updatedDeletedIds));
+                                      
                                       b.projects.forEach((proj) => {
                                          syncProjectToCloud(proj);
                                        });
