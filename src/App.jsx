@@ -41,7 +41,7 @@ import {
   Mail,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.0.4";
+const WEB_APP_VERSION = "1.0.5";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
@@ -646,7 +646,6 @@ function App() {
         console.error("Error listening to users list:", error);
       });
 
-      // 2. Listen to real-time shared deleted project IDs (deleted_projects collection)
       const deletedColRef = collection(db, "deleted_projects");
       unsubscribeDeleted = onSnapshot(deletedColRef, (deletedSnap) => {
         try {
@@ -657,8 +656,11 @@ function App() {
           
           setDeletedProjectIds((prev) => {
             const combined = [...new Set([...prev, ...cloudDeletedIds])];
-            localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(combined));
-            return combined;
+            const savedProjectsRaw = localStorage.getItem("ipm_projects");
+            const activeIds = savedProjectsRaw ? JSON.parse(savedProjectsRaw).map(p => p.id) : [];
+            const filtered = combined.filter(id => !activeIds.includes(id));
+            localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(filtered));
+            return filtered;
           });
         } catch (err) {
           console.error("Error processing deleted projects snapshot:", err);
@@ -5010,9 +5012,14 @@ function App() {
                                       const updatedDeletedIds = deletedProjectIds.filter(id => !restoredIds.includes(id));
                                       setDeletedProjectIds(updatedDeletedIds);
                                       localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(updatedDeletedIds));
+                                      localStorage.setItem("ipm_projects", JSON.stringify(b.projects));
                                       
                                       b.projects.forEach((proj) => {
                                          syncProjectToCloud(proj);
+                                         if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
+                                           deleteDoc(doc(db, "deleted_projects", proj.id))
+                                             .catch(err => console.error("Failed to remove from deleted_projects:", err));
+                                         }
                                        });
                                        projects.forEach((proj) => {
                                          if (!b.projects.some(bp => bp.id === proj.id)) {
@@ -5085,9 +5092,14 @@ function App() {
                                       const updatedDeletedIds = deletedProjectIds.filter(id => !restoredIds.includes(id));
                                       setDeletedProjectIds(updatedDeletedIds);
                                       localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(updatedDeletedIds));
+                                      localStorage.setItem("ipm_projects", JSON.stringify(b.projects));
                                       
                                       b.projects.forEach((proj) => {
                                          syncProjectToCloud(proj);
+                                         if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
+                                           deleteDoc(doc(db, "deleted_projects", proj.id))
+                                             .catch(err => console.error("Failed to remove from deleted_projects:", err));
+                                         }
                                        });
                                        projects.forEach((proj) => {
                                          if (!b.projects.some(bp => bp.id === proj.id)) {
