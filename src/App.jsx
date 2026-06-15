@@ -283,8 +283,8 @@ function App() {
           const snap = await getDoc(updateRef);
           if (snap.exists()) {
             const data = snap.data();
-            const latestVersion = data.version;
-            const zipUrl = data.url;
+            const latestVersion = data.version ? data.version.trim() : "";
+            const zipUrl = data.url ? data.url.trim() : "";
             setUpdateDebugInfo(prev => ({ 
               ...prev, 
               latestVersion: latestVersion || "None", 
