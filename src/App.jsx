@@ -41,7 +41,7 @@ import {
   Mail,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.0.2";
+const WEB_APP_VERSION = "1.0.3";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
