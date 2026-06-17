@@ -45,7 +45,7 @@ import {
   Mail,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.0.8";
+const WEB_APP_VERSION = "1.1.0";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
@@ -223,25 +223,6 @@ function App() {
       console.error("Auto-update check failed:", err);
       setUpdateDebugInfo(prev => ({ ...prev, status: "Error", error: err.message || String(err) }));
       if (isManual) alert(`Update check failed: ${err.message || err}`);
-    }
-  };
-
-  const updateOTAConfig = async () => {
-    try {
-      const newVersion = prompt("Enter new DB version:", WEB_APP_VERSION);
-      if (!newVersion) return;
-      const newUrl = prompt("Enter new ZIP URL (leave blank to keep current):", "");
-      
-      const updateRef = doc(db, "system", "update");
-      const updateData = { version: newVersion };
-      if (newUrl) {
-        updateData.url = newUrl;
-      }
-      await setDoc(updateRef, updateData, { merge: true });
-      alert("Updated DB config successfully!");
-      checkUpdate(true);
-    } catch (err) {
-      alert("Error updating DB: " + err.message);
     }
   };
 
@@ -4383,46 +4364,25 @@ function App() {
                           <span style={{ fontWeight: 700, color: "var(--accent-gold-dark)", textTransform: "uppercase", fontSize: "9px", letterSpacing: "1px" }}>
                             OTA Update Status
                           </span>
-                          <div style={{ display: "flex", gap: "4px" }}>
-                            <button
-                              onClick={updateOTAConfig}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                padding: "2px",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                color: "var(--accent-gold-dark)",
-                                opacity: 0.8,
-                                transition: "opacity 0.2s"
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                              onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
-                              title="Update DB Version"
-                            >
-                              <Edit2 size={10} />
-                            </button>
-                            <button
-                              onClick={() => checkUpdate(true)}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                padding: "2px",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                color: "var(--accent-gold-dark)",
-                                opacity: 0.8,
-                                transition: "opacity 0.2s"
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                              onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
-                              title="Check for update"
-                            >
-                              <RotateCcw size={10} />
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => checkUpdate(true)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: "2px",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              color: "var(--accent-gold-dark)",
+                              opacity: 0.8,
+                              transition: "opacity 0.2s"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
+                            title="Check for update"
+                          >
+                            <RotateCcw size={10} />
+                          </button>
                         </div>
                         <div><strong>Status:</strong> {updateDebugInfo.status}</div>
                         <div><strong>DB Version:</strong> {updateDebugInfo.latestVersion}</div>
