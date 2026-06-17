@@ -8,6 +8,10 @@ import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import { Share } from "@capacitor/share";
 import { Network } from "@capacitor/network";
 import { db, isConfigured } from "./firebase";
+import AddProjectModal from "./components/modals/AddProjectModal";
+import AddMeetingModal from "./components/modals/AddMeetingModal";
+import ReportPreviewModal from "./components/modals/ReportPreviewModal";
+import BottomNav from "./components/navigation/BottomNav";
 import { collection, doc, setDoc, onSnapshot, deleteDoc, getDocs, getDoc } from "firebase/firestore";
 import {
   Folder,
@@ -41,7 +45,7 @@ import {
   Mail,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.0.7";
+const WEB_APP_VERSION = "1.0.8";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
@@ -109,7 +113,7 @@ function App() {
     return days;
   };
 
-  const handlePrevMonth = () => { 
+  const handlePrevMonth = () => {
     setCurrentCalendarDate((prev) => {
       const d = new Date(prev);
       d.setMonth(d.getMonth() - 1);
@@ -187,20 +191,20 @@ function App() {
         const data = snap.data();
         const latestVersion = data.version ? data.version.trim() : "";
         const zipUrl = data.url ? data.url.trim() : "";
-        setUpdateDebugInfo(prev => ({ 
-          ...prev, 
-          latestVersion: latestVersion || "None", 
-          latestUrl: zipUrl || "None", 
-          status: "Fetched database info" 
+        setUpdateDebugInfo(prev => ({
+          ...prev,
+          latestVersion: latestVersion || "None",
+          latestUrl: zipUrl || "None",
+          status: "Fetched database info"
         }));
 
         if (latestVersion && latestVersion !== WEB_APP_VERSION && zipUrl) {
           setUpdateDebugInfo(prev => ({ ...prev, status: `Downloading v${latestVersion}...` }));
           console.log(`OTA Update available: local v${WEB_APP_VERSION} -> latest v${latestVersion}`);
-          
+
           // Notify user
           alert(`Installing WeaverBird update v${latestVersion}. The app will restart automatically.`);
-          
+
           const downloadResult = await CapacitorUpdater.download({
             url: zipUrl,
             version: latestVersion
@@ -332,36 +336,6 @@ function App() {
   const [newWorkInput, setNewWorkInput] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("medium"); // high | medium | low
 
-  // Add Project Form state
-  const [newProjName, setNewProjName] = useState("");
-  const [newProjDesc, setNewProjDesc] = useState("");
-  const [newProjStatus, setNewProjStatus] = useState("not-started");
-  const [newProjCompletionDate, setNewProjCompletionDate] = useState("");
-  
-  // Room selection for new project
-  const defaultRoomsList = ["MBR", "Kitchen", "KBR", "Living Area"];
-  const [newProjAllAvailableRooms, setNewProjAllAvailableRooms] = useState([...defaultRoomsList]);
-  const [newProjSelectedRooms, setNewProjSelectedRooms] = useState([...defaultRoomsList]);
-  const [newProjCustomRoomInput, setNewProjCustomRoomInput] = useState("");
-
-  const handleAddCustomRoomToNewProj = () => {
-    const r = newProjCustomRoomInput.trim();
-    if (r) {
-      if (!newProjAllAvailableRooms.includes(r)) {
-        setNewProjAllAvailableRooms([...newProjAllAvailableRooms, r]);
-      }
-      if (!newProjSelectedRooms.includes(r)) {
-        setNewProjSelectedRooms([...newProjSelectedRooms, r]);
-      }
-    }
-    setNewProjCustomRoomInput("");
-  };
-
-  // Add Meeting Form state
-  const [newMeetTitle, setNewMeetTitle] = useState("");
-  const [newMeetDate, setNewMeetDate] = useState(
-    () => new Date().toISOString().split("T")[0]
-  );
 
   // Cloud Sync and Admin Access states
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(() => {
@@ -482,18 +456,18 @@ function App() {
             await LocalNotifications.cancel({
               notifications: [{ id: numericId }]
             });
-          // eslint-disable-next-line no-unused-vars, no-empty
-          } catch (e) {}
+            // eslint-disable-next-line no-unused-vars, no-empty
+          } catch (e) { }
         }
       }
 
       const todayStr = new Date().toISOString().split("T")[0];
       const incompleteUpcoming = meetingsList.filter(m => !m.completed);
-      
+
       for (const meeting of incompleteUpcoming) {
         const targetDate = new Date(meeting.date + "T09:00:00");
         let scheduleTime = targetDate;
-        
+
         if (meeting.date === todayStr) {
           // If the meeting is today, trigger it 5 seconds in the future for immediate alert
           scheduleTime = new Date(Date.now() + 5000);
@@ -655,11 +629,11 @@ function App() {
     }, 0);
 
     const cleanEmail = userEmail.toLowerCase().trim();
-    let unsubscribeUsers = () => {};
-    let unsubscribeData = () => {};
-    let unsubscribeDeleted = () => {};
-    let unsubscribeSchedule = () => {};
-    let unsubscribeTodos = () => {};
+    let unsubscribeUsers = () => { };
+    let unsubscribeData = () => { };
+    let unsubscribeDeleted = () => { };
+    let unsubscribeSchedule = () => { };
+    let unsubscribeTodos = () => { };
 
     try {
       // 1. Listen to authorized users list & check access role
@@ -713,7 +687,7 @@ function App() {
           deletedSnap.forEach((docSnap) => {
             cloudDeletedIds.push(docSnap.id);
           });
-          
+
           setDeletedProjectIds((prev) => {
             const combined = [...new Set([...prev, ...cloudDeletedIds])];
             const savedProjectsRaw = localStorage.getItem("ipm_projects");
@@ -734,7 +708,7 @@ function App() {
       unsubscribeData = onSnapshot(projectsColRef, (querySnapshot) => {
         try {
           isRemoteChange.current = true;
-          
+
           const cloudProjects = [];
           querySnapshot.forEach((docSnap) => {
             cloudProjects.push({ ...docSnap.data(), id: docSnap.id });
@@ -747,14 +721,14 @@ function App() {
 
             // Perform Safe Merge
             const allProjectsMap = new Map();
-            
+
             // Add local projects first
             prevProjects.forEach((p) => {
               if (!currentDeletedIds.includes(p.id)) {
                 allProjectsMap.set(p.id, p);
               }
             });
-            
+
             // Add/overwrite with cloud projects (using smart conflict-free merge)
             cloudProjects.forEach((cloudProj) => {
               if (currentDeletedIds.includes(cloudProj.id)) return;
@@ -798,10 +772,10 @@ function App() {
                 });
               }
             });
-            
+
             const mergedList = Array.from(allProjectsMap.values());
             localStorage.setItem("ipm_projects", JSON.stringify(mergedList));
-            
+
             // Upload any local projects that are not yet in the cloud (excluding deleted ones)
             mergedList.forEach((p) => {
               const inCloud = cloudProjects.some((cp) => cp.id === p.id);
@@ -855,9 +829,9 @@ function App() {
         try {
           if (docSnap.exists()) {
             const cloudData = docSnap.data();
-            
+
             isRemoteChange.current = true;
-            
+
             if (cloudData.schedule) {
               setSchedule(cloudData.schedule);
               localStorage.setItem("ipm_schedule", JSON.stringify(cloudData.schedule));
@@ -881,9 +855,9 @@ function App() {
         try {
           if (docSnap.exists()) {
             const cloudData = docSnap.data();
-            
+
             isRemoteChange.current = true;
-            
+
             if (cloudData.todos) {
               setTodos(cloudData.todos);
             }
@@ -1068,9 +1042,9 @@ function App() {
       const savedRecentRaw = localStorage.getItem("ipm_projects_backups_recent");
       const recentBackups = savedRecentRaw ? JSON.parse(savedRecentRaw) : [];
       const lastRecent = recentBackups[0];
-      
+
       let updatedRecent = [...recentBackups];
-      
+
       if (!lastRecent || JSON.stringify(lastRecent.projects) !== JSON.stringify(currentProjects)) {
         if (lastRecent && (now - new Date(lastRecent.timestamp)) < 5 * 60 * 1000) {
           lastRecent.projects = currentProjects;
@@ -1086,7 +1060,7 @@ function App() {
       const savedDailyRaw = localStorage.getItem("ipm_projects_backups_daily");
       const dailyBackups = savedDailyRaw ? JSON.parse(savedDailyRaw) : [];
       const existingDailyIndex = dailyBackups.findIndex(b => b.date === todayDateStr);
-      
+
       let updatedDaily = [...dailyBackups];
       if (existingDailyIndex !== -1) {
         dailyBackups[existingDailyIndex].projects = currentProjects;
@@ -1106,7 +1080,7 @@ function App() {
       if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
         const cleanEmail = userEmail.toLowerCase().trim();
         const backupDocRef = doc(db, "users", cleanEmail, "backups", todayDateStr);
-        
+
         setDoc(backupDocRef, {
           date: todayDateStr,
           timestamp: now.toISOString(),
@@ -1121,7 +1095,7 @@ function App() {
             });
             // Sort lexicographically by date descending (latest first)
             backupsList.sort((a, b) => b.date.localeCompare(a.date));
-            
+
             // Delete backups beyond the 30th latest daily snapshot
             if (backupsList.length > 30) {
               const oldBackups = backupsList.slice(30);
@@ -1278,40 +1252,14 @@ function App() {
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const yy = String(d.getFullYear()).slice(-2);
       return `${dd}/${mm}/${yy}`;
-    // eslint-disable-next-line no-unused-vars
+      // eslint-disable-next-line no-unused-vars
     } catch (e) {
       return dateStr;
     }
   };
 
-  const handleAddProject = (e) => {
-    e.preventDefault();
-    if (!newProjName.trim()) return;
-
-    const projectRooms = newProjSelectedRooms.map((name, index) => ({
-      id: "room_" + Date.now() + "_" + index,
-      name: name
-    }));
-
-    const newProject = {
-      id: Date.now().toString(),
-      name: newProjName,
-      description: newProjDesc || "No description provided.",
-      status: newProjStatus,
-      completionDate: newProjCompletionDate || "",
-      rooms: projectRooms,
-      materials: [],
-      tasks: [],
-    };
-
+  const handleAddProject = (newProject) => {
     setProjects([newProject, ...projects]);
-    setNewProjName("");
-    setNewProjDesc("");
-    setNewProjStatus("not-started");
-    setNewProjCompletionDate("");
-    setNewProjSelectedRooms([...defaultRoomsList]);
-    setNewProjAllAvailableRooms([...defaultRoomsList]);
-    setNewProjCustomRoomInput("");
     setIsNewProjModalOpen(false);
   };
 
@@ -1490,7 +1438,7 @@ function App() {
         const uncompletedDeps = (task.dependencies || [])
           .map((depId) => targetProj.tasks.find((t) => t.id === depId))
           .filter((t) => t && !t.completed);
-        
+
         if (uncompletedDeps.length > 0) {
           const depNames = uncompletedDeps.map((t) => `"${t.name}"`).join(", ");
           alert(
@@ -1604,28 +1552,15 @@ function App() {
   };
 
   // Add Meeting
-  const handleAddMeeting = (e) => {
-    e.preventDefault();
-    if (!newMeetTitle.trim()) return;
-
-    const exists = schedule.some((s) => s.date === newMeetDate && !s.completed);
+  const handleAddMeeting = (newMeeting) => {
+    const exists = schedule.some((s) => s.date === newMeeting.date && !s.completed);
     if (exists) {
       const proceed = window.confirm(
         "A meeting is already scheduled on this date. Do you still want to schedule another meeting?"
       );
       if (!proceed) return;
     }
-
-    const newMeeting = {
-      id: "s_" + Date.now(),
-      title: newMeetTitle.trim(),
-      date: newMeetDate,
-      completed: false,
-    };
-
     setSchedule([...schedule, newMeeting]);
-    setNewMeetTitle("");
-    setNewMeetDate(new Date().toISOString().split("T")[0]);
     setIsNewMeetingModalOpen(false);
   };
 
@@ -1692,11 +1627,11 @@ function App() {
               tasks: p.tasks.map((t) =>
                 t.id === itemId
                   ? {
-                      ...t,
-                      name,
-                      priority: priority || "medium",
-                      dependencies: dependencies || [],
-                    }
+                    ...t,
+                    name,
+                    priority: priority || "medium",
+                    dependencies: dependencies || [],
+                  }
                   : t
               ),
             };
@@ -1856,7 +1791,7 @@ function App() {
     allRoomIds.forEach(roomId => {
       const roomName = roomsMap.get(roomId) || 'Unknown Room';
       text += `\n--- *${roomName.toUpperCase()}* ---\n`;
-      
+
       const rMaterials = materialsByRoom[roomId] || [];
       if (rMaterials.length > 0) {
         text += `*Materials:*\n`;
@@ -1986,29 +1921,29 @@ function App() {
   // Helper to generate a PDF of ALL active projects (used for automatic backup emails)
   const generateAllProjectsPDF = (allProjects) => {
     const doc = new jsPDF();
-    
+
     // Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.text("WeaverBird", 20, 25);
-    
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(180, 150, 100); // gold
     doc.text("INTERIOR STUDIO - ALL PROJECTS BACKUP SUMMARY", 20, 31);
-    
+
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
     doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, 150, 25);
-    
+
     doc.setDrawColor(212, 175, 55);
     doc.setLineWidth(0.8);
     doc.line(20, 36, 190, 36);
-    
+
     let y = 45;
-    
+
     const activeProjects = allProjects.filter(p => !p.isTrashed);
-    
+
     if (activeProjects.length === 0) {
       doc.setFont("helvetica", "italic");
       doc.setFontSize(11);
@@ -2020,27 +1955,27 @@ function App() {
           doc.addPage();
           y = 25;
         }
-        
+
         doc.setFont("helvetica", "bold");
         doc.setFontSize(13);
         doc.setTextColor(15, 23, 42);
         doc.text(`${idx + 1}. Project: ${proj.name}`, 20, y);
         y += 6;
-        
+
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9.5);
         doc.setTextColor(100, 100, 100);
         doc.text(`Status: ${proj.status.toUpperCase()} | Deadline: ${proj.completionDate || "Not set"}`, 20, y);
         y += 5;
-        
+
         doc.setFont("helvetica", "italic");
         doc.text(`Description: ${proj.description || "No description provided."}`, 20, y);
         y += 6;
-        
+
         // Filter pending tasks and materials
         const pendingMats = (proj.materials || []).filter(m => !m.completed);
         const pendingTasks = (proj.tasks || []).filter(t => !t.completed);
-        
+
         doc.setFont("helvetica", "normal");
         doc.setTextColor(15, 23, 42);
         doc.text(`Pending Materials: ${pendingMats.length} | Pending Tasks: ${pendingTasks.length}`, 20, y);
@@ -2080,45 +2015,45 @@ function App() {
         y += 8; // Gap
       });
     }
-    
+
     return doc;
   };
 
   // Shared helper to generate a PDF for a single project report
   const generateSingleProjectPDF = (report) => {
     const doc = new jsPDF();
-    
+
     // WeaverBird Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.text("WeaverBird", 20, 25);
-    
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(180, 150, 100); // gold
     doc.text("INTERIOR STUDIO", 20, 31);
-    
+
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
     doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, 150, 25);
-    
+
     // Gold Divider Line
     doc.setDrawColor(212, 175, 55);
     doc.setLineWidth(0.8);
     doc.line(20, 36, 190, 36);
-    
+
     // Project Details box background
     doc.setFillColor(248, 250, 252);
     doc.rect(20, 42, 170, 22, "F");
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.3);
     doc.rect(20, 42, 170, 22, "S");
-    
+
     // Project Details Text
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
     doc.text(`Project Name: ${report.projectName}`, 25, 49);
-    
+
     doc.setFont("helvetica", "normal");
     const targetDateStr = report.targetDate ? new Date(report.targetDate).toLocaleDateString("en-GB") : "No Date Set";
     doc.text(`Target Date: ${targetDateStr}`, 25, 57);
@@ -2127,11 +2062,11 @@ function App() {
     if (report.targetDate) {
       const target = new Date(report.targetDate);
       const today = new Date();
-      target.setHours(0,0,0,0);
-      today.setHours(0,0,0,0);
+      target.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
       const diffTime = target.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
+
       doc.setFont("helvetica", "bold");
       if (diffDays < 0) {
         doc.setTextColor(239, 68, 68); // Red for overdue
@@ -2144,13 +2079,13 @@ function App() {
         doc.text(`${diffDays} Days Left`, 135, 53);
       }
     }
-    
+
     // Report Title
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
     doc.text(report.title, 20, 76);
-    
+
     let y = 86;
 
     const materialsByRoom = {};
@@ -2192,7 +2127,7 @@ function App() {
       doc.setTextColor(59, 130, 246); // accent blue
       doc.text(roomName.toUpperCase(), 20, y);
       y += 2;
-      
+
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.5);
       doc.line(20, y, 190, y);
@@ -2251,7 +2186,7 @@ function App() {
             doc.rect(20, y - 4, 170, 7, "F");
           }
           doc.text(`• ${t.name}`, 22, y + 1);
-          
+
           const pStr = (t.priority || "medium").toUpperCase();
           if (t.priority === "high") doc.setTextColor(239, 68, 68);
           else if (t.priority === "low") doc.setTextColor(59, 130, 246);
@@ -2298,7 +2233,7 @@ function App() {
           },
           body: JSON.stringify(payload)
         });
-        
+
         // Since no-cors returns an opaque response, we assume success if no exception was thrown
         return true;
       } catch (error) {
@@ -2355,13 +2290,13 @@ function App() {
   // Helper to send a project report manually
   const handleEmailReportManually = async () => {
     if (!reportPreview) return;
-    
+
     const targetEmail = recipientEmail === "custom" ? customRecipientEmail : recipientEmail;
     if (!targetEmail || !targetEmail.trim() || !targetEmail.includes("@")) {
       alert("Please enter or select a valid recipient email.");
       return;
     }
-    
+
     const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || googleScriptUrl;
     const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || emailJsServiceId;
     const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || emailJsTemplateId;
@@ -2377,12 +2312,12 @@ function App() {
     try {
       // Create the single project PDF using the shared generator function
       const doc = generateSingleProjectPDF(reportPreview);
-      
+
       const emailSubject = `Weaverbird Report: ${reportPreview.projectName} - ${reportPreview.title}`;
       const emailMessage = `Hello,\n\nPlease find attached the ${reportPreview.title} PDF for project "${reportPreview.projectName}" generated from the Weaverbird Interior Studio app.`;
-      
+
       const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, doc, `${reportPreview.projectName.replace(/\s+/g, '_')}_report.pdf`);
-      
+
       if (success) {
         alert(`PDF report successfully emailed to ${targetEmail}!`);
       } else {
@@ -2419,9 +2354,9 @@ function App() {
       const backupPdf = generateAllProjectsPDF(projects);
       const emailSubject = `Manual Backup: Weaverbird Studio`;
       const emailMessage = `Hello,\n\nHere is a manual backup report containing a summary of all active projects in the Weaverbird Interior Studio dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
-      
+
       const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, backupPdf, `weaverbird_studio_backup_${new Date().toISOString().split("T")[0]}.pdf`);
-      
+
       if (success) {
         alert(`Backup PDF successfully emailed to ${targetEmail}!`);
       } else {
@@ -2442,11 +2377,11 @@ function App() {
     const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || emailJsPublicKey;
 
     if (!serviceId || !templateId || !publicKey || !cleanEmail) return;
-    
+
     try {
       const userDocRef = doc(db, "users", cleanEmail);
       const userSnap = await getDoc(userDocRef);
-      
+
       let lastSent = 0;
       if (userSnap.exists()) {
         const data = userSnap.data();
@@ -2455,18 +2390,18 @@ function App() {
           setLastEmailBackupDate(data.lastEmailBackupAt);
         }
       }
-      
+
       const nowTime = Date.now();
       const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-      
+
       if (nowTime - lastSent >= threeDaysMs) {
         console.log("Triggering 3-day automated email backup...");
         const backupPdf = generateAllProjectsPDF(currentProjects);
         const emailSubject = `Automated 3-Day Backup: Weaverbird Studio`;
         const emailMessage = `Hello,\n\nThis is your automated 3-day backup report containing a summary of all active projects in your Weaverbird Interior Studio dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
-        
+
         const success = await sendEmailWithAttachment(cleanEmail, emailSubject, emailMessage, backupPdf, `weaverbird_studio_backup_${new Date().toISOString().split("T")[0]}.pdf`);
-        
+
         if (success) {
           const timestamp = new Date().toISOString();
           await setDoc(userDocRef, { lastEmailBackupAt: timestamp }, { merge: true });
@@ -2488,12 +2423,12 @@ function App() {
     try {
       // Create the single project PDF using the shared generator function
       const doc = generateSingleProjectPDF(reportPreview);
-      
+
       const fileName = `WeaverBird_${reportPreview.projectName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
-      
+
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        
+
         await Filesystem.writeFile({
           path: fileName,
           data: pdfBase64,
@@ -2519,7 +2454,7 @@ function App() {
         } catch (notifErr) {
           console.error("Notification failed:", notifErr);
         }
-        
+
         alert(`Success! PDF downloaded and saved to your Documents folder:\n${fileName}`);
       } else {
         // Desktop Browser
@@ -2538,12 +2473,12 @@ function App() {
     try {
       // Create the single project PDF using the shared generator function
       const doc = generateSingleProjectPDF(reportPreview);
-      
+
       const fileName = `WeaverBird_${reportPreview.projectName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
-      
+
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        
+
         // Write the PDF to cache directory temporarily (hidden from downloads)
         const fileResult = await Filesystem.writeFile({
           path: fileName,
@@ -2696,7 +2631,7 @@ function App() {
                     }
                   }}
                 />
-                
+
                 <button
                   id="login-connect-btn"
                   onClick={async () => {
@@ -2840,429 +2775,446 @@ function App() {
             <>
               {/* Simulated Status Bar (standard iOS/Android mockup) */}
               <div className="simulated-status-bar">
-            <span>12:30 PM</span>
-            <div className="status-bar-icons">
-              <span style={{ fontSize: "10px" }}>5G</span>
-              <div
-                style={{
-                  width: "18px",
-                  height: "10px",
-                  border: "1px solid currentColor",
-                  borderRadius: "2px",
-                  display: "flex",
-                  padding: "1px",
-                }}
-              >
-                <div
-                  style={{
-                    flex: 1,
-                    backgroundColor: "currentColor",
-                    borderRadius: "1px",
-                  }}
-                ></div>
+                <span>12:30 PM</span>
+                <div className="status-bar-icons">
+                  <span style={{ fontSize: "10px" }}>5G</span>
+                  <div
+                    style={{
+                      width: "18px",
+                      height: "10px",
+                      border: "1px solid currentColor",
+                      borderRadius: "2px",
+                      display: "flex",
+                      padding: "1px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        flex: 1,
+                        backgroundColor: "currentColor",
+                        borderRadius: "1px",
+                      }}
+                    ></div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* MAIN TAB SWITCHER */}
+              {/* MAIN TAB SWITCHER */}
 
-          {/* TAB 1: PROJECTS */}
-          {currentTab === "projects" && (
-            <>
-              {activeProjectId === null ? (
-                // Dashboard view
+              {/* TAB 1: PROJECTS */}
+              {currentTab === "projects" && (
                 <>
-                  <div className="app-header fade-in">
-                    <div className="header-left">
-                      <div
-                        className="header-title-container"
-                        style={{ display: "flex", flexDirection: "column" }}
-                      >
-                        <span
-                          className="header-brand"
-                          style={{
-                            fontSize: "22px",
-                            fontWeight: "800",
-                            color: "var(--text-title)",
-                            fontFamily: "var(--font-title)",
-                            lineHeight: "1.1",
-                            letterSpacing: "-0.5px",
-                          }}
-                        >
-                          WeaverBird
-                        </span>
-                        <span
-                          className="header-subtitle"
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: "600",
-                            color: "var(--accent-gold-dark)",
-                            textTransform: "uppercase",
-                            letterSpacing: "3.5px",
-                            marginTop: "2px",
-                            display: "block",
-                          }}
-                        >
-                          Interior Studio
-                        </span>
-                      </div>
-                    </div>
-                    <div className="header-right" style={{ display: "flex", alignItems: "center" }}>
-                      {(() => {
-                        const getStatus = () => {
-                          if (!isNetworkOnline) {
-                            return {
-                              text: "Offline",
-                              dotColor: "#ef4444", // Red
-                              bg: "rgba(239, 68, 68, 0.1)",
-                              border: "rgba(239, 68, 68, 0.2)"
-                            };
-                          }
-                          if (!cloudSyncEnabled) {
-                            return {
-                              text: "Sync Off",
-                              dotColor: "#f59e0b", // Amber
-                              bg: "rgba(245, 158, 11, 0.1)",
-                              border: "rgba(245, 158, 11, 0.2)"
-                            };
-                          }
-                          return {
-                            text: "Online",
-                            dotColor: "#10b981", // Emerald Green
-                            bg: "rgba(16, 185, 129, 0.1)",
-                            border: "rgba(16, 185, 129, 0.2)"
-                          };
-                        };
-                        const status = getStatus();
-                        return (
+                  {activeProjectId === null ? (
+                    // Dashboard view
+                    <>
+                      <div className="app-header fade-in">
+                        <div className="header-left">
                           <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              padding: "4px 10px",
-                              borderRadius: "12px",
-                              backgroundColor: status.bg,
-                              border: `1px solid ${status.border}`,
-                              fontSize: "11px",
-                              fontWeight: "700",
-                              color: status.dotColor,
-                              transition: "all 0.3s ease"
-                            }}
+                            className="header-title-container"
+                            style={{ display: "flex", flexDirection: "column" }}
                           >
                             <span
+                              className="header-brand"
                               style={{
-                                width: "6px",
-                                height: "6px",
-                                borderRadius: "50%",
-                                backgroundColor: status.dotColor,
-                                boxShadow: `0 0 8px ${status.dotColor}`,
-                                display: "inline-block"
+                                fontSize: "22px",
+                                fontWeight: "800",
+                                color: "var(--text-title)",
+                                fontFamily: "var(--font-title)",
+                                lineHeight: "1.1",
+                                letterSpacing: "-0.5px",
                               }}
-                            />
-                            {status.text}
+                            >
+                              WeaverBird
+                            </span>
+                            <span
+                              className="header-subtitle"
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: "600",
+                                color: "var(--accent-gold-dark)",
+                                textTransform: "uppercase",
+                                letterSpacing: "3.5px",
+                                marginTop: "2px",
+                                display: "block",
+                              }}
+                            >
+                              Interior Studio
+                            </span>
                           </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  <div className="screen-content fade-in">
-                    {/* Search */}
-                    <div className="search-container">
-                      <Search className="search-icon" size={18} />
-                      <input
-                        type="text"
-                        className="search-input"
-                        placeholder="Search projects..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-
-                    {/* Project List */}
-                    <div className="project-list">
-                      {filteredProjects.length > 0 ? (
-                        filteredProjects.map((project) => (
-                          <div
-                            key={project.id}
-                            className="project-card"
-                            onClick={() => {
-                              setActiveProjectId(project.id);
-                              setProjectSubTab("materials"); // default subtab
-                            }}
-                          >
-                            <div className="project-info">
-                              <span className="project-name">
-                                {project.name}
-                              </span>
+                        </div>
+                        <div className="header-right" style={{ display: "flex", alignItems: "center" }}>
+                          {(() => {
+                            const getStatus = () => {
+                              if (!isNetworkOnline) {
+                                return {
+                                  text: "Offline",
+                                  dotColor: "#ef4444", // Red
+                                  bg: "rgba(239, 68, 68, 0.1)",
+                                  border: "rgba(239, 68, 68, 0.2)"
+                                };
+                              }
+                              if (!cloudSyncEnabled) {
+                                return {
+                                  text: "Sync Off",
+                                  dotColor: "#f59e0b", // Amber
+                                  bg: "rgba(245, 158, 11, 0.1)",
+                                  border: "rgba(245, 158, 11, 0.2)"
+                                };
+                              }
+                              return {
+                                text: "Online",
+                                dotColor: "#10b981", // Emerald Green
+                                bg: "rgba(16, 185, 129, 0.1)",
+                                border: "rgba(16, 185, 129, 0.2)"
+                              };
+                            };
+                            const status = getStatus();
+                            return (
                               <div
-                                className="project-pending-stats"
                                 style={{
                                   display: "flex",
-                                  gap: "16px",
-                                  marginTop: "6px",
-                                  fontSize: "12px",
-                                  color: "var(--text-muted)",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  padding: "4px 10px",
+                                  borderRadius: "12px",
+                                  backgroundColor: status.bg,
+                                  border: `1px solid ${status.border}`,
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                  color: status.dotColor,
+                                  transition: "all 0.3s ease"
                                 }}
                               >
                                 <span
                                   style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "4px",
+                                    width: "6px",
+                                    height: "6px",
+                                    borderRadius: "50%",
+                                    backgroundColor: status.dotColor,
+                                    boxShadow: `0 0 8px ${status.dotColor}`,
+                                    display: "inline-block"
                                   }}
-                                >
-                                  <Briefcase
-                                    size={13}
-                                    style={{ color: "var(--accent)" }}
-                                  />
-                                  <span>
-                                    Pending Materials:{" "}
-                                    <strong>
-                                      {project.materials?.filter(
-                                        (m) => !m.completed
-                                      ).length || 0}
-                                    </strong>
-                                  </span>
-                                </span>
-                                <span
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "4px",
-                                  }}
-                                >
-                                  <CheckSquare
-                                    size={13}
-                                    style={{ color: "var(--accent)" }}
-                                  />
-                                  <span>
-                                    Pending Works:{" "}
-                                    <strong>
-                                      {project.tasks?.filter(
-                                        (t) => !t.completed
-                                      ).length || 0}
-                                    </strong>
-                                  </span>
-                                </span>
+                                />
+                                {status.text}
                               </div>
-                              {project.completionDate && (
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      <div className="screen-content fade-in">
+                        {/* Search */}
+                        <div className="search-container">
+                          <Search className="search-icon" size={18} />
+                          <input
+                            type="text"
+                            className="search-input"
+                            placeholder="Search projects..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                          />
+                        </div>
+
+                        {/* Project List */}
+                        <div className="project-list">
+                          {filteredProjects.length > 0 ? (
+                            filteredProjects.map((project) => (
+                              <div
+                                key={project.id}
+                                className="project-card"
+                                onClick={() => {
+                                  setActiveProjectId(project.id);
+                                  setProjectSubTab("materials"); // default subtab
+                                }}
+                              >
+                                <div className="project-info">
+                                  <span className="project-name">
+                                    {project.name}
+                                  </span>
+                                  <div
+                                    className="project-pending-stats"
+                                    style={{
+                                      display: "flex",
+                                      gap: "16px",
+                                      marginTop: "6px",
+                                      fontSize: "12px",
+                                      color: "var(--text-muted)",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                      }}
+                                    >
+                                      <Briefcase
+                                        size={13}
+                                        style={{ color: "var(--accent)" }}
+                                      />
+                                      <span>
+                                        Pending Materials:{" "}
+                                        <strong>
+                                          {project.materials?.filter(
+                                            (m) => !m.completed
+                                          ).length || 0}
+                                        </strong>
+                                      </span>
+                                    </span>
+                                    <span
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                      }}
+                                    >
+                                      <CheckSquare
+                                        size={13}
+                                        style={{ color: "var(--accent)" }}
+                                      />
+                                      <span>
+                                        Pending Works:{" "}
+                                        <strong>
+                                          {project.tasks?.filter(
+                                            (t) => !t.completed
+                                          ).length || 0}
+                                        </strong>
+                                      </span>
+                                    </span>
+                                  </div>
+                                  {project.completionDate && (
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        marginTop: "6px",
+                                        fontSize: "11px",
+                                        fontWeight: 700,
+                                        color:
+                                          getDaysLeftTextAndColor(project).color,
+                                      }}
+                                    >
+                                      <Clock size={12} />
+                                      <span>
+                                        Target:{" "}
+                                        {formatDisplayDateStr(
+                                          project.completionDate
+                                        )}{" "}
+                                        ({getDaysLeftTextAndColor(project).text})
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                                 <div
                                   style={{
                                     display: "flex",
                                     alignItems: "center",
-                                    gap: "4px",
-                                    marginTop: "6px",
-                                    fontSize: "11px",
-                                    fontWeight: 700,
-                                    color:
-                                      getDaysLeftTextAndColor(project).color,
+                                    justifyContent: "space-between",
+                                    width: "100%",
+                                    marginTop: "12px",
                                   }}
                                 >
-                                  <Clock size={12} />
-                                  <span>
-                                    Target:{" "}
-                                    {formatDisplayDateStr(
-                                      project.completionDate
-                                    )}{" "}
-                                    ({getDaysLeftTextAndColor(project).text})
+                                  <span
+                                    className={`status-pill ${project.status === "not-started"
+                                        ? "not-started"
+                                        : project.status
+                                      }`}
+                                  >
+                                    {project.status.replace("-", " ")}
                                   </span>
+                                  <button
+                                    className="action-icon-btn delete"
+                                    onClick={(e) =>
+                                      handleDeleteProject(project.id, e)
+                                    }
+                                    aria-label="Delete Project"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            ))
+                          ) : (
                             <div
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                width: "100%",
-                                marginTop: "12px",
+                                textAlign: "center",
+                                padding: "40px 20px",
+                                color: "var(--text-muted)",
                               }}
                             >
-                              <span
-                                className={`status-pill ${
-                                  project.status === "not-started"
-                                    ? "not-started"
-                                    : project.status
-                                }`}
-                              >
-                                {project.status.replace("-", " ")}
-                              </span>
-                              <button
-                                className="action-icon-btn delete"
-                                onClick={(e) =>
-                                  handleDeleteProject(project.id, e)
-                                }
-                                aria-label="Delete Project"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              No projects match your filters.
                             </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div
-                          style={{
-                            textAlign: "center",
-                            padding: "40px 20px",
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          No projects match your filters.
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                  {/* No FAB here, handled in bottom-nav */}
-                </>
-              ) : (
-                // Project Detail view (matches Screen 2 & 3 layout)
-                <>
-                  <div className="app-header fade-in">
-                    <div className="header-left">
-                      <button
-                        className="icon-btn"
-                        onClick={() => setActiveProjectId(null)}
-                        aria-label="Back"
-                      >
-                        <ArrowLeft size={20} />
-                      </button>
-                      <div
-                        className="header-title-container"
-                        style={{ maxWidth: "230px" }}
-                      >
-                        <span className="header-subtitle">WeaverBird</span>
-                        <h1 style={{ marginBottom: "2px" }}>
-                          {activeProject?.name}
-                        </h1>
-                        {activeProject?.completionDate && (
-                          <span
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: "700",
-                              color:
-                                getDaysLeftTextAndColor(activeProject).color,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px",
-                            }}
-                          >
-                            <Clock size={10} />
-                            Target:{" "}
-                            {formatDisplayDateStr(
-                              activeProject.completionDate
-                            )}{" "}
-                            ({getDaysLeftTextAndColor(activeProject).text})
-                          </span>
-                        )}
                       </div>
-                    </div>
-                    <div
-                      className="header-right"
-                      style={{ display: "flex", gap: "8px" }}
-                    >
-                      <button
-                        className="icon-btn"
-                        onClick={handleShareProjectOverview}
-                        style={{ color: "#25D366" }}
-                        aria-label="Share project overview to WhatsApp"
-                      >
-                        <Share2 size={16} />
-                      </button>
-                      <button
-                        className="icon-btn"
-                        onClick={() => generatePDFReport("both")}
-                        style={{ color: "#ef4444" }}
-                        aria-label="Export project report to PDF"
-                      >
-                        <FileText size={16} />
-                      </button>
-                      <button
-                        className="icon-btn"
-                        onClick={() =>
-                          setEditItemModal({
-                            type: "project",
-                            itemId: activeProject.id,
-                            name: activeProject.name,
-                            status: activeProject.status,
-                            completionDate: activeProject.completionDate || "",
-                          })
-                        }
-                        aria-label="Edit project metadata"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Target Completion Banner removed to reduce vertical spacing as target is already displayed in header */}
-
-                  {activeRoomId === null ? (
-                    // ROOMS LIST VIEW
-                    <div className="screen-content fade-in" style={{ paddingTop: "12px" }}>
-                      <div className="rooms-grid">
-                        {(activeProject?.rooms || []).map((room) => (
-                          <div 
-                            key={room.id} 
-                            className="room-card fade-in"
-                            onClick={() => setActiveRoomId(room.id)}
+                      {/* No FAB here, handled in bottom-nav */}
+                    </>
+                  ) : (
+                    // Project Detail view (matches Screen 2 & 3 layout)
+                    <>
+                      <div className="app-header fade-in">
+                        <div className="header-left">
+                          <button
+                            className="icon-btn"
+                            onClick={() => setActiveProjectId(null)}
+                            aria-label="Back"
                           >
-                            <div className="room-card-header">
-                              <h3 className="room-card-title">{room.name}</h3>
-                              <div className="room-card-actions">
-                                <button 
-                                  className="room-action-btn edit" 
-                                  onClick={(e) => handleEditRoom(e, room.id, room.name)}
-                                  title="Edit Room Name"
-                                >
-                                  <Edit2 size={16} />
-                                </button>
-                                <button 
-                                  className="room-action-btn delete" 
-                                  onClick={(e) => handleDeleteRoom(e, room.id)}
-                                  title="Delete Room"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            </div>
-                            <div className="room-card-stats">
-                              <span>{activeProject?.materials?.filter(m => m.roomId === room.id && !m.completed).length || 0} materials</span>
-                              <span className="dot-separator">•</span>
-                              <span>{activeProject?.tasks?.filter(t => t.roomId === room.id && !t.completed).length || 0} tasks</span>
-                            </div>
-                            <div className="room-card-footer">
-                                <button
-                                  className="room-action-btn share"
-                                  onClick={(e) => handleShareRoom(e, room)}
-                                  title="Share Room to WhatsApp"
-                                >
-                                  <Share2 size={16} />
-                                </button>
-                                <button
-                                  className="room-action-btn pdf"
-                                  onClick={(e) => handleGenerateRoomPDF(e, room)}
-                                  title="Download Room PDF"
-                                >
-                                  <FileText size={16} />
-                                </button>
-                            </div>
+                            <ArrowLeft size={20} />
+                          </button>
+                          <div
+                            className="header-title-container"
+                            style={{ maxWidth: "230px" }}
+                          >
+                            <span className="header-subtitle">WeaverBird</span>
+                            <h1 style={{ marginBottom: "2px" }}>
+                              {activeProject?.name}
+                            </h1>
+                            {activeProject?.completionDate && (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontWeight: "700",
+                                  color:
+                                    getDaysLeftTextAndColor(activeProject).color,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                }}
+                              >
+                                <Clock size={10} />
+                                Target:{" "}
+                                {formatDisplayDateStr(
+                                  activeProject.completionDate
+                                )}{" "}
+                                ({getDaysLeftTextAndColor(activeProject).text})
+                              </span>
+                            )}
                           </div>
-                        ))}
-                        <div  
-                          className="room-card general-room fade-in"
-                          onClick={() => setActiveRoomId("general")}
+                        </div>
+                        <div
+                          className="header-right"
+                          style={{ display: "flex", gap: "8px" }}
                         >
-                          <div className="room-card-header">
-                            <h3 className="room-card-title">General / Unassigned</h3>
-                          </div>
-                          <div className="room-card-stats">
-                            <span>{activeProject?.materials?.filter(m => (!m.roomId || m.roomId === "general") && !m.completed).length || 0} materials</span>
-                            <span className="dot-separator">•</span>
-                            <span>{activeProject?.tasks?.filter(t => (!t.roomId || t.roomId === "general") && !t.completed).length || 0} tasks</span>
-                          </div>
-                          <div className="room-card-footer">
+                          <button
+                            className="icon-btn"
+                            onClick={handleShareProjectOverview}
+                            style={{ color: "#25D366" }}
+                            aria-label="Share project overview to WhatsApp"
+                          >
+                            <Share2 size={16} />
+                          </button>
+                          <button
+                            className="icon-btn"
+                            onClick={() => generatePDFReport("both")}
+                            style={{ color: "#ef4444" }}
+                            aria-label="Export project report to PDF"
+                          >
+                            <FileText size={16} />
+                          </button>
+                          <button
+                            className="icon-btn"
+                            onClick={() =>
+                              setEditItemModal({
+                                type: "project",
+                                itemId: activeProject.id,
+                                name: activeProject.name,
+                                status: activeProject.status,
+                                completionDate: activeProject.completionDate || "",
+                              })
+                            }
+                            aria-label="Edit project metadata"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Target Completion Banner removed to reduce vertical spacing as target is already displayed in header */}
+
+                      {activeRoomId === null ? (
+                        // ROOMS LIST VIEW
+                        <div className="screen-content fade-in" style={{ paddingTop: "12px" }}>
+                          <div className="rooms-grid">
+                            {(activeProject?.rooms || []).map((room) => (
+                              <div
+                                key={room.id}
+                                className="room-card fade-in"
+                                onClick={() => setActiveRoomId(room.id)}
+                              >
+                                <div className="room-card-header">
+                                  <h3 className="room-card-title">{room.name}</h3>
+                                  <div className="room-card-actions">
+                                    <button
+                                      className="room-action-btn edit"
+                                      onClick={(e) => handleEditRoom(e, room.id, room.name)}
+                                      title="Edit Room Name"
+                                    >
+                                      <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                      className="room-action-btn delete"
+                                      onClick={(e) => handleDeleteRoom(e, room.id)}
+                                      title="Delete Room"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="room-card-stats">
+                                  {(() => {
+                                    const mTotal = activeProject?.materials?.filter(m => m.roomId === room.id)?.length || 0;
+                                    const mPending = activeProject?.materials?.filter(m => m.roomId === room.id && !m.completed)?.length || 0;
+                                    const tTotal = activeProject?.tasks?.filter(t => t.roomId === room.id)?.length || 0;
+                                    const tPending = activeProject?.tasks?.filter(t => t.roomId === room.id && !t.completed)?.length || 0;
+                                    return (
+                                      <>
+                                        <span>Materials: {mPending}/{mTotal}</span>
+                                    <span>Works: {tPending}/{tTotal}</span>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                                <div className="room-card-footer">
+                                  <button
+                                    className="room-action-btn share"
+                                    onClick={(e) => handleShareRoom(e, room)}
+                                    title="Share Room to WhatsApp"
+                                  >
+                                    <Share2 size={16} />
+                                  </button>
+                                  <button
+                                    className="room-action-btn pdf"
+                                    onClick={(e) => handleGenerateRoomPDF(e, room)}
+                                    title="Download Room PDF"
+                                  >
+                                    <FileText size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            <div
+                              className="room-card general-room fade-in"
+                              onClick={() => setActiveRoomId("general")}
+                            >
+                              <div className="room-card-header">
+                                <h3 className="room-card-title">General / Unassigned</h3>
+                              </div>
+                              <div className="room-card-stats">
+                                {(() => {
+                                  const mTotal = activeProject?.materials?.filter(m => !m.roomId || m.roomId === "general")?.length || 0;
+                                  const mPending = activeProject?.materials?.filter(m => (!m.roomId || m.roomId === "general") && !m.completed)?.length || 0;
+                                  const tTotal = activeProject?.tasks?.filter(t => !t.roomId || t.roomId === "general")?.length || 0;
+                                  const tPending = activeProject?.tasks?.filter(t => (!t.roomId || t.roomId === "general") && !t.completed)?.length || 0;
+                                  return (
+                                    <>
+                                      <span>Materials: {mPending}/{mTotal}</span>
+                                  <span>Works: {tPending}/{tTotal}</span>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                              <div className="room-card-footer">
                                 <button
                                   className="room-action-btn share"
                                   onClick={(e) => handleShareRoom(e, { id: 'general', name: 'General / Unassigned' })}
@@ -3277,1550 +3229,2125 @@ function App() {
                                 >
                                   <FileText size={16} />
                                 </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // ROOM DETAILS VIEW (Materials & Work tabs)
-                    <>
-                      {/* Room Header with Back Button to go back to Rooms List */}
-                      <div className="room-detail-header fade-in" style={{ padding: "0 20px", display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", marginBottom: "5px" }}>
-                        <button className="icon-btn" onClick={() => setActiveRoomId(null)} style={{ padding: "4px" }}>
-                          <ArrowLeft size={16} />
-                        </button>
-                        <h2 style={{ fontSize: "16px", margin: 0, color: "var(--text-title)" }}>
-                          {activeRoomId === "general" ? "General / Unassigned" : activeProject?.rooms?.find(r => r.id === activeRoomId)?.name || "Room"}
-                        </h2>
-                      </div>
-
-                      {/* Sub-tabs for Materials and Work */}
-                  <div className="tabs-bar-new fade-in">
-                    <button
-                      className={`tab-btn-new ${
-                        projectSubTab === "materials" ? "active" : ""
-                      }`}
-                      onClick={() => setProjectSubTab("materials")}
-                    >
-                      Materials
-                    </button>
-                    <button
-                      className={`tab-btn-new ${
-                        projectSubTab === "work" ? "active" : ""
-                      }`}
-                      onClick={() => setProjectSubTab("work")}
-                    >
-                      Work
-                    </button>
-                  </div>
-
-                  <div
-                    className="screen-content fade-in"
-                    style={{ paddingTop: "0px" }}
-                  >
-                    {projectSubTab === "materials" ? (
-                      // MATERIALS SUB-TAB (Screen 2 details)
-                      <>
-                        <div className="section-header-new">
-                          <h2 className="section-title-new">Materials</h2>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                            <span className="section-count-new">
-                              {(activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed).length || 0)} ITEMS
-                            </span>
-                            <button
-                              className="icon-btn"
-                              onClick={handleShareMaterials}
-                              style={{ color: "#25D366", padding: "6px", background: "none", border: "none" }}
-                              title="Share pending materials to WhatsApp"
-                            >
-                              <Share2 size={16} />
-                            </button>
-                            <button
-                              className="icon-btn"
-                              onClick={() => generatePDFReport("materials")}
-                              style={{ color: "#ef4444", padding: "6px", background: "none", border: "none" }}
-                              title="Download materials PDF report"
-                            >
-                              <FileText size={16} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Add New Material Card */}
-                        <div className="quick-add-card-new">
-                          <h3 className="quick-add-new-title">Add New Material</h3>
-                          {/* <p className="quick-add-new-desc">Enter a material name to add it to this project.</p> */}
-                          <form onSubmit={handleAddMaterial} className="quick-add-new-form">
-                            <div className="quick-add-input-group-new">
-                              <input
-                                type="text"
-                                className="quick-add-new-input"
-                                placeholder="Enter material name"
-                                value={newMaterialInput}
-                                onChange={(e) => setNewMaterialInput(e.target.value)}
-                              />
-                              <button type="submit" className="quick-add-new-btn">
-                                Add
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-
-                        {/* Materials List Table */}
-                        <div className="checklist-table-new">
-                          <div className="list-columns-subheader-new">
-                            <span>DONE</span>
-                            <span>ITEM NAME</span>
-                            <span className="text-right">ACTIONS</span>
-                          </div>
-
-                          {/* Pending Materials List */}
-                          <div className="list-rows-container-new">
-                            {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed).length > 0 ? (
-                              activeProject.materials
-                                .filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed)
-                                .map((mat) => (
-                                  <div key={mat.id} className="list-item-row-new">
-                                    <label className="checkbox-container-new">
-                                      <input
-                                        type="checkbox"
-                                        checked={mat.completed}
-                                        onChange={() => handleToggleMaterial(mat.id)}
-                                      />
-                                      <span className="checkmark-new"></span>
-                                    </label>
-                                    <span className="list-item-text-new">
-                                      {mat.name}
-                                    </span>
-                                    <div className="item-actions-new">
-                                      <button
-                                        className="action-text-btn-new"
-                                        onClick={() =>
-                                          setEditItemModal({
-                                            type: "material",
-                                            projectId: activeProject.id,
-                                            itemId: mat.id,
-                                            name: mat.name,
-                                          })
-                                        }
-                                      >
-                                        Edit
-                                      </button>
-                                      <span className="action-separator-new">|</span>
-                                      <button
-                                        className="action-text-btn-new delete"
-                                        onClick={() => handleDeleteMaterial(mat.id)}
-                                      >
-                                        Delete
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))
-                            ) : (
-                              <div className="empty-list-message-new">
-                                No pending materials. All clean!
                               </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Collapsible Completed Materials Section */}
-                        <div
-                          className="collapsible-header-new"
-                          onClick={() => setMaterialsCollapsed(!materialsCollapsed)}
-                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span className="collapsible-title-new" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              <Clock size={15} />
-                              Completed Materials
-                            </span>
-                            <span className="collapsible-badge-new">
-                              {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length || 0}
-                            </span>
-                          </div>
-                          
-                          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                            {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length > 0 && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleClearCompletedMaterials();
-                                }}
-                                style={{
-                                  padding: "4px 10px",
-                                  fontSize: "11px",
-                                  borderRadius: "6px",
-                                  backgroundColor: "rgba(239, 68, 68, 0.1)",
-                                  color: "#ef4444",
-                                  border: "1px solid rgba(239, 68, 68, 0.2)",
-                                  cursor: "pointer",
-                                  fontWeight: "600"
-                                }}
-                              >
-                                Clear Completed
-                              </button>
-                            )}
-                            <span className="collapsible-arrow-new" style={{ display: "flex" }}>
-                              {materialsCollapsed ? (
-                                <ChevronDown size={16} />
-                              ) : (
-                                <ChevronUp size={16} />
-                              )}
-                            </span>
-                          </div>
-                        </div>
-
-                        {!materialsCollapsed && (
-                          <div className="collapsible-content-new">
-                            {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length > 0 ? (
-                              activeProject.materials
-                                .filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed)
-                                .map((mat) => (
-                                  <div key={mat.id} className="list-item-row-new completed-row-new">
-                                    <label className="checkbox-container-new">
-                                      <input
-                                        type="checkbox"
-                                        checked={mat.completed}
-                                        onChange={() => handleToggleMaterial(mat.id)}
-                                      />
-                                      <span className="checkmark-new"></span>
-                                    </label>
-                                    <span className="list-item-text-new completed">
-                                      {mat.name}
-                                    </span>
-                                    <div className="item-actions-new">
-                                      <button
-                                        className="action-text-btn-new delete"
-                                        onClick={() => handleDeleteMaterial(mat.id)}
-                                      >
-                                        Delete
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))
-                            ) : (
-                              <div className="empty-list-message-new">
-                                No completed materials yet.
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      // WORK/TASKS SUB-TAB (Screen 3 details)
-                      <>
-                        <div className="section-header-new">
-                          <h2 className="section-title-new">Work</h2>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                            <span className="section-count-new">
-                              {(activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed).length || 0)} ITEMS
-                            </span>
-                            <button
-                              className="icon-btn"
-                              onClick={handleShareTasks}
-                              style={{ color: "#25D366", padding: "6px", background: "none", border: "none" }}
-                              title="Share pending tasks to WhatsApp"
-                            >
-                              <Share2 size={16} />
-                            </button>
-                            <button
-                              className="icon-btn"
-                              onClick={() => generatePDFReport("tasks")}
-                              style={{ color: "#ef4444", padding: "6px", background: "none", border: "none" }}
-                              title="Download works PDF report"
-                            >
-                              <FileText size={16} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Add New Work Card */}
-                        <div className="quick-add-card-new">
-                          <h3 className="quick-add-new-title">Add New Work</h3>
-                          {/* <p className="quick-add-new-desc">Enter a work description to add it to this project.</p> */}
-                          <form onSubmit={handleAddTask} className="quick-add-new-form">
-                            <div className="quick-add-input-group-new">
-                              <input
-                                type="text"
-                                className="quick-add-new-input"
-                                placeholder="Enter work description"
-                                value={newWorkInput}
-                                onChange={(e) => setNewWorkInput(e.target.value)}
-                              />
-                              <button type="submit" className="quick-add-new-btn">
-                                Add
-                              </button>
-                            </div>
-                          </form>
-                          
-                          {/* Priority Selector */}
-                          <div className="priority-selector-new">
-                            <span className="priority-label-new">Priority:</span>
-                            <div className="priority-pills-new">
-                              <button
-                                type="button"
-                                className={`priority-pill-new high ${newTaskPriority === "high" ? "active" : ""}`}
-                                onClick={() => setNewTaskPriority("high")}
-                              >
-                                High
-                              </button>
-                              <button
-                                type="button"
-                                className={`priority-pill-new medium ${newTaskPriority === "medium" ? "active" : ""}`}
-                                onClick={() => setNewTaskPriority("medium")}
-                              >
-                                Medium
-                              </button>
-                              <button
-                                type="button"
-                                className={`priority-pill-new low ${newTaskPriority === "low" ? "active" : ""}`}
-                                onClick={() => setNewTaskPriority("low")}
-                              >
-                                Low
-                              </button>
                             </div>
                           </div>
                         </div>
-
-                        {/* Tasks List Table */}
-                        <div className="checklist-table-new">
-                          <div className="list-columns-subheader-new">
-                            <span>DONE</span>
-                            <span>TASK DESCRIPTION</span>
-                            <span className="text-right">ACTIONS</span>
-                          </div>
-
-                          {/* Pending Tasks List */}
-                          <div className="list-rows-container-new">
-                            {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed).length > 0 ? (
-                              [...activeProject.tasks]
-                                .filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed)
-                                .sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority))
-                                .map((task) => (
-                                  <div
-                                    key={task.id}
-                                    className={`list-item-row-new task-row-new ${
-                                      draggedTaskId === task.id ? "dragging-new" : ""
-                                    }`}
-                                    draggable={true}
-                                    onDragStart={(e) => handleTaskDragStart(e, task.id)}
-                                    onDragOver={handleTaskDragOver}
-                                    onDrop={(e) => handleTaskDrop(e, task.id)}
-                                  >
-                                    <div className="drag-handle-new">
-                                      <GripVertical size={14} />
-                                    </div>
-                                    <label className="checkbox-container-new">
-                                      <input
-                                        type="checkbox"
-                                        checked={task.completed}
-                                        onChange={() => handleToggleTask(task.id)}
-                                      />
-                                      <span className="checkmark-new"></span>
-                                    </label>
-                                    <div className="list-item-text-with-badge-new">
-                                      <span className="list-item-text-new">
-                                        {task.name}
-                                      </span>
-                                      <span className={`task-priority-badge-new ${task.priority || "medium"}`}>
-                                        {task.priority || "medium"}
-                                      </span>
-                                    </div>
-                                    <div className="item-actions-new">
-                                      <button
-                                        className="action-text-btn-new"
-                                        onClick={() =>
-                                          setEditItemModal({
-                                            type: "task",
-                                            projectId: activeProject.id,
-                                            itemId: task.id,
-                                            name: task.name,
-                                            priority: task.priority || "medium",
-                                            dependencies: task.dependencies || [],
-                                          })
-                                        }
-                                      >
-                                        Edit
-                                      </button>
-                                      <span className="action-separator-new">|</span>
-                                      <button
-                                        className="action-text-btn-new delete"
-                                        onClick={() => handleDeleteTask(task.id)}
-                                      >
-                                        Delete
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))
-                            ) : (
-                              <div className="empty-list-message-new">
-                                No pending tasks. All clean!
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Collapsible Completed Tasks Section */}
-                        <div
-                          className="collapsible-header-new"
-                          onClick={() => setTasksCollapsed(!tasksCollapsed)}
-                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span className="collapsible-title-new" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              <Clock size={15} />
-                              Completed Tasks
-                            </span>
-                            <span className="collapsible-badge-new">
-                              {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length || 0}
-                            </span>
-                          </div>
-                          
-                          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                            {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length > 0 && (
+                      ) : (
+                        // ROOM DETAILS VIEW (Materials & Work tabs)
+                        <>
+                          {/* Room Header with Back Button to go back to Rooms List */}
+                          <div className="app-header fade-in" style={{ paddingTop: "8px", paddingBottom: "0", minHeight: "auto" }}>
+                            <div className="header-left">
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleClearCompletedTasks();
-                                }}
-                                style={{
-                                  padding: "4px 10px",
-                                  fontSize: "11px",
-                                  borderRadius: "6px",
-                                  backgroundColor: "rgba(239, 68, 68, 0.1)",
-                                  color: "#ef4444",
-                                  border: "1px solid rgba(239, 68, 68, 0.2)",
-                                  cursor: "pointer",
-                                  fontWeight: "600"
-                                }}
+                                className="icon-btn"
+                                onClick={() => setActiveRoomId(null)}
+                                aria-label="Back to Rooms"
                               >
-                                Clear Completed
+                                <ArrowLeft size={20} />
                               </button>
-                            )}
-                            <span className="collapsible-arrow-new" style={{ display: "flex" }}>
-                              {tasksCollapsed ? (
-                                <ChevronDown size={16} />
-                              ) : (
-                                <ChevronUp size={16} />
-                              )}
-                            </span>
+                              <div className="header-title-container" style={{ maxWidth: "230px" }}>
+                                <span className="header-subtitle">{activeProject?.name || "Project"}</span>
+                                <h1 style={{ marginBottom: "2px" }}>
+                                  {activeRoomId === "general" ? "General / Unassigned" : (activeProject?.rooms?.find(r => r.id === activeRoomId)?.name || "Room")}
+                                </h1>
+                              </div>
+                            </div>
                           </div>
-                        </div>
 
-                        {!tasksCollapsed && (
-                          <div className="collapsible-content-new">
-                            {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length > 0 ? (
-                              activeProject.tasks
-                                .filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed)
-                                .map((task) => (
-                                  <div key={task.id} className="list-item-row-new completed-row-new">
-                                    <label className="checkbox-container-new">
-                                      <input
-                                        type="checkbox"
-                                        checked={task.completed}
-                                        onChange={() => handleToggleTask(task.id)}
-                                      />
-                                      <span className="checkmark-new"></span>
-                                    </label>
-                                    <span className="list-item-text-new completed">
-                                      {task.name}
+                          {/* Sub-tabs for Materials and Work */}
+                          <div className="tabs-bar-new fade-in">
+                            <button
+                              className={`tab-btn-new ${projectSubTab === "materials" ? "active" : ""
+                                }`}
+                              onClick={() => setProjectSubTab("materials")}
+                            >
+                              Materials
+                            </button>
+                            <button
+                              className={`tab-btn-new ${projectSubTab === "work" ? "active" : ""
+                                }`}
+                              onClick={() => setProjectSubTab("work")}
+                            >
+                              Work
+                            </button>
+                          </div>
+
+                          <div
+                            className="screen-content fade-in"
+                            style={{ paddingTop: "0px" }}
+                          >
+                            {projectSubTab === "materials" ? (
+                              // MATERIALS SUB-TAB (Screen 2 details)
+                              <>
+                                <div className="section-header-new">
+                                  <h2 className="section-title-new">Materials</h2>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                    <span className="section-count-new">
+                                      {(activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed).length || 0)} ITEMS
                                     </span>
-                                    <div className="item-actions-new">
+                                    <button
+                                      className="icon-btn"
+                                      onClick={handleShareMaterials}
+                                      style={{ color: "#25D366", padding: "6px", background: "none", border: "none" }}
+                                      title="Share pending materials to WhatsApp"
+                                    >
+                                      <Share2 size={16} />
+                                    </button>
+                                    <button
+                                      className="icon-btn"
+                                      onClick={() => generatePDFReport("materials")}
+                                      style={{ color: "#ef4444", padding: "6px", background: "none", border: "none" }}
+                                      title="Download materials PDF report"
+                                    >
+                                      <FileText size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Add New Material Card */}
+                                <div className="quick-add-card-new">
+                                  <h3 className="quick-add-new-title">Add New Material</h3>
+                                  {/* <p className="quick-add-new-desc">Enter a material name to add it to this project.</p> */}
+                                  <form onSubmit={handleAddMaterial} className="quick-add-new-form">
+                                    <div className="quick-add-input-group-new">
+                                      <input
+                                        type="text"
+                                        className="quick-add-new-input"
+                                        placeholder="Enter material name"
+                                        value={newMaterialInput}
+                                        onChange={(e) => setNewMaterialInput(e.target.value)}
+                                      />
+                                      <button type="submit" className="quick-add-new-btn">
+                                        Add
+                                      </button>
+                                    </div>
+                                  </form>
+                                </div>
+
+                                {/* Materials List Table */}
+                                <div className="checklist-table-new">
+                                  <div className="list-columns-subheader-new">
+                                    <span>DONE</span>
+                                    <span>ITEM NAME</span>
+                                    <span className="text-right">ACTIONS</span>
+                                  </div>
+
+                                  {/* Pending Materials List */}
+                                  <div className="list-rows-container-new">
+                                    {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed).length > 0 ? (
+                                      activeProject.materials
+                                        .filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed)
+                                        .map((mat) => (
+                                          <div key={mat.id} className="list-item-row-new">
+                                            <label className="checkbox-container-new">
+                                              <input
+                                                type="checkbox"
+                                                checked={mat.completed}
+                                                onChange={() => handleToggleMaterial(mat.id)}
+                                              />
+                                              <span className="checkmark-new"></span>
+                                            </label>
+                                            <span className="list-item-text-new">
+                                              {mat.name}
+                                            </span>
+                                            <div className="item-actions-new">
+                                              <button
+                                                className="action-text-btn-new"
+                                                onClick={() =>
+                                                  setEditItemModal({
+                                                    type: "material",
+                                                    projectId: activeProject.id,
+                                                    itemId: mat.id,
+                                                    name: mat.name,
+                                                  })
+                                                }
+                                              >
+                                                Edit
+                                              </button>
+                                              <span className="action-separator-new">|</span>
+                                              <button
+                                                className="action-text-btn-new delete"
+                                                onClick={() => handleDeleteMaterial(mat.id)}
+                                              >
+                                                Delete
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))
+                                    ) : (
+                                      <div className="empty-list-message-new">
+                                        No pending materials. All clean!
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Collapsible Completed Materials Section */}
+                                <div
+                                  className="collapsible-header-new"
+                                  onClick={() => setMaterialsCollapsed(!materialsCollapsed)}
+                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <span className="collapsible-title-new" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                      <Clock size={15} />
+                                      Completed Materials
+                                    </span>
+                                    <span className="collapsible-badge-new">
+                                      {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length || 0}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                    {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length > 0 && (
                                       <button
-                                        className="action-text-btn-new delete"
-                                        onClick={() => handleDeleteTask(task.id)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleClearCompletedMaterials();
+                                        }}
+                                        style={{
+                                          padding: "4px 10px",
+                                          fontSize: "11px",
+                                          borderRadius: "6px",
+                                          backgroundColor: "rgba(239, 68, 68, 0.1)",
+                                          color: "#ef4444",
+                                          border: "1px solid rgba(239, 68, 68, 0.2)",
+                                          cursor: "pointer",
+                                          fontWeight: "600"
+                                        }}
                                       >
-                                        Delete
+                                        Clear Completed
+                                      </button>
+                                    )}
+                                    <span className="collapsible-arrow-new" style={{ display: "flex" }}>
+                                      {materialsCollapsed ? (
+                                        <ChevronDown size={16} />
+                                      ) : (
+                                        <ChevronUp size={16} />
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {!materialsCollapsed && (
+                                  <div className="collapsible-content-new">
+                                    {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length > 0 ? (
+                                      activeProject.materials
+                                        .filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed)
+                                        .map((mat) => (
+                                          <div key={mat.id} className="list-item-row-new completed-row-new">
+                                            <label className="checkbox-container-new">
+                                              <input
+                                                type="checkbox"
+                                                checked={mat.completed}
+                                                onChange={() => handleToggleMaterial(mat.id)}
+                                              />
+                                              <span className="checkmark-new"></span>
+                                            </label>
+                                            <span className="list-item-text-new completed">
+                                              {mat.name}
+                                            </span>
+                                            <div className="item-actions-new">
+                                              <button
+                                                className="action-text-btn-new delete"
+                                                onClick={() => handleDeleteMaterial(mat.id)}
+                                              >
+                                                Delete
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))
+                                    ) : (
+                                      <div className="empty-list-message-new">
+                                        No completed materials yet.
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              // WORK/TASKS SUB-TAB (Screen 3 details)
+                              <>
+                                <div className="section-header-new">
+                                  <h2 className="section-title-new">Work</h2>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                    <span className="section-count-new">
+                                      {(activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed).length || 0)} ITEMS
+                                    </span>
+                                    <button
+                                      className="icon-btn"
+                                      onClick={handleShareTasks}
+                                      style={{ color: "#25D366", padding: "6px", background: "none", border: "none" }}
+                                      title="Share pending tasks to WhatsApp"
+                                    >
+                                      <Share2 size={16} />
+                                    </button>
+                                    <button
+                                      className="icon-btn"
+                                      onClick={() => generatePDFReport("tasks")}
+                                      style={{ color: "#ef4444", padding: "6px", background: "none", border: "none" }}
+                                      title="Download works PDF report"
+                                    >
+                                      <FileText size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Add New Work Card */}
+                                <div className="quick-add-card-new">
+                                  <h3 className="quick-add-new-title">Add New Work</h3>
+                                  {/* <p className="quick-add-new-desc">Enter a work description to add it to this project.</p> */}
+                                  <form onSubmit={handleAddTask} className="quick-add-new-form">
+                                    <div className="quick-add-input-group-new">
+                                      <input
+                                        type="text"
+                                        className="quick-add-new-input"
+                                        placeholder="Enter work description"
+                                        value={newWorkInput}
+                                        onChange={(e) => setNewWorkInput(e.target.value)}
+                                      />
+                                      <button type="submit" className="quick-add-new-btn">
+                                        Add
+                                      </button>
+                                    </div>
+                                  </form>
+
+                                  {/* Priority Selector */}
+                                  <div className="priority-selector-new">
+                                    <span className="priority-label-new">Priority:</span>
+                                    <div className="priority-pills-new">
+                                      <button
+                                        type="button"
+                                        className={`priority-pill-new high ${newTaskPriority === "high" ? "active" : ""}`}
+                                        onClick={() => setNewTaskPriority("high")}
+                                      >
+                                        High
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={`priority-pill-new medium ${newTaskPriority === "medium" ? "active" : ""}`}
+                                        onClick={() => setNewTaskPriority("medium")}
+                                      >
+                                        Medium
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={`priority-pill-new low ${newTaskPriority === "low" ? "active" : ""}`}
+                                        onClick={() => setNewTaskPriority("low")}
+                                      >
+                                        Low
                                       </button>
                                     </div>
                                   </div>
-                                ))
-                            ) : (
-                              <div className="empty-list-message-new">
-                                No completed tasks yet.
-                              </div>
+                                </div>
+
+                                {/* Tasks List Table */}
+                                <div className="checklist-table-new">
+                                  <div className="list-columns-subheader-new">
+                                    <span>DONE</span>
+                                    <span>TASK DESCRIPTION</span>
+                                    <span className="text-right">ACTIONS</span>
+                                  </div>
+
+                                  {/* Pending Tasks List */}
+                                  <div className="list-rows-container-new">
+                                    {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed).length > 0 ? (
+                                      [...activeProject.tasks]
+                                        .filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed)
+                                        .sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority))
+                                        .map((task) => (
+                                          <div
+                                            key={task.id}
+                                            className={`list-item-row-new task-row-new ${draggedTaskId === task.id ? "dragging-new" : ""
+                                              }`}
+                                            draggable={true}
+                                            onDragStart={(e) => handleTaskDragStart(e, task.id)}
+                                            onDragOver={handleTaskDragOver}
+                                            onDrop={(e) => handleTaskDrop(e, task.id)}
+                                          >
+                                            <div className="drag-handle-new">
+                                              <GripVertical size={14} />
+                                            </div>
+                                            <label className="checkbox-container-new">
+                                              <input
+                                                type="checkbox"
+                                                checked={task.completed}
+                                                onChange={() => handleToggleTask(task.id)}
+                                              />
+                                              <span className="checkmark-new"></span>
+                                            </label>
+                                            <div className="list-item-text-with-badge-new">
+                                              <span className="list-item-text-new">
+                                                {task.name}
+                                              </span>
+                                              <span className={`task-priority-badge-new ${task.priority || "medium"}`}>
+                                                {task.priority || "medium"}
+                                              </span>
+                                            </div>
+                                            <div className="item-actions-new">
+                                              <button
+                                                className="action-text-btn-new"
+                                                onClick={() =>
+                                                  setEditItemModal({
+                                                    type: "task",
+                                                    projectId: activeProject.id,
+                                                    itemId: task.id,
+                                                    name: task.name,
+                                                    priority: task.priority || "medium",
+                                                    dependencies: task.dependencies || [],
+                                                  })
+                                                }
+                                              >
+                                                Edit
+                                              </button>
+                                              <span className="action-separator-new">|</span>
+                                              <button
+                                                className="action-text-btn-new delete"
+                                                onClick={() => handleDeleteTask(task.id)}
+                                              >
+                                                Delete
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))
+                                    ) : (
+                                      <div className="empty-list-message-new">
+                                        No pending tasks. All clean!
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Collapsible Completed Tasks Section */}
+                                <div
+                                  className="collapsible-header-new"
+                                  onClick={() => setTasksCollapsed(!tasksCollapsed)}
+                                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <span className="collapsible-title-new" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                      <Clock size={15} />
+                                      Completed Tasks
+                                    </span>
+                                    <span className="collapsible-badge-new">
+                                      {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length || 0}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                    {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length > 0 && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleClearCompletedTasks();
+                                        }}
+                                        style={{
+                                          padding: "4px 10px",
+                                          fontSize: "11px",
+                                          borderRadius: "6px",
+                                          backgroundColor: "rgba(239, 68, 68, 0.1)",
+                                          color: "#ef4444",
+                                          border: "1px solid rgba(239, 68, 68, 0.2)",
+                                          cursor: "pointer",
+                                          fontWeight: "600"
+                                        }}
+                                      >
+                                        Clear Completed
+                                      </button>
+                                    )}
+                                    <span className="collapsible-arrow-new" style={{ display: "flex" }}>
+                                      {tasksCollapsed ? (
+                                        <ChevronDown size={16} />
+                                      ) : (
+                                        <ChevronUp size={16} />
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {!tasksCollapsed && (
+                                  <div className="collapsible-content-new">
+                                    {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length > 0 ? (
+                                      activeProject.tasks
+                                        .filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed)
+                                        .map((task) => (
+                                          <div key={task.id} className="list-item-row-new completed-row-new">
+                                            <label className="checkbox-container-new">
+                                              <input
+                                                type="checkbox"
+                                                checked={task.completed}
+                                                onChange={() => handleToggleTask(task.id)}
+                                              />
+                                              <span className="checkmark-new"></span>
+                                            </label>
+                                            <span className="list-item-text-new completed">
+                                              {task.name}
+                                            </span>
+                                            <div className="item-actions-new">
+                                              <button
+                                                className="action-text-btn-new delete"
+                                                onClick={() => handleDeleteTask(task.id)}
+                                              >
+                                                Delete
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))
+                                    ) : (
+                                      <div className="empty-list-message-new">
+                                        No completed tasks yet.
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  </>
-                )}
+                        </>
+                      )}
+                    </>
+                  )}
                 </>
               )}
-            </>
-          )}
 
-          {/* TAB 3: SCHEDULE (Screen 4 Details) */}
-          {currentTab === "schedule" && (
-            <>
-              <div className="app-header fade-in">
-                <div className="header-left">
-                  <div className="header-title-container">
-                    <span className="header-subtitle">WeaverBird</span>
-                    <h1>Meetings</h1>
-                  </div>
-                </div>
-                <div className="header-right">
-                  <button
-                    className="icon-btn todo-header-btn"
-                    onClick={() => setIsTodoScreenOpen(true)}
-                    aria-label="Open To-Do List"
-                    title="To-Do List"
-                  >
-                    <CheckSquare size={20} />
-                    {todos.filter((t) => !t.completed).length > 0 && (
-                      <span className="todo-badge">
-                        {todos.filter((t) => !t.completed).length}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* ===== TODO FULL SCREEN OVERLAY ===== */}
-              {isTodoScreenOpen && (
-                <div className="todo-screen-overlay">
+              {/* TAB 3: SCHEDULE (Screen 4 Details) */}
+              {currentTab === "schedule" && (
+                <>
                   <div className="app-header fade-in">
                     <div className="header-left">
-                      <button
-                        className="icon-btn"
-                        onClick={() => setIsTodoScreenOpen(false)}
-                        aria-label="Back to Meetings"
-                      >
-                        <ArrowLeft size={20} />
-                      </button>
-                      <h1>To-Do List</h1>
+                      <div className="header-title-container">
+                        <span className="header-subtitle">WeaverBird</span>
+                        <h1>Meetings</h1>
+                      </div>
                     </div>
                     <div className="header-right">
-                      <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>
-                        {todos.filter((t) => !t.completed).length} pending
-                      </span>
+                      <button
+                        className="icon-btn todo-header-btn"
+                        onClick={() => setIsTodoScreenOpen(true)}
+                        aria-label="Open To-Do List"
+                        title="To-Do List"
+                      >
+                        <CheckSquare size={20} />
+                        {todos.filter((t) => !t.completed).length > 0 && (
+                          <span className="todo-badge">
+                            {todos.filter((t) => !t.completed).length}
+                          </span>
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="screen-content fade-in" style={{ paddingTop: "12px" }}>
-                    {/* Add Todo Form */}
-                    <div className="todo-add-form" style={{ marginBottom: "20px" }}>
-                      <input
-                        type="text"
-                        className="todo-add-input"
-                        placeholder="What needs to be done?"
-                        value={newTodoInput}
-                        onChange={(e) => setNewTodoInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && newTodoInput.trim()) {
-                            const newTodo = {
-                              id: "todo_" + Date.now(),
-                              text: newTodoInput.trim(),
-                              completed: false,
-                              createdAt: new Date().toISOString(),
-                            };
-                            setTodos((prev) => [newTodo, ...prev]);
-                            setNewTodoInput("");
-                          }
-                        }}
-                      />
-                      <button
-                        className="todo-add-btn"
-                        onClick={() => {
-                          if (newTodoInput.trim()) {
-                            const newTodo = {
-                              id: "todo_" + Date.now(),
-                              text: newTodoInput.trim(),
-                              completed: false,
-                              createdAt: new Date().toISOString(),
-                            };
-                            setTodos((prev) => [newTodo, ...prev]);
-                            setNewTodoInput("");
-                          }
-                        }}
-                      >
-                        <Plus size={18} />
-                      </button>
-                    </div>
+                  {/* ===== TODO FULL SCREEN OVERLAY ===== */}
+                  {isTodoScreenOpen && (
+                    <div className="todo-screen-overlay">
+                      <div className="app-header fade-in">
+                        <div className="header-left">
+                          <button
+                            className="icon-btn"
+                            onClick={() => setIsTodoScreenOpen(false)}
+                            aria-label="Back to Meetings"
+                          >
+                            <ArrowLeft size={20} />
+                          </button>
+                          <h1>To-Do List</h1>
+                        </div>
+                        <div className="header-right">
+                          <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>
+                            {todos.filter((t) => !t.completed).length} pending
+                          </span>
+                        </div>
+                      </div>
 
-                    {/* Pending Todos */}
-                    {todos.filter((t) => !t.completed).length > 0 && (
-                      <div className="todo-group">
-                        <div className="todo-group-label">Pending</div>
-                        <div className="todo-section-card">
-                          <div className="todo-items-list">
-                            {todos.filter((t) => !t.completed).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((todo) => (
-                              <div
-                                key={todo.id}
-                                className="todo-item-row"
-                              >
-                                <label className="checkbox-container">
-                                  <input
-                                    type="checkbox"
-                                    checked={todo.completed}
-                                    onChange={() => {
-                                      setTodos((prev) =>
-                                        prev.map((t) =>
-                                          t.id === todo.id
-                                            ? { ...t, completed: !t.completed }
-                                            : t
-                                        )
-                                      );
-                                    }}
-                                  />
-                                  <span className="checkmark"></span>
-                                </label>
+                      <div className="screen-content fade-in" style={{ paddingTop: "12px" }}>
+                        {/* Add Todo Form */}
+                        <div className="todo-add-form" style={{ marginBottom: "20px" }}>
+                          <input
+                            type="text"
+                            className="todo-add-input"
+                            placeholder="What needs to be done?"
+                            value={newTodoInput}
+                            onChange={(e) => setNewTodoInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && newTodoInput.trim()) {
+                                const newTodo = {
+                                  id: "todo_" + Date.now(),
+                                  text: newTodoInput.trim(),
+                                  completed: false,
+                                  createdAt: new Date().toISOString(),
+                                };
+                                setTodos((prev) => [newTodo, ...prev]);
+                                setNewTodoInput("");
+                              }
+                            }}
+                          />
+                          <button
+                            className="todo-add-btn"
+                            onClick={() => {
+                              if (newTodoInput.trim()) {
+                                const newTodo = {
+                                  id: "todo_" + Date.now(),
+                                  text: newTodoInput.trim(),
+                                  completed: false,
+                                  createdAt: new Date().toISOString(),
+                                };
+                                setTodos((prev) => [newTodo, ...prev]);
+                                setNewTodoInput("");
+                              }
+                            }}
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
 
-                                <div className="todo-item-content">
-                                  {editTodoId === todo.id ? (
-                                    <input
-                                      type="text"
-                                      className="todo-edit-input"
-                                      value={editTodoText}
-                                      autoFocus
-                                      onChange={(e) => setEditTodoText(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter" && editTodoText.trim()) {
+                        {/* Pending Todos */}
+                        {todos.filter((t) => !t.completed).length > 0 && (
+                          <div className="todo-group">
+                            <div className="todo-group-label">Pending</div>
+                            <div className="todo-section-card">
+                              <div className="todo-items-list">
+                                {todos.filter((t) => !t.completed).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((todo) => (
+                                  <div
+                                    key={todo.id}
+                                    className="todo-item-row"
+                                  >
+                                    <label className="checkbox-container">
+                                      <input
+                                        type="checkbox"
+                                        checked={todo.completed}
+                                        onChange={() => {
                                           setTodos((prev) =>
                                             prev.map((t) =>
                                               t.id === todo.id
-                                                ? { ...t, text: editTodoText.trim() }
+                                                ? { ...t, completed: !t.completed }
                                                 : t
                                             )
                                           );
-                                          setEditTodoId(null);
-                                          setEditTodoText("");
-                                        } else if (e.key === "Escape") {
-                                          setEditTodoId(null);
-                                          setEditTodoText("");
-                                        }
-                                      }}
-                                      onBlur={() => {
-                                        if (editTodoText.trim()) {
-                                          setTodos((prev) =>
-                                            prev.map((t) =>
-                                              t.id === todo.id
-                                                ? { ...t, text: editTodoText.trim() }
-                                                : t
-                                            )
-                                          );
-                                        }
-                                        setEditTodoId(null);
-                                        setEditTodoText("");
-                                      }}
-                                    />
-                                  ) : (
-                                    <span className="todo-item-text">
-                                      {todo.text}
-                                    </span>
-                                  )}
-                                </div>
+                                        }}
+                                      />
+                                      <span className="checkmark"></span>
+                                    </label>
 
-                                <div className="item-actions">
-                                  <button
-                                    className="action-icon-btn"
-                                    onClick={() => {
-                                      setEditTodoId(todo.id);
-                                      setEditTodoText(todo.text);
-                                    }}
-                                    aria-label="Edit Todo"
-                                  >
-                                    <Edit2 size={13} />
-                                  </button>
-                                  <button
-                                    className="action-icon-btn delete"
-                                    onClick={() => {
-                                      setTodos((prev) =>
-                                        prev.filter((t) => t.id !== todo.id)
-                                      );
-                                    }}
-                                    aria-label="Delete Todo"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </div>
+                                    <div className="todo-item-content">
+                                      {editTodoId === todo.id ? (
+                                        <input
+                                          type="text"
+                                          className="todo-edit-input"
+                                          value={editTodoText}
+                                          autoFocus
+                                          onChange={(e) => setEditTodoText(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter" && editTodoText.trim()) {
+                                              setTodos((prev) =>
+                                                prev.map((t) =>
+                                                  t.id === todo.id
+                                                    ? { ...t, text: editTodoText.trim() }
+                                                    : t
+                                                )
+                                              );
+                                              setEditTodoId(null);
+                                              setEditTodoText("");
+                                            } else if (e.key === "Escape") {
+                                              setEditTodoId(null);
+                                              setEditTodoText("");
+                                            }
+                                          }}
+                                          onBlur={() => {
+                                            if (editTodoText.trim()) {
+                                              setTodos((prev) =>
+                                                prev.map((t) =>
+                                                  t.id === todo.id
+                                                    ? { ...t, text: editTodoText.trim() }
+                                                    : t
+                                                )
+                                              );
+                                            }
+                                            setEditTodoId(null);
+                                            setEditTodoText("");
+                                          }}
+                                        />
+                                      ) : (
+                                        <span className="todo-item-text">
+                                          {todo.text}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="item-actions">
+                                      <button
+                                        className="action-icon-btn"
+                                        onClick={() => {
+                                          setEditTodoId(todo.id);
+                                          setEditTodoText(todo.text);
+                                        }}
+                                        aria-label="Edit Todo"
+                                      >
+                                        <Edit2 size={13} />
+                                      </button>
+                                      <button
+                                        className="action-icon-btn delete"
+                                        onClick={() => {
+                                          setTodos((prev) =>
+                                            prev.filter((t) => t.id !== todo.id)
+                                          );
+                                        }}
+                                        aria-label="Delete Todo"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Completed Todos */}
+                        {todos.filter((t) => t.completed).length > 0 && (
+                          <div className="todo-group">
+                            <div className="todo-group-label">Completed</div>
+                            <div className="todo-section-card">
+                              <div className="todo-items-list">
+                                {todos.filter((t) => t.completed).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((todo) => (
+                                  <div
+                                    key={todo.id}
+                                    className="todo-item-row completed"
+                                  >
+                                    <label className="checkbox-container">
+                                      <input
+                                        type="checkbox"
+                                        checked={todo.completed}
+                                        onChange={() => {
+                                          setTodos((prev) =>
+                                            prev.map((t) =>
+                                              t.id === todo.id
+                                                ? { ...t, completed: !t.completed }
+                                                : t
+                                            )
+                                          );
+                                        }}
+                                      />
+                                      <span className="checkmark"></span>
+                                    </label>
+
+                                    <div className="todo-item-content">
+                                      <span className="todo-item-text completed">
+                                        {todo.text}
+                                      </span>
+                                    </div>
+
+                                    <div className="item-actions">
+                                      <button
+                                        className="action-icon-btn delete"
+                                        onClick={() => {
+                                          setTodos((prev) =>
+                                            prev.filter((t) => t.id !== todo.id)
+                                          );
+                                        }}
+                                        aria-label="Delete Todo"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {todos.length === 0 && (
+                          <div
+                            style={{
+                              textAlign: "center",
+                              padding: "40px 20px",
+                              color: "var(--text-muted)",
+                              fontSize: "14px",
+                            }}
+                          >
+                            <CheckSquare size={40} style={{ marginBottom: "12px", opacity: 0.3 }} />
+                            <div>No to-dos yet.</div>
+                            <div style={{ fontSize: "12px", marginTop: "4px" }}>Add one using the field above!</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Unified meetings list */}
+
+                  {!isTodoScreenOpen && (
+                    <div
+                      className="screen-content fade-in"
+                      style={{ paddingTop: "12px" }}
+                    >
+
+                      {/* Schedule Stats Card (Hero) */}
+                      <div className="schedule-hero" style={{ padding: "16px 20px" }}>
+                        <div className="schedule-stats-row">
+                          <div className="schedule-stat-card">
+                            <div className="schedule-stat-title">Scheduled Today</div>
+                            <div className="schedule-stat-number">
+                              {todayMeetingsCount}
+                            </div>
+                          </div>
+                          <div className="schedule-stat-card">
+                            <div className="schedule-stat-title">
+                              Scheduled Tomorrow
+                            </div>
+                            <div className="schedule-stat-number">
+                              {tomorrowMeetingsCount}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    )}
 
-                    {/* Completed Todos */}
-                    {todos.filter((t) => t.completed).length > 0 && (
-                      <div className="todo-group">
-                        <div className="todo-group-label">Completed</div>
-                        <div className="todo-section-card">
-                          <div className="todo-items-list">
-                            {todos.filter((t) => t.completed).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((todo) => (
+                      {/* Collapsible Calendar Header */}
+                      <div
+                        className="collapsible-header"
+                        onClick={() => setCalendarCollapsed(!calendarCollapsed)}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer",
+                          marginBottom: "12px",
+                        }}
+                      >
+                        <div
+                          className="collapsible-title"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <Calendar
+                            size={18}
+                            style={{ color: "var(--accent-gold-dark)" }}
+                          />
+                          <span
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: "700",
+                              color: "var(--text-title)",
+                            }}
+                          >
+                            Meetings Calendar{" "}
+                            {selectedCalendarDate &&
+                              `(${formatDate(selectedCalendarDate)})`}
+                          </span>
+                        </div>
+                        {calendarCollapsed ? (
+                          <ChevronDown size={18} />
+                        ) : (
+                          <ChevronUp size={18} />
+                        )}
+                      </div>
+
+                      {/* Monthly Calendar View */}
+                      {!calendarCollapsed && (
+                        <div
+                          className="calendar-card"
+                          style={{ marginTop: "-4px", marginBottom: "16px" }}
+                        >
+                          <div
+                            className="calendar-header"
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "12px",
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                onClick={handlePrevMonth}
+                                style={{ padding: "4px" }}
+                                aria-label="Previous Month"
+                              >
+                                <ChevronLeft size={18} />
+                              </button>
+                              <h3
+                                style={{
+                                  margin: 0,
+                                  minWidth: "120px",
+                                  textAlign: "center",
+                                }}
+                              >
+                                {currentCalendarDate.toLocaleString("default", {
+                                  month: "long",
+                                  year: "numeric",
+                                })}
+                              </h3>
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                onClick={handleNextMonth}
+                                style={{ padding: "4px" }}
+                                aria-label="Next Month"
+                              >
+                                <ChevronRight size={18} />
+                              </button>
+                            </div>
+                            {selectedCalendarDate && (
+                              <button
+                                className="calendar-clear-btn"
+                                onClick={() => setSelectedCalendarDate(null)}
+                              >
+                                Show All
+                              </button>
+                            )}
+                          </div>
+                          <div className="calendar-weekdays">
+                            <span>S</span>
+                            <span>M</span>
+                            <span>T</span>
+                            <span>W</span>
+                            <span>T</span>
+                            <span>F</span>
+                            <span>S</span>
+                          </div>
+                          <div className="calendar-grid">
+                            {getDaysInMonth().map((dayStr, idx) => {
+                              if (!dayStr) {
+                                return (
+                                  <div
+                                    key={`empty-${idx}`}
+                                    className="calendar-day empty"
+                                  ></div>
+                                );
+                              }
+
+                              const dayNum = parseInt(dayStr.split("-")[2], 10);
+                              const hasMeetings = schedule.some(
+                                (s) => s.date === dayStr && !s.completed
+                              );
+                              const isSelected = selectedCalendarDate === dayStr;
+
+                              return (
+                                <div
+                                  key={dayStr}
+                                  className={`calendar-day ${hasMeetings ? "has-meetings" : ""
+                                    } ${isSelected ? "selected" : ""}`}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedCalendarDate(null);
+                                    } else {
+                                      setSelectedCalendarDate(dayStr);
+                                    }
+                                  }}
+                                >
+                                  <span className="day-number">{dayNum}</span>
+                                  {hasMeetings && <span className="day-dot"></span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Schedule Lists */}
+                      <div className="list-section-card">
+                        <div
+                          className="list-columns-subheader"
+                          style={{ gridTemplateColumns: "46px 1fr 70px" }}
+                        >
+                          <span>Done</span>
+                          <span>Sync Info</span>
+                          <span className="text-right">Actions</span>
+                        </div>
+
+                        <div>
+                          {sortedAndFilteredMeetings.length > 0 ? (
+                            sortedAndFilteredMeetings.map((meet) => (
                               <div
-                                key={todo.id}
-                                className="todo-item-row completed"
+                                key={meet.id}
+                                className="list-item-row"
+                                style={{ gridTemplateColumns: "46px 1fr 70px" }}
                               >
                                 <label className="checkbox-container">
                                   <input
                                     type="checkbox"
-                                    checked={todo.completed}
-                                    onChange={() => {
-                                      setTodos((prev) =>
-                                        prev.map((t) =>
-                                          t.id === todo.id
-                                            ? { ...t, completed: !t.completed }
-                                            : t
-                                        )
-                                      );
-                                    }}
+                                    checked={meet.completed}
+                                    onChange={() => handleToggleMeeting(meet.id)}
                                   />
                                   <span className="checkmark"></span>
                                 </label>
 
-                                <div className="todo-item-content">
-                                  <span className="todo-item-text completed">
-                                    {todo.text}
+                                <div className="schedule-item-info">
+                                  <span
+                                    className={`schedule-item-title ${meet.completed ? "completed" : ""
+                                      }`}
+                                  >
+                                    {meet.title}
+                                  </span>
+                                  <span className="schedule-item-time">
+                                    {formatDate(meet.date)}
                                   </span>
                                 </div>
 
                                 <div className="item-actions">
                                   <button
+                                    className="action-icon-btn"
+                                    onClick={() =>
+                                      setEditItemModal({
+                                        type: "meeting",
+                                        itemId: meet.id,
+                                        name: meet.title,
+                                        date: meet.date,
+                                      })
+                                    }
+                                    aria-label="Edit Meeting"
+                                  >
+                                    <Edit2 size={13} />
+                                  </button>
+                                  <button
                                     className="action-icon-btn delete"
-                                    onClick={() => {
-                                      setTodos((prev) =>
-                                        prev.filter((t) => t.id !== todo.id)
-                                      );
-                                    }}
-                                    aria-label="Delete Todo"
+                                    onClick={() => handleDeleteMeeting(meet.id)}
+                                    aria-label="Delete Meeting"
                                   >
                                     <Trash2 size={13} />
                                   </button>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {todos.length === 0 && (
-                      <div
-                        style={{
-                          textAlign: "center",
-                          padding: "40px 20px",
-                          color: "var(--text-muted)",
-                          fontSize: "14px",
-                        }}
-                      >
-                        <CheckSquare size={40} style={{ marginBottom: "12px", opacity: 0.3 }} />
-                        <div>No to-dos yet.</div>
-                        <div style={{ fontSize: "12px", marginTop: "4px" }}>Add one using the field above!</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Unified meetings list */}
-
-              {!isTodoScreenOpen && (
-              <div
-                className="screen-content fade-in"
-                style={{ paddingTop: "12px" }}
-              >
-
-                {/* Schedule Stats Card (Hero) */}
-                <div className="schedule-hero" style={{ padding: "16px 20px" }}>
-                  <div className="schedule-stats-row">
-                    <div className="schedule-stat-card">
-                      <div className="schedule-stat-title">Scheduled Today</div>
-                      <div className="schedule-stat-number">
-                        {todayMeetingsCount}
-                      </div>
-                    </div>
-                    <div className="schedule-stat-card">
-                      <div className="schedule-stat-title">
-                        Scheduled Tomorrow
-                      </div>
-                      <div className="schedule-stat-number">
-                        {tomorrowMeetingsCount}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Collapsible Calendar Header */}
-                <div
-                  className="collapsible-header"
-                  onClick={() => setCalendarCollapsed(!calendarCollapsed)}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    cursor: "pointer",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div
-                    className="collapsible-title"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <Calendar
-                      size={18}
-                      style={{ color: "var(--accent-gold-dark)" }}
-                    />
-                    <span
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "700",
-                        color: "var(--text-title)",
-                      }}
-                    >
-                      Meetings Calendar{" "}
-                      {selectedCalendarDate &&
-                        `(${formatDate(selectedCalendarDate)})`}
-                    </span>
-                  </div>
-                  {calendarCollapsed ? (
-                    <ChevronDown size={18} />
-                  ) : (
-                    <ChevronUp size={18} />
-                  )}
-                </div>
-
-                {/* Monthly Calendar View */}
-                {!calendarCollapsed && (
-                  <div
-                    className="calendar-card"
-                    style={{ marginTop: "-4px", marginBottom: "16px" }}
-                  >
-                    <div
-                      className="calendar-header"
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          onClick={handlePrevMonth}
-                          style={{ padding: "4px" }}
-                          aria-label="Previous Month"
-                        >
-                          <ChevronLeft size={18} />
-                        </button>
-                        <h3
-                          style={{
-                            margin: 0,
-                            minWidth: "120px",
-                            textAlign: "center",
-                          }}
-                        >
-                          {currentCalendarDate.toLocaleString("default", {
-                            month: "long",
-                            year: "numeric",
-                          })}
-                        </h3>
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          onClick={handleNextMonth}
-                          style={{ padding: "4px" }}
-                          aria-label="Next Month"
-                        >
-                          <ChevronRight size={18} />
-                        </button>
-                      </div>
-                      {selectedCalendarDate && (
-                        <button
-                          className="calendar-clear-btn"
-                          onClick={() => setSelectedCalendarDate(null)}
-                        >
-                          Show All
-                        </button>
-                      )}
-                    </div>
-                    <div className="calendar-weekdays">
-                      <span>S</span>
-                      <span>M</span>
-                      <span>T</span>
-                      <span>W</span>
-                      <span>T</span>
-                      <span>F</span>
-                      <span>S</span>
-                    </div>
-                    <div className="calendar-grid">
-                      {getDaysInMonth().map((dayStr, idx) => {
-                        if (!dayStr) {
-                          return (
+                            ))
+                          ) : (
                             <div
-                              key={`empty-${idx}`}
-                              className="calendar-day empty"
-                            ></div>
-                          );
-                        }
-
-                        const dayNum = parseInt(dayStr.split("-")[2], 10);
-                        const hasMeetings = schedule.some(
-                          (s) => s.date === dayStr && !s.completed
-                        );
-                        const isSelected = selectedCalendarDate === dayStr;
-
-                        return (
-                          <div
-                            key={dayStr}
-                            className={`calendar-day ${
-                              hasMeetings ? "has-meetings" : ""
-                            } ${isSelected ? "selected" : ""}`}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedCalendarDate(null);
-                              } else {
-                                setSelectedCalendarDate(dayStr);
-                              }
-                            }}
-                          >
-                            <span className="day-number">{dayNum}</span>
-                            {hasMeetings && <span className="day-dot"></span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Schedule Lists */}
-                <div className="list-section-card">
-                  <div
-                    className="list-columns-subheader"
-                    style={{ gridTemplateColumns: "46px 1fr 70px" }}
-                  >
-                    <span>Done</span>
-                    <span>Sync Info</span>
-                    <span className="text-right">Actions</span>
-                  </div>
-
-                  <div>
-                    {sortedAndFilteredMeetings.length > 0 ? (
-                      sortedAndFilteredMeetings.map((meet) => (
-                        <div
-                          key={meet.id}
-                          className="list-item-row"
-                          style={{ gridTemplateColumns: "46px 1fr 70px" }}
-                        >
-                          <label className="checkbox-container">
-                            <input
-                              type="checkbox"
-                              checked={meet.completed}
-                              onChange={() => handleToggleMeeting(meet.id)}
-                            />
-                            <span className="checkmark"></span>
-                          </label>
-
-                          <div className="schedule-item-info">
-                            <span
-                              className={`schedule-item-title ${
-                                meet.completed ? "completed" : ""
-                              }`}
+                              style={{
+                                textAlign: "center",
+                                padding: "30px 20px",
+                                color: "var(--text-muted)",
+                                fontSize: "13px",
+                              }}
                             >
-                              {meet.title}
-                            </span>
-                            <span className="schedule-item-time">
-                              {formatDate(meet.date)}
-                            </span>
-                          </div>
-
-                          <div className="item-actions">
-                            <button
-                              className="action-icon-btn"
-                              onClick={() =>
-                                setEditItemModal({
-                                  type: "meeting",
-                                  itemId: meet.id,
-                                  name: meet.title,
-                                  date: meet.date,
-                                })
-                              }
-                              aria-label="Edit Meeting"
-                            >
-                              <Edit2 size={13} />
-                            </button>
-                            <button
-                              className="action-icon-btn delete"
-                              onClick={() => handleDeleteMeeting(meet.id)}
-                              aria-label="Delete Meeting"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
+                              No meetings scheduled.
+                            </div>
+                          )}
                         </div>
-                      ))
-                    ) : (
-                      <div
-                        style={{
-                          textAlign: "center",
-                          padding: "30px 20px",
-                          color: "var(--text-muted)",
-                          fontSize: "13px",
-                        }}
-                      >
-                        No meetings scheduled.
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                    </div>
+                  )}
+
+                  {/* No FAB here, handled in bottom-nav */}
+                </>
               )}
 
-              {/* No FAB here, handled in bottom-nav */}
-            </>
-          )}
-
-          {/* TAB 4: PROFILE & SETTINGS */}
-          {currentTab === "profile" && (
-            <>
-              <div className="app-header fade-in">
-                  <div
-                    style={{ display: "flex", flexDirection: "column" }}
-                  >
-                    <span
-                      className="header-brand"
-                      style={{
-                        fontSize: "22px",
-                        fontWeight: "800",
-                        color: "var(--text-title)",
-                        fontFamily: "var(--font-title)",
-                        lineHeight: "1.1",
-                        letterSpacing: "-0.5px",
-                      }}
+              {/* TAB 4: PROFILE & SETTINGS */}
+              {currentTab === "profile" && (
+                <>
+                  <div className="app-header fade-in">
+                    <div
+                      style={{ display: "flex", flexDirection: "column" }}
                     >
-                      WeaverBird
-                    </span>
-                    <span
-                      className="header-subtitle"
-                      style={{
-                        fontSize: "10px",
-                        fontWeight: "600",
-                        color: "var(--accent-gold-dark)",
-                        textTransform: "uppercase",
-                        letterSpacing: "3.5px",
-                        marginTop: "2px",
-                        display: "block",
-                      }}
-                    >
-                      Interior Studio
-                    </span>
-                  </div>
-                <div className="header-right">
-                  <button
-                    className="icon-btn"
-                    onClick={toggleTheme}
-                    aria-label="Toggle theme"
-                  >
-                    {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="screen-content fade-in">
-                {/* Profile card */}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    padding: "24px 0",
-                    gap: "10px",
-                  }}
-                >
-                  <div
-                    className="profile-avatar-large"
-                    style={{
-                      width: "80px",
-                      height: "80px",
-                      borderRadius: "40px",
-                      fontSize: "32px",
-                      backgroundColor: "var(--accent-gold-dark)",
-                      color: "white",
-                    }}
-                  >
-                    WB
-                  </div>
-                  <h2
-                    style={{
-                      fontFamily: "var(--font-title)",
-                      fontSize: "22px",
-                      color: "var(--text-title)",
-                      fontWeight: 700,
-                    }}
-                  >
-                    WeaverBird
-                  </h2>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      color: "var(--text-muted)",
-                      marginTop: "-4px",
-                    }}
-                  >
-                    Interior Studio
-                  </p>
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-muted)",
-                      backgroundColor: "var(--bg-main)",
-                      padding: "4px 8px",
-                      borderRadius: "12px",
-                      border: "1px solid var(--border)",
-                      marginTop: "4px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Version: v{WEB_APP_VERSION}
-                  </span>
-
-                  {/* Update System Monitor Card */}
-                  <div style={{
-                    marginTop: "12px",
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border)",
-                    backgroundColor: "var(--bg-main)",
-                    fontSize: "10px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                    width: "80%",
-                    maxWidth: "280px",
-                    textAlign: "left"
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "2px", marginBottom: "2px" }}>
-                      <span style={{ fontWeight: 700, color: "var(--accent-gold-dark)", textTransform: "uppercase", fontSize: "9px", letterSpacing: "1px" }}>
-                        OTA Update Status
-                      </span>
-                      <button 
-                        onClick={() => checkUpdate(true)}
+                      <span
+                        className="header-brand"
                         style={{
-                          background: "none",
-                          border: "none",
-                          padding: "2px",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          color: "var(--accent-gold-dark)",
-                          opacity: 0.8,
-                          transition: "opacity 0.2s"
+                          fontSize: "22px",
+                          fontWeight: "800",
+                          color: "var(--text-title)",
+                          fontFamily: "var(--font-title)",
+                          lineHeight: "1.1",
+                          letterSpacing: "-0.5px",
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                        onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
-                        title="Check for update"
                       >
-                        <RotateCcw size={10} />
+                        WeaverBird
+                      </span>
+                      <span
+                        className="header-subtitle"
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: "600",
+                          color: "var(--accent-gold-dark)",
+                          textTransform: "uppercase",
+                          letterSpacing: "3.5px",
+                          marginTop: "2px",
+                          display: "block",
+                        }}
+                      >
+                        Interior Studio
+                      </span>
+                    </div>
+                    <div className="header-right">
+                      <button
+                        className="icon-btn"
+                        onClick={toggleTheme}
+                        aria-label="Toggle theme"
+                      >
+                        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
                       </button>
                     </div>
-                    <div><strong>Status:</strong> {updateDebugInfo.status}</div>
-                    <div><strong>DB Version:</strong> {updateDebugInfo.latestVersion}</div>
-                    {updateDebugInfo.isNative && (
-                      <div style={{ wordBreak: "break-all", fontSize: "9px", color: "var(--text-muted)" }}><strong>DB URL:</strong> {updateDebugInfo.latestUrl}</div>
-                    )}
-                    {updateDebugInfo.error !== "None" && (
-                      <div style={{ color: "#ef4444" }}><strong>Error:</strong> {updateDebugInfo.error}</div>
-                    )}
                   </div>
-                </div>
 
-                {/* Settings list */}
-                <div className="settings-section">
-                  <div className="settings-section-title">App Settings</div>
-
-                  {/* Dark Theme toggle removed from settings list as it is already present in the profile header */}
-
-                  <div className="settings-row">
-                    <div className="settings-row-left">
-                      <Sliders size={16} className="settings-row-icon" />
-                      <span>Notifications</span>
-                    </div>
-                    <label className="switch">
-                      <input type="checkbox" defaultChecked />
-                      <span className="slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="settings-section">
-                  <div className="settings-section-title">Cloud Synchronization</div>
-
-                  <div className="settings-row" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: "10px", padding: "16px 20px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div className="settings-row-left">
-                        <Sliders size={16} className="settings-row-icon" />
-                        <span style={{ fontWeight: 600 }}>Enable Cloud Sync</span>
+                  <div className="screen-content fade-in">
+                    {/* Profile card */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        padding: "24px 0",
+                        gap: "10px",
+                      }}
+                    >
+                      <div
+                        className="profile-avatar-large"
+                        style={{
+                          width: "80px",
+                          height: "80px",
+                          borderRadius: "40px",
+                          fontSize: "32px",
+                          backgroundColor: "var(--accent-gold-dark)",
+                          color: "white",
+                        }}
+                      >
+                        WB
                       </div>
-                      <label className="switch">
-                        <input
-                          type="checkbox"
-                          checked={cloudSyncEnabled}
-                          onChange={(e) => {
-                            if (!isConfigured) {
-                              alert("Firebase keys are not configured yet! Open 'src/firebase.js' and add your API keys first.");
-                              return;
-                            }
-                            const val = e.target.checked;
-                            setCloudSyncEnabled(val);
-                            localStorage.setItem("weaverbird_cloud_sync", String(val));
-                            if (val) {
-                              setHasLoadedProjectsFromCloud(false);
-                              setHasLoadedScheduleFromCloud(false);
-                            } else {
-                              setIsAuthorized(true);
-                            }
-                          }}
-                        />
-                        <span className="slider"></span>
-                      </label>
+                      <h2
+                        style={{
+                          fontFamily: "var(--font-title)",
+                          fontSize: "22px",
+                          color: "var(--text-title)",
+                          fontWeight: 700,
+                        }}
+                      >
+                        WeaverBird
+                      </h2>
+                      <p
+                        style={{
+                          fontSize: "13px",
+                          color: "var(--text-muted)",
+                          marginTop: "-4px",
+                        }}
+                      >
+                        Interior Studio
+                      </p>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-muted)",
+                          backgroundColor: "var(--bg-main)",
+                          padding: "4px 8px",
+                          borderRadius: "12px",
+                          border: "1px solid var(--border)",
+                          marginTop: "4px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Version: v{WEB_APP_VERSION}
+                      </span>
+
+                      {/* Update System Monitor Card */}
+                      <div style={{
+                        marginTop: "12px",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        backgroundColor: "var(--bg-main)",
+                        fontSize: "10px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                        width: "80%",
+                        maxWidth: "280px",
+                        textAlign: "left"
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "2px", marginBottom: "2px" }}>
+                          <span style={{ fontWeight: 700, color: "var(--accent-gold-dark)", textTransform: "uppercase", fontSize: "9px", letterSpacing: "1px" }}>
+                            OTA Update Status
+                          </span>
+                          <button
+                            onClick={() => checkUpdate(true)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: "2px",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              color: "var(--accent-gold-dark)",
+                              opacity: 0.8,
+                              transition: "opacity 0.2s"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
+                            title="Check for update"
+                          >
+                            <RotateCcw size={10} />
+                          </button>
+                        </div>
+                        <div><strong>Status:</strong> {updateDebugInfo.status}</div>
+                        <div><strong>DB Version:</strong> {updateDebugInfo.latestVersion}</div>
+                        {updateDebugInfo.isNative && (
+                          <div style={{ wordBreak: "break-all", fontSize: "9px", color: "var(--text-muted)" }}><strong>DB URL:</strong> {updateDebugInfo.latestUrl}</div>
+                        )}
+                        {updateDebugInfo.error !== "None" && (
+                          <div style={{ color: "#ef4444" }}><strong>Error:</strong> {updateDebugInfo.error}</div>
+                        )}
+                      </div>
                     </div>
 
-                    {!isConfigured && (
-                      <div style={{ fontSize: "11px", color: "#f59e0b", marginTop: "4px" }}>
-                        ⚠️ Firebase keys not set in <code>src/firebase.js</code>. Local-only mode is active.
-                      </div>
-                    )}
+                    {/* Settings list */}
+                    <div className="settings-section">
+                      <div className="settings-section-title">App Settings</div>
 
-                    {cloudSyncEnabled && isConfigured && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px", borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
-                        {!userEmail ? (
-                          <div>
-                            <label style={{ fontSize: "12px", color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Your Email Address:</label>
-                            <div style={{ display: "flex", gap: "8px" }}>
-                              <input
-                                id="settings-email-input"
-                                type="email"
-                                placeholder="name@weaverbird.com"
-                                style={{
-                                  flex: 1,
-                                  padding: "8px 12px",
-                                  borderRadius: "8px",
-                                  border: "1px solid var(--border)",
-                                  backgroundColor: "var(--bg-card)",
-                                  color: "var(--text-main)",
-                                  fontSize: "13px"
-                                }}
-                              />
-                              <button
-                                onClick={() => {
-                                  const emailVal = document.getElementById("settings-email-input")?.value?.toLowerCase()?.trim();
-                                  if (!emailVal || !emailVal.includes("@")) {
-                                    alert("Please enter a valid email address!");
-                                    return;
-                                  }
-                                  setUserEmail(emailVal);
-                                  localStorage.setItem("weaverbird_user_email", emailVal);
-                                }}
-                                style={{
-                                  padding: "8px 16px",
-                                  borderRadius: "8px",
-                                  backgroundColor: "var(--accent-gold-dark)",
-                                  color: "white",
-                                  border: "none",
-                                  fontSize: "12px",
-                                  fontWeight: 600,
-                                  cursor: "pointer"
-                                }}
-                              >
-                                Connect
-                              </button>
-                            </div>
+                      {/* Dark Theme toggle removed from settings list as it is already present in the profile header */}
+
+                      <div className="settings-row">
+                        <div className="settings-row-left">
+                          <Sliders size={16} className="settings-row-icon" />
+                          <span>Notifications</span>
+                        </div>
+                        <label className="switch">
+                          <input type="checkbox" defaultChecked />
+                          <span className="slider"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="settings-section">
+                      <div className="settings-section-title">Cloud Synchronization</div>
+
+                      <div className="settings-row" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: "10px", padding: "16px 20px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div className="settings-row-left">
+                            <Sliders size={16} className="settings-row-icon" />
+                            <span style={{ fontWeight: 600 }}>Enable Cloud Sync</span>
                           </div>
-                        ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                              <div style={{ display: "flex", flexDirection: "column" }}>
-                                <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>Connected Account:</span>
-                                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-main)" }}>{userEmail}</span>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  if (confirm("Are you sure you want to logout and disconnect from cloud sync?")) {
-                                    setUserEmail("");
-                                    localStorage.removeItem("weaverbird_user_email");
-                                    localStorage.removeItem("weaverbird_user_role");
-                                    setIsAuthorized(true);
-                                  }
-                                }}
-                                style={{
-                                  padding: "8px 14px",
-                                  borderRadius: "8px",
-                                  backgroundColor: "rgba(239, 68, 68, 0.1)",
-                                  color: "#ef4444",
-                                  border: "1px solid rgba(239, 68, 68, 0.2)",
-                                  fontSize: "12px",
-                                  fontWeight: 600,
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "6px"
-                                }}
-                              >
-                                <LogOut size={13} />
-                                Logout
-                              </button>
-                            </div>
+                          <label className="switch">
+                            <input
+                              type="checkbox"
+                              checked={cloudSyncEnabled}
+                              onChange={(e) => {
+                                if (!isConfigured) {
+                                  alert("Firebase keys are not configured yet! Open 'src/firebase.js' and add your API keys first.");
+                                  return;
+                                }
+                                const val = e.target.checked;
+                                setCloudSyncEnabled(val);
+                                localStorage.setItem("weaverbird_cloud_sync", String(val));
+                                if (val) {
+                                  setHasLoadedProjectsFromCloud(false);
+                                  setHasLoadedScheduleFromCloud(false);
+                                } else {
+                                  setIsAuthorized(true);
+                                }
+                              }}
+                            />
+                            <span className="slider"></span>
+                          </label>
+                        </div>
 
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: "8px", fontSize: "12px" }}>
-                              <span>Role: <strong style={{ color: "var(--accent-gold)" }}>{(userRole || "editor").toUpperCase()}</strong></span>
-                              <span>Status: {isAuthorized ? <strong style={{ color: "#22c55e" }}>AUTHORIZED</strong> : <strong style={{ color: "#ef4444" }}>PENDING APPROVAL</strong>}</span>
-                            </div>
+                        {!isConfigured && (
+                          <div style={{ fontSize: "11px", color: "#f59e0b", marginTop: "4px" }}>
+                            ⚠️ Firebase keys not set in <code>src/firebase.js</code>. Local-only mode is active.
+                          </div>
+                        )}
+
+                        {cloudSyncEnabled && isConfigured && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px", borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
+                            {!userEmail ? (
+                              <div>
+                                <label style={{ fontSize: "12px", color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Your Email Address:</label>
+                                <div style={{ display: "flex", gap: "8px" }}>
+                                  <input
+                                    id="settings-email-input"
+                                    type="email"
+                                    placeholder="name@weaverbird.com"
+                                    style={{
+                                      flex: 1,
+                                      padding: "8px 12px",
+                                      borderRadius: "8px",
+                                      border: "1px solid var(--border)",
+                                      backgroundColor: "var(--bg-card)",
+                                      color: "var(--text-main)",
+                                      fontSize: "13px"
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const emailVal = document.getElementById("settings-email-input")?.value?.toLowerCase()?.trim();
+                                      if (!emailVal || !emailVal.includes("@")) {
+                                        alert("Please enter a valid email address!");
+                                        return;
+                                      }
+                                      setUserEmail(emailVal);
+                                      localStorage.setItem("weaverbird_user_email", emailVal);
+                                    }}
+                                    style={{
+                                      padding: "8px 16px",
+                                      borderRadius: "8px",
+                                      backgroundColor: "var(--accent-gold-dark)",
+                                      color: "white",
+                                      border: "none",
+                                      fontSize: "12px",
+                                      fontWeight: 600,
+                                      cursor: "pointer"
+                                    }}
+                                  >
+                                    Connect
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <div style={{ display: "flex", flexDirection: "column" }}>
+                                    <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>Connected Account:</span>
+                                    <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-main)" }}>{userEmail}</span>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm("Are you sure you want to logout and disconnect from cloud sync?")) {
+                                        setUserEmail("");
+                                        localStorage.removeItem("weaverbird_user_email");
+                                        localStorage.removeItem("weaverbird_user_role");
+                                        setIsAuthorized(true);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: "8px 14px",
+                                      borderRadius: "8px",
+                                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                                      color: "#ef4444",
+                                      border: "1px solid rgba(239, 68, 68, 0.2)",
+                                      fontSize: "12px",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "6px"
+                                    }}
+                                  >
+                                    <LogOut size={13} />
+                                    Logout
+                                  </button>
+                                </div>
+
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: "8px", fontSize: "12px" }}>
+                                  <span>Role: <strong style={{ color: "var(--accent-gold)" }}>{(userRole || "editor").toUpperCase()}</strong></span>
+                                  <span>Status: {isAuthorized ? <strong style={{ color: "#22c55e" }}>AUTHORIZED</strong> : <strong style={{ color: "#ef4444" }}>PENDING APPROVAL</strong>}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* ADMIN PANEL - Only displays if current user is admin */}
-                  {cloudSyncEnabled && isConfigured && userRole === "admin" && isAuthorized && (
-                    <div className="settings-row" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: "12px", padding: "16px 20px", borderTop: "1px solid var(--border)" }}>
-                      <div 
-                        onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
-                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", width: "100%" }}
-                      >
-                        <span style={{ fontWeight: 600, color: "var(--accent-gold-dark)", fontSize: "13px", letterSpacing: "1px", textTransform: "uppercase" }}>Admin Access Panel</span>
-                        {isAdminPanelOpen ? <ChevronUp size={16} style={{ color: "var(--accent-gold-dark)" }} /> : <ChevronDown size={16} style={{ color: "var(--accent-gold-dark)" }} />}
-                      </div>
-                      
-                      {isAdminPanelOpen && (
-                        <>
-                          {/* Invite new user */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
-                            <label style={{ fontSize: "11px", color: "var(--text-muted)" }}>Invite Partner / Subcontractor Email:</label>
-                            <input
-                              id="invite-email-input"
-                              type="email"
-                              placeholder="partner@weaverbird.com"
-                              style={{
-                                width: "100%",
-                                padding: "10px 14px",
-                                borderRadius: "8px",
-                                border: "1px solid var(--border)",
-                                backgroundColor: "var(--bg-card)",
-                                color: "var(--text-main)",
-                                fontSize: "13.5px",
-                                outline: "none"
-                              }}
-                            />
-                            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-                              <select
-                                id="invite-role-select"
-                                defaultValue="editor"
-                                style={{
-                                  flex: 1,
-                                  padding: "10px",
-                                  borderRadius: "8px",
-                                  border: "1px solid var(--border)",
-                                  backgroundColor: "var(--bg-card)",
-                                  color: "var(--text-main)",
-                                  fontSize: "13px",
-                                  outline: "none"
-                                }}
-                              >
-                                <option value="editor">Editor Access</option>
-                                <option value="admin">Admin Access</option>
-                              </select>
-                              <button
-                                onClick={async () => {
-                                  const emailEl = document.getElementById("invite-email-input");
-                                  const roleEl = document.getElementById("invite-role-select");
-                                  const emailVal = emailEl?.value?.toLowerCase()?.trim();
-                                  const roleVal = roleEl?.value;
-                                  
-                                  if (!emailVal || !emailVal.includes("@")) {
-                                    alert("Please enter a valid email to invite.");
-                                    return;
-                                  }
-                                  try {
-                                    await setDoc(doc(db, "users", emailVal), { role: roleVal });
-                                    alert(`Successfully granted ${roleVal} access to ${emailVal}!`);
-                                    if (emailEl) emailEl.value = "";
-                                  } catch (err) {
-                                    alert(`Failed to add user: ${err.message}`);
-                                  }
-                                }}
-                                style={{
-                                  padding: "10px 20px",
-                                  borderRadius: "8px",
-                                  backgroundColor: "var(--accent-gold-dark)",
-                                  color: "white",
-                                  border: "none",
-                                  fontSize: "13px",
-                                  fontWeight: 600,
-                                  cursor: "pointer",
-                                  boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
-                                }}
-                              >
-                                Add Partner
-                              </button>
-                            </div>
+                      {/* ADMIN PANEL - Only displays if current user is admin */}
+                      {cloudSyncEnabled && isConfigured && userRole === "admin" && isAuthorized && (
+                        <div className="settings-row" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: "12px", padding: "16px 20px", borderTop: "1px solid var(--border)" }}>
+                          <div
+                            onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", width: "100%" }}
+                          >
+                            <span style={{ fontWeight: 600, color: "var(--accent-gold-dark)", fontSize: "13px", letterSpacing: "1px", textTransform: "uppercase" }}>Admin Access Panel</span>
+                            {isAdminPanelOpen ? <ChevronUp size={16} style={{ color: "var(--accent-gold-dark)" }} /> : <ChevronDown size={16} style={{ color: "var(--accent-gold-dark)" }} />}
                           </div>
 
-                          {/* Authorized users list */}
-                          <div style={{ marginTop: "8px" }}>
-                            <label style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Users With Access ({authorizedUsers.length})</label>
-                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
-                              {authorizedUsers.map(u => (
-                                <div
-                                  key={u.email}
+                          {isAdminPanelOpen && (
+                            <>
+                              {/* Invite new user */}
+                              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
+                                <label style={{ fontSize: "11px", color: "var(--text-muted)" }}>Invite Partner / Subcontractor Email:</label>
+                                <input
+                                  id="invite-email-input"
+                                  type="email"
+                                  placeholder="partner@weaverbird.com"
                                   style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    padding: "8px 12px",
+                                    width: "100%",
+                                    padding: "10px 14px",
                                     borderRadius: "8px",
-                                    backgroundColor: "var(--bg-body)",
-                                    border: "1px solid var(--border)"
+                                    border: "1px solid var(--border)",
+                                    backgroundColor: "var(--bg-card)",
+                                    color: "var(--text-main)",
+                                    fontSize: "13.5px",
+                                    outline: "none"
                                   }}
-                                >
-                                  <div style={{ display: "flex", flexDirection: "column" }}>
-                                    <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)" }}>{u.email}</span>
-                                    <span style={{ fontSize: "10px", color: "var(--accent-gold)" }}>Role: {u.role.toUpperCase()}</span>
-                                  </div>
-                                  
-                                  {u.email !== userEmail.toLowerCase().trim() ? (
-                                    <div style={{ display: "flex", gap: "6px" }}>
-                                      <select
-                                        value={u.role}
-                                        onChange={async (e) => {
-                                          try {
-                                            await setDoc(doc(db, "users", u.email), { role: e.target.value });
-                                          } catch (err) {
-                                            alert(`Failed to update role: ${err.message}`);
-                                          }
-                                        }}
-                                        style={{
-                                          padding: "4px",
-                                          borderRadius: "6px",
-                                          border: "1px solid var(--border)",
-                                          backgroundColor: "var(--bg-card)",
-                                          color: "var(--text-main)",
-                                          fontSize: "11px"
-                                        }}
-                                      >
-                                        <option value="editor">Editor</option>
-                                        <option value="admin">Admin</option>
-                                      </select>
-                                      <button
-                                        onClick={async () => {
-                                          if (confirm(`Are you sure you want to revoke access for ${u.email}?`)) {
-                                            try {
-                                              await deleteDoc(doc(db, "users", u.email));
-                                            } catch (err) {
-                                              alert(`Failed to revoke access: ${err.message}`);
-                                            }
-                                          }
-                                        }}
-                                        style={{
-                                          padding: "4px 8px",
-                                          borderRadius: "6px",
-                                          backgroundColor: "#ef4444",
-                                          color: "white",
-                                          border: "none",
-                                          fontSize: "11px",
-                                          fontWeight: 600,
-                                          cursor: "pointer"
-                                        }}
-                                      >
-                                        Revoke
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span style={{ fontSize: "10px", color: "var(--text-muted)", fontStyle: "italic" }}>You</span>
-                                  )}
+                                />
+                                <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                                  <select
+                                    id="invite-role-select"
+                                    defaultValue="editor"
+                                    style={{
+                                      flex: 1,
+                                      padding: "10px",
+                                      borderRadius: "8px",
+                                      border: "1px solid var(--border)",
+                                      backgroundColor: "var(--bg-card)",
+                                      color: "var(--text-main)",
+                                      fontSize: "13px",
+                                      outline: "none"
+                                    }}
+                                  >
+                                    <option value="editor">Editor Access</option>
+                                    <option value="admin">Admin Access</option>
+                                  </select>
+                                  <button
+                                    onClick={async () => {
+                                      const emailEl = document.getElementById("invite-email-input");
+                                      const roleEl = document.getElementById("invite-role-select");
+                                      const emailVal = emailEl?.value?.toLowerCase()?.trim();
+                                      const roleVal = roleEl?.value;
+
+                                      if (!emailVal || !emailVal.includes("@")) {
+                                        alert("Please enter a valid email to invite.");
+                                        return;
+                                      }
+                                      try {
+                                        await setDoc(doc(db, "users", emailVal), { role: roleVal });
+                                        alert(`Successfully granted ${roleVal} access to ${emailVal}!`);
+                                        if (emailEl) emailEl.value = "";
+                                      } catch (err) {
+                                        alert(`Failed to add user: ${err.message}`);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: "10px 20px",
+                                      borderRadius: "8px",
+                                      backgroundColor: "var(--accent-gold-dark)",
+                                      color: "white",
+                                      border: "none",
+                                      fontSize: "13px",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
+                                    }}
+                                  >
+                                    Add Partner
+                                  </button>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        </>
+                              </div>
+
+                              {/* Authorized users list */}
+                              <div style={{ marginTop: "8px" }}>
+                                <label style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>Users With Access ({authorizedUsers.length})</label>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
+                                  {authorizedUsers.map(u => (
+                                    <div
+                                      key={u.email}
+                                      style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        padding: "8px 12px",
+                                        borderRadius: "8px",
+                                        backgroundColor: "var(--bg-body)",
+                                        border: "1px solid var(--border)"
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", flexDirection: "column" }}>
+                                        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)" }}>{u.email}</span>
+                                        <span style={{ fontSize: "10px", color: "var(--accent-gold)" }}>Role: {u.role.toUpperCase()}</span>
+                                      </div>
+
+                                      {u.email !== userEmail.toLowerCase().trim() ? (
+                                        <div style={{ display: "flex", gap: "6px" }}>
+                                          <select
+                                            value={u.role}
+                                            onChange={async (e) => {
+                                              try {
+                                                await setDoc(doc(db, "users", u.email), { role: e.target.value });
+                                              } catch (err) {
+                                                alert(`Failed to update role: ${err.message}`);
+                                              }
+                                            }}
+                                            style={{
+                                              padding: "4px",
+                                              borderRadius: "6px",
+                                              border: "1px solid var(--border)",
+                                              backgroundColor: "var(--bg-card)",
+                                              color: "var(--text-main)",
+                                              fontSize: "11px"
+                                            }}
+                                          >
+                                            <option value="editor">Editor</option>
+                                            <option value="admin">Admin</option>
+                                          </select>
+                                          <button
+                                            onClick={async () => {
+                                              if (confirm(`Are you sure you want to revoke access for ${u.email}?`)) {
+                                                try {
+                                                  await deleteDoc(doc(db, "users", u.email));
+                                                } catch (err) {
+                                                  alert(`Failed to revoke access: ${err.message}`);
+                                                }
+                                              }
+                                            }}
+                                            style={{
+                                              padding: "4px 8px",
+                                              borderRadius: "6px",
+                                              backgroundColor: "#ef4444",
+                                              color: "white",
+                                              border: "none",
+                                              fontSize: "11px",
+                                              fontWeight: 600,
+                                              cursor: "pointer"
+                                            }}
+                                          >
+                                            Revoke
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span style={{ fontSize: "10px", color: "var(--text-muted)", fontStyle: "italic" }}>You</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
 
-                <div className="settings-section">
-                  <div className="settings-section-title">Data Security & Recovery</div>
+                    <div className="settings-section">
+                      <div className="settings-section-title">Data Security & Recovery</div>
 
-                  {/* Recycle Bin row */}
-                  <div 
-                    className="settings-row"
-                    onClick={() => setIsTrashBinOpen(true)}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                  >
-                    <div className="settings-row-left">
-                      <Trash2 size={16} className="settings-row-icon" />
-                      <span>Recycle Bin (Trash)</span>
+                      {/* Recycle Bin row */}
+                      <div
+                        className="settings-row"
+                        onClick={() => setIsTrashBinOpen(true)}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                      >
+                        <div className="settings-row-left">
+                          <Trash2 size={16} className="settings-row-icon" />
+                          <span>Recycle Bin (Trash)</span>
+                        </div>
+                        <span style={{
+                          fontSize: "12px",
+                          backgroundColor: "rgba(212, 175, 55, 0.15)",
+                          color: "var(--accent-gold)",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          fontWeight: 600
+                        }}>
+                          {projects.filter(p => p.isTrashed).length} item(s)
+                        </span>
+                      </div>
+
+                      {/* Local Backups row */}
+                      <div
+                        className="settings-row"
+                        onClick={() => setIsBackupsListOpen(true)}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                      >
+                        <div className="settings-row-left">
+                          <Clock size={16} className="settings-row-icon" />
+                          <span>Restore Backup Snapshots</span>
+                        </div>
+                        <span style={{
+                          fontSize: "12px",
+                          color: "var(--text-muted)",
+                          fontWeight: 600
+                        }}>
+                          View history
+                        </span>
+                      </div>
                     </div>
-                    <span style={{ 
-                      fontSize: "12px", 
-                      backgroundColor: "rgba(212, 175, 55, 0.15)", 
-                      color: "var(--accent-gold)", 
-                      padding: "2px 8px", 
-                      borderRadius: "12px",
-                      fontWeight: 600
-                    }}>
-                      {projects.filter(p => p.isTrashed).length} item(s)
-                    </span>
-                  </div>
 
-                  {/* Local Backups row */}
-                  <div 
-                    className="settings-row"
-                    onClick={() => setIsBackupsListOpen(true)}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                  >
-                    <div className="settings-row-left">
-                      <Clock size={16} className="settings-row-icon" />
-                      <span>Restore Backup Snapshots</span>
+                    {userRole === "admin" && (
+                      <div className="settings-section">
+                        <div
+                          className="settings-section-title"
+                          onClick={() => setIsEmailReportsOpen(!isEmailReportsOpen)}
+                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                        >
+                          <span>Email Reports & Automation</span>
+                          {isEmailReportsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </div>
+
+                        {isEmailReportsOpen && (
+                          <>
+                            {/* Part 1: Quick Send Manual Backup */}
+                            <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "12px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                              <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                                Send Manual Studio Backup
+                              </div>
+                              <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                                Send a complete PDF report of all active projects immediately:
+                              </div>
+
+                              <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                                <select
+                                  value={recipientEmail}
+                                  onChange={(e) => setRecipientEmail(e.target.value)}
+                                  style={{
+                                    width: "100%",
+                                    padding: "10px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid var(--border)",
+                                    backgroundColor: "var(--bg-main)",
+                                    color: "var(--text-main)",
+                                    fontSize: "12.5px"
+                                  }}
+                                >
+                                  {userEmail && <option value={userEmail.toLowerCase().trim()}>Myself ({userEmail})</option>}
+
+                                  {/* Custom backupRecipients list */}
+                                  {backupRecipients.map(email => (
+                                    <option key={email} value={email}>{email} (Recipient)</option>
+                                  ))}
+
+                                  {/* Other partners */}
+                                  {authorizedUsers.map(u => u.email.toLowerCase().trim())
+                                    .filter(email => email !== userEmail.toLowerCase().trim() && !backupRecipients.includes(email))
+                                    .map(email => (
+                                      <option key={email} value={email}>{email} (Partner)</option>
+                                    ))
+                                  }
+
+                                  <option value="custom">Other Email...</option>
+                                </select>
+
+                                <button
+                                  onClick={handleSendManualBackup}
+                                  disabled={isSendingEmail}
+                                  style={{
+                                    width: "100%",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "8px",
+                                    padding: "10px 16px",
+                                    backgroundColor: isSendingEmail ? "var(--border)" : "var(--accent-gold)",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "8px",
+                                    fontWeight: "700",
+                                    fontSize: "12.5px",
+                                    cursor: isSendingEmail ? "not-allowed" : "pointer",
+                                    transition: "all 0.2s ease",
+                                    boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isSendingEmail) {
+                                      e.currentTarget.style.backgroundColor = "var(--accent-gold-dark)";
+                                      e.currentTarget.style.boxShadow = "0 6px 14px rgba(212, 175, 55, 0.25)";
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSendingEmail) {
+                                      e.currentTarget.style.backgroundColor = "var(--accent-gold)";
+                                      e.currentTarget.style.boxShadow = "0 4px 10px rgba(212, 175, 55, 0.15)";
+                                    }
+                                  }}
+                                >
+                                  {isSendingEmail ? (
+                                    <>
+                                      <div className="spinner-mini" />
+                                      <span>Sending...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Mail size={13} />
+                                      <span>Send Now</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              {recipientEmail === "custom" && (
+                                <input
+                                  type="email"
+                                  placeholder="partner@example.com"
+                                  value={customRecipientEmail}
+                                  onChange={(e) => setCustomRecipientEmail(e.target.value)}
+                                  style={{
+                                    width: "100%",
+                                    padding: "10px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid var(--border)",
+                                    backgroundColor: "var(--bg-main)",
+                                    color: "var(--text-main)",
+                                    fontSize: "12.5px"
+                                  }}
+                                />
+                              )}
+                            </div>
+
+                            {/* Google Apps Script Integration Config */}
+                            <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                              <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                                Google Apps Script Web App URL
+                              </div>
+                              <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                                Paste your Google Script URL to send email reports for free using your Gmail account:
+                              </div>
+
+                              {import.meta.env.VITE_GOOGLE_SCRIPT_URL ? (
+                                <div style={{
+                                  width: "100%",
+                                  padding: "8px 12px",
+                                  backgroundColor: "rgba(34, 197, 94, 0.1)",
+                                  border: "1px solid rgba(34, 197, 94, 0.2)",
+                                  color: "#22c55e",
+                                  borderRadius: "8px",
+                                  fontSize: "12px",
+                                  fontWeight: 600
+                                }}>
+                                  ✓ Configured via environment variable (.env)
+                                </div>
+                              ) : (
+                                <input
+                                  type="url"
+                                  placeholder="https://script.google.com/macros/s/.../exec"
+                                  value={googleScriptUrl}
+                                  onChange={(e) => setGoogleScriptUrl(e.target.value)}
+                                  style={{
+                                    width: "100%",
+                                    padding: "10px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid var(--border)",
+                                    backgroundColor: "var(--bg-main)",
+                                    color: "var(--text-main)",
+                                    fontSize: "12.5px"
+                                  }}
+                                />
+                              )}
+                            </div>
+
+                            {/* Part 2: Mailing List Directory Manager */}
+                            <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+                              <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
+                                Mailing List Directory
+                              </div>
+                              <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                                Manage which email addresses appear in your quick-select mailing directory:
+                              </div>
+
+                              <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                                <input
+                                  type="email"
+                                  placeholder="client-or-partner@example.com"
+                                  value={newRecipientInput}
+                                  onChange={(e) => setNewRecipientInput(e.target.value)}
+                                  style={{
+                                    flex: 1,
+                                    padding: "8px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid var(--border)",
+                                    backgroundColor: "var(--bg-main)",
+                                    color: "var(--text-main)",
+                                    fontSize: "12.5px"
+                                  }}
+                                />
+                                <button
+                                  onClick={() => {
+                                    const cleanInput = newRecipientInput.toLowerCase().trim();
+                                    if (!cleanInput || !cleanInput.includes("@")) {
+                                      alert("Please enter a valid email address.");
+                                      return;
+                                    }
+                                    if (backupRecipients.includes(cleanInput)) {
+                                      alert("This email is already in the list.");
+                                      return;
+                                    }
+                                    setBackupRecipients([...backupRecipients, cleanInput]);
+                                    setNewRecipientInput("");
+                                  }}
+                                  style={{
+                                    padding: "8px 16px",
+                                    backgroundColor: "var(--accent-gold)",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "8px",
+                                    fontWeight: 600,
+                                    fontSize: "12.5px",
+                                    cursor: "pointer"
+                                  }}
+                                >
+                                  Add
+                                </button>
+                              </div>
+
+                              {backupRecipients.length > 0 ? (
+                                <div style={{
+                                  width: "100%",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "6px",
+                                  maxHeight: "120px",
+                                  overflowY: "auto",
+                                  border: "1px solid var(--border)",
+                                  borderRadius: "8px",
+                                  padding: "8px",
+                                  backgroundColor: "var(--bg-main)",
+                                  marginTop: "4px"
+                                }}>
+                                  {backupRecipients.map(email => (
+                                    <div key={email} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "4px 8px", borderBottom: "1px solid rgba(0,0,0,0.03)" }}>
+                                      <span style={{ color: "var(--text-main)" }}>{email}</span>
+                                      <button
+                                        onClick={() => {
+                                          setBackupRecipients(backupRecipients.filter(e => e !== email));
+                                        }}
+                                        style={{
+                                          background: "none",
+                                          border: "none",
+                                          color: "#ef4444",
+                                          cursor: "pointer",
+                                          padding: "2px"
+                                        }}
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", marginTop: "4px" }}>
+                                  No custom recipient emails added. Add above to build your quick mailing list directory.
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Part 3: Automated backup status row */}
+                            <div className="settings-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "default" }}>
+                              <div className="settings-row-left">
+                                <Mail size={16} className="settings-row-icon" style={{ color: "var(--text-muted)", marginRight: "8px" }} />
+                                <span>3-Day Auto Backup Email</span>
+                              </div>
+                              <span style={{
+                                fontSize: "12px",
+                                color: "var(--text-muted)",
+                                fontWeight: 600
+                              }}>
+                                {lastEmailBackupDate ? (
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                    <span>Last: {new Date(lastEmailBackupDate).toLocaleDateString()}</span>
+                                    <span style={{ fontSize: "10px", color: "var(--accent-gold)", marginTop: "2px", fontWeight: "normal" }}>
+                                      {(() => {
+                                        const lastSent = new Date(lastEmailBackupDate).getTime();
+                                        const nextBackupTime = lastSent + (3 * 24 * 60 * 60 * 1000);
+                                        const diffMs = nextBackupTime - Date.now();
+                                        const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+                                        if (diffDays <= 0) return "Next: Due today";
+                                        return `Next: In ${diffDays} day${diffDays > 1 ? "s" : ""}`;
+                                      })()}
+                                    </span>
+                                  </div>
+                                ) : "Pending"}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="settings-section">
+                      <div className="settings-section-title">Database & Sync</div>
+
+                      <div
+                        className="settings-row"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              "Do you want to clear all local app data? This will reset this device to a clean state and disconnect it from cloud sync, without deleting any shared data from the cloud."
+                            )
+                          ) {
+                            localStorage.setItem("weaverbird_cloud_sync", "false");
+                            localStorage.setItem("weaverbird_user_email", "");
+                            localStorage.setItem("weaverbird_user_role", "");
+                            localStorage.setItem("weaverbird_user_authorized", "true");
+                            localStorage.setItem(
+                              "ipm_projects",
+                              JSON.stringify([])
+                            );
+                            localStorage.setItem(
+                              "ipm_schedule",
+                              JSON.stringify([])
+                            );
+                            window.location.reload();
+                          }
+                        }}
+                      >
+                        <span style={{ color: "#ef4444", fontWeight: 600 }}>
+                          Reset App Data
+                        </span>
+                      </div>
+
+                      <div className="settings-row" style={{ cursor: "default" }}>
+                        <div className="settings-row-left">
+                          <span>App Version</span>
+                        </div>
+                        <span
+                          style={{ fontSize: "12px", color: "var(--text-muted)" }}
+                        >
+                          {WEB_APP_VERSION} (Production)
+                        </span>
+                      </div>
                     </div>
-                    <span style={{ 
-                      fontSize: "12px", 
-                      color: "var(--text-muted)",
-                      fontWeight: 600
-                    }}>
-                      View history
-                    </span>
-                  </div>
-                </div>
 
-                {userRole === "admin" && (
-                  <div className="settings-section">
-                    <div 
-                      className="settings-section-title" 
-                      onClick={() => setIsEmailReportsOpen(!isEmailReportsOpen)}
-                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: "24px 16px",
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        letterSpacing: "0.5px",
+                      }}
                     >
-                      <span>Email Reports & Automation</span>
-                      {isEmailReportsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      <p>
+                        © {new Date().getFullYear()} WeaverBird Interior Studio.
+                      </p>
+                      <p style={{ marginTop: "4px", opacity: 0.7 }}>
+                        All rights reserved.
+                      </p>
                     </div>
-                    
-                    {isEmailReportsOpen && (
-                      <>
-                        {/* Part 1: Quick Send Manual Backup */}
-                        <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "12px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
-                          <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
-                            Send Manual Studio Backup
-                          </div>
-                          <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
-                            Send a complete PDF report of all active projects immediately:
-                          </div>
-                          
-                          <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                  </div>
+                </>
+              )}
+
+              {/* PERSISTENT BOTTOM NAVIGATION BAR */}
+              {!isKeyboardVisible && (
+                <div className="bottom-nav">
+                  <button
+                    className={`nav-tab ${currentTab === "projects" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentTab("projects");
+                      setActiveProjectId(null); // Return to project dashboard list
+                    }}
+                  >
+                    <div className="nav-icon-wrapper">
+                      <Folder size={20} />
+                    </div>
+                    <span className="nav-label">Projects</span>
+                  </button>
+
+                  <button
+                    className={`nav-tab ${currentTab === "schedule" ? "active" : ""}`}
+                    onClick={() => setCurrentTab("schedule")}
+                  >
+                    <div className="nav-icon-wrapper">
+                      <Calendar size={20} />
+                    </div>
+                    <span className="nav-label">Schedule</span>
+                  </button>
+
+                  {/* Center Hump with + Button */}
+                  <div
+                    className="nav-hump-container"
+                    style={{ visibility: currentTab === "profile" ? "hidden" : "visible" }}
+                  >
+                    <div className="nav-hump"></div>
+                    <button
+                      type="button"
+                      className="nav-add-btn"
+                      onClick={handleNavbarAddClick}
+                      aria-label="Add Item"
+                    >
+                      <Plus size={24} />
+                    </button>
+                  </div>
+
+                  <button
+                    className={`nav-tab ${currentTab === "profile" ? "active" : ""}`}
+                    onClick={() => setCurrentTab("profile")}
+                  >
+                    <div className="nav-icon-wrapper">
+                      <User size={20} />
+                    </div>
+                    <span className="nav-label">Profile</span>
+                  </button>
+                </div>
+              )}
+
+              {/* --- MODALS --- */}
+
+              {/* Report Preview Modal (In-App sheet to avoid freezing/loading bugs on phones) */}
+              {reportPreview && (
+                <div
+                  className="modal-overlay"
+                  onClick={() => setReportPreview(null)}
+                  style={{ zIndex: 2000 }}
+                >
+                  <div
+                    className="modal-content"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ padding: "24px 20px" }}
+                  >
+                    <div className="modal-header" style={{ marginBottom: "16px" }}>
+                      <h3 style={{ textTransform: "uppercase", fontSize: "16px", letterSpacing: "1px" }}>
+                        Report Preview
+                      </h3>
+                      <button
+                        className="icon-btn"
+                        onClick={() => setReportPreview(null)}
+                        aria-label="Close Preview"
+                        style={{ padding: "4px" }}
+                      >
+                        <ArrowLeft size={20} />
+                      </button>
+                    </div>
+
+                    <div
+                      className="report-preview-box"
+                      style={{
+                        backgroundColor: "var(--bg-app)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "16px",
+                        padding: "20px",
+                        color: "var(--text-main)",
+                        maxHeight: "350px",
+                        overflowY: "auto",
+                        marginBottom: "20px"
+                      }}
+                    >
+                      <div style={{ borderBottom: "2px solid var(--accent-gold)", paddingBottom: "12px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                        <div>
+                          <div style={{ fontFamily: "var(--font-title)", fontSize: "20px", fontWeight: "800", color: "var(--text-title)" }}>WeaverBird</div>
+                          <div style={{ fontFamily: "var(--font-title)", fontSize: "10px", fontWeight: "600", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "2px" }}>Interior Studio</div>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "right" }}>
+                          <strong>Date:</strong> {new Date().toLocaleDateString("en-GB")}
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: "rgba(0, 0, 0, 0.02)", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "13px" }}>
+                        <div style={{ marginBottom: "4px" }}><strong>Project:</strong> {reportPreview.projectName}</div>
+                        <div><strong>Target Deadline:</strong> {reportPreview.targetDate ? formatDisplayDateStr(reportPreview.targetDate) : "No Date Set"}</div>
+                      </div>
+
+                      <h4 style={{ fontFamily: "var(--font-title)", fontSize: "14px", fontWeight: "700", marginBottom: "10px", color: "var(--text-title)", borderLeft: "3px solid var(--accent-gold)", paddingLeft: "8px" }}>
+                        {reportPreview.title}
+                      </h4>
+
+                      {/* Content grouped by room */}
+                      {(() => {
+                        const materialsByRoom = {};
+                        (reportPreview.materials || []).forEach(m => {
+                          const rid = m.roomId || 'general';
+                          if (!materialsByRoom[rid]) materialsByRoom[rid] = [];
+                          materialsByRoom[rid].push(m);
+                        });
+
+                        const tasksByRoom = {};
+                        (reportPreview.tasks || []).forEach(t => {
+                          const rid = t.roomId || 'general';
+                          if (!tasksByRoom[rid]) tasksByRoom[rid] = [];
+                          tasksByRoom[rid].push(t);
+                        });
+
+                        const allRoomIds = [...new Set([...Object.keys(materialsByRoom), ...Object.keys(tasksByRoom)])];
+
+                        if (allRoomIds.length === 0) {
+                          return <div style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No pending items found.</div>;
+                        }
+
+                        return allRoomIds.map(roomId => {
+                          let roomName = 'General / Unassigned';
+                          if (roomId !== 'general') {
+                            const r = (reportPreview.rooms || []).find(x => x.id === roomId);
+                            if (r) roomName = r.name;
+                          }
+
+                          const rMaterials = materialsByRoom[roomId] || [];
+                          const rTasks = tasksByRoom[roomId] || [];
+
+                          return (
+                            <div key={roomId} style={{ marginBottom: "20px", padding: "12px", backgroundColor: "rgba(0,0,0,0.02)", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+                              <h5 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "800", color: "var(--accent-blue)", borderBottom: "2px solid var(--border-hover)", paddingBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                {roomName}
+                              </h5>
+
+                              {(reportPreview.type === "materials" || reportPreview.type === "both") && rMaterials.length > 0 && (
+                                <div style={{ marginBottom: "12px" }}>
+                                  <div style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>Materials</div>
+                                  {rMaterials.map((m, idx) => (
+                                    <div key={m.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed var(--border)", fontSize: "12px" }}>
+                                      <span>• {m.name}</span>
+                                      <span style={{ color: "var(--text-muted)" }}>Pending</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {(reportPreview.type === "tasks" || reportPreview.type === "both") && rTasks.length > 0 && (
+                                <div>
+                                  <div style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>Works</div>
+                                  {rTasks.map((t, idx) => (
+                                    <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed var(--border)", fontSize: "12px" }}>
+                                      <span>• {t.name}</span>
+                                      <span style={{
+                                        textTransform: "uppercase",
+                                        fontSize: "10px",
+                                        fontWeight: "700",
+                                        color: t.priority === "high" ? "#ef4444" : t.priority === "medium" ? "#f97316" : "#3b82f6"
+                                      }}>{t.priority || "medium"}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <button
+                        className="btn-primary"
+                        onClick={handleDownloadPDF}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "8px",
+                          width: "100%",
+                          padding: "14px",
+                          backgroundColor: "var(--accent-gold)",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "12px",
+                          fontWeight: "700",
+                          fontSize: "14px",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Download PDF Report
+                      </button>
+
+                      <button
+                        className="btn-secondary"
+                        onClick={handleSharePDF}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          backgroundColor: "transparent",
+                          color: "var(--text-main)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "12px",
+                          fontWeight: "600",
+                          fontSize: "13px",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Share PDF Report
+                      </button>
+
+                      {/* Email PDF Section */}
+                      <div style={{
+                        marginTop: "12px",
+                        borderTop: "1px dashed var(--border)",
+                        paddingTop: "16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px"
+                      }}>
+                        <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>
+                          Email PDF Report to Partner
+                        </label>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                             <select
                               value={recipientEmail}
                               onChange={(e) => setRecipientEmail(e.target.value)}
@@ -4831,16 +5358,16 @@ function App() {
                                 border: "1px solid var(--border)",
                                 backgroundColor: "var(--bg-main)",
                                 color: "var(--text-main)",
-                                fontSize: "12.5px"
+                                fontSize: "13px"
                               }}
                             >
                               {userEmail && <option value={userEmail.toLowerCase().trim()}>Myself ({userEmail})</option>}
-                              
+
                               {/* Custom backupRecipients list */}
                               {backupRecipients.map(email => (
                                 <option key={email} value={email}>{email} (Recipient)</option>
                               ))}
-                              
+
                               {/* Other partners */}
                               {authorizedUsers.map(u => u.email.toLowerCase().trim())
                                 .filter(email => email !== userEmail.toLowerCase().trim() && !backupRecipients.includes(email))
@@ -4848,12 +5375,12 @@ function App() {
                                   <option key={email} value={email}>{email} (Partner)</option>
                                 ))
                               }
-                              
+
                               <option value="custom">Other Email...</option>
                             </select>
-                            
+
                             <button
-                              onClick={handleSendManualBackup}
+                              onClick={handleEmailReportManually}
                               disabled={isSendingEmail}
                               style={{
                                 width: "100%",
@@ -4867,7 +5394,7 @@ function App() {
                                 border: "none",
                                 borderRadius: "8px",
                                 fontWeight: "700",
-                                fontSize: "12.5px",
+                                fontSize: "13px",
                                 cursor: isSendingEmail ? "not-allowed" : "pointer",
                                 transition: "all 0.2s ease",
                                 boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
@@ -4893,7 +5420,7 @@ function App() {
                               ) : (
                                 <>
                                   <Mail size={13} />
-                                  <span>Send Now</span>
+                                  <span>Send</span>
                                 </>
                               )}
                             </button>
@@ -4912,833 +5439,111 @@ function App() {
                                 border: "1px solid var(--border)",
                                 backgroundColor: "var(--bg-main)",
                                 color: "var(--text-main)",
-                                fontSize: "12.5px"
+                                fontSize: "13px"
                               }}
                             />
                           )}
                         </div>
-
-                        {/* Google Apps Script Integration Config */}
-                        <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
-                          <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
-                            Google Apps Script Web App URL
-                          </div>
-                          <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
-                            Paste your Google Script URL to send email reports for free using your Gmail account:
-                          </div>
-
-                          {import.meta.env.VITE_GOOGLE_SCRIPT_URL ? (
-                            <div style={{ 
-                              width: "100%", 
-                              padding: "8px 12px", 
-                              backgroundColor: "rgba(34, 197, 94, 0.1)", 
-                              border: "1px solid rgba(34, 197, 94, 0.2)", 
-                              color: "#22c55e",
-                              borderRadius: "8px", 
-                              fontSize: "12px",
-                              fontWeight: 600
-                            }}>
-                              ✓ Configured via environment variable (.env)
-                            </div>
-                          ) : (
-                            <input
-                              type="url"
-                              placeholder="https://script.google.com/macros/s/.../exec"
-                              value={googleScriptUrl}
-                              onChange={(e) => setGoogleScriptUrl(e.target.value)}
-                              style={{
-                                width: "100%",
-                                padding: "10px 12px",
-                                borderRadius: "8px",
-                                border: "1px solid var(--border)",
-                                backgroundColor: "var(--bg-main)",
-                                color: "var(--text-main)",
-                                fontSize: "12.5px"
-                              }}
-                            />
-                          )}
-                        </div>
-
-                        {/* Part 2: Mailing List Directory Manager */}
-                        <div className="settings-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", cursor: "default", borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
-                          <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-main)" }}>
-                            Mailing List Directory
-                          </div>
-                          <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.4" }}>
-                            Manage which email addresses appear in your quick-select mailing directory:
-                          </div>
-
-                          <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-                            <input
-                              type="email"
-                              placeholder="client-or-partner@example.com"
-                              value={newRecipientInput}
-                              onChange={(e) => setNewRecipientInput(e.target.value)}
-                              style={{
-                                flex: 1,
-                                padding: "8px 12px",
-                                borderRadius: "8px",
-                                border: "1px solid var(--border)",
-                                backgroundColor: "var(--bg-main)",
-                                color: "var(--text-main)",
-                                fontSize: "12.5px"
-                              }}
-                            />
-                            <button
-                              onClick={() => {
-                                const cleanInput = newRecipientInput.toLowerCase().trim();
-                                if (!cleanInput || !cleanInput.includes("@")) {
-                                  alert("Please enter a valid email address.");
-                                  return;
-                                }
-                                if (backupRecipients.includes(cleanInput)) {
-                                  alert("This email is already in the list.");
-                                  return;
-                                }
-                                setBackupRecipients([...backupRecipients, cleanInput]);
-                                setNewRecipientInput("");
-                              }}
-                              style={{
-                                padding: "8px 16px",
-                                backgroundColor: "var(--accent-gold)",
-                                color: "white",
-                                border: "none",
-                                borderRadius: "8px",
-                                fontWeight: 600,
-                                fontSize: "12.5px",
-                                cursor: "pointer"
-                              }}
-                            >
-                              Add
-                            </button>
-                          </div>
-
-                          {backupRecipients.length > 0 ? (
-                            <div style={{
-                              width: "100%",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "6px",
-                              maxHeight: "120px",
-                              overflowY: "auto",
-                              border: "1px solid var(--border)",
-                              borderRadius: "8px",
-                              padding: "8px",
-                              backgroundColor: "var(--bg-main)",
-                              marginTop: "4px"
-                            }}>
-                              {backupRecipients.map(email => (
-                                <div key={email} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "4px 8px", borderBottom: "1px solid rgba(0,0,0,0.03)" }}>
-                                  <span style={{ color: "var(--text-main)" }}>{email}</span>
-                                  <button
-                                    onClick={() => {
-                                      setBackupRecipients(backupRecipients.filter(e => e !== email));
-                                    }}
-                                    style={{
-                                      background: "none",
-                                      border: "none",
-                                      color: "#ef4444",
-                                      cursor: "pointer",
-                                      padding: "2px"
-                                    }}
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", marginTop: "4px" }}>
-                              No custom recipient emails added. Add above to build your quick mailing list directory.
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Part 3: Automated backup status row */}
-                        <div className="settings-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "default" }}>
-                          <div className="settings-row-left">
-                            <Mail size={16} className="settings-row-icon" style={{ color: "var(--text-muted)", marginRight: "8px" }} />
-                            <span>3-Day Auto Backup Email</span>
-                          </div>
-                          <span style={{ 
-                            fontSize: "12px", 
-                            color: "var(--text-muted)",
-                            fontWeight: 600
-                          }}>
-                            {lastEmailBackupDate ? (
-                              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                                <span>Last: {new Date(lastEmailBackupDate).toLocaleDateString()}</span>
-                                <span style={{ fontSize: "10px", color: "var(--accent-gold)", marginTop: "2px", fontWeight: "normal" }}>
-                                  {(() => {
-                                    const lastSent = new Date(lastEmailBackupDate).getTime();
-                                    const nextBackupTime = lastSent + (3 * 24 * 60 * 60 * 1000);
-                                    const diffMs = nextBackupTime - Date.now();
-                                    const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-                                    if (diffDays <= 0) return "Next: Due today";
-                                    return `Next: In ${diffDays} day${diffDays > 1 ? "s" : ""}`;
-                                  })()}
-                                </span>
-                              </div>
-                            ) : "Pending"}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                <div className="settings-section">
-                  <div className="settings-section-title">Database & Sync</div>
-
-                  <div
-                    className="settings-row"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "Do you want to clear all local app data? This will reset this device to a clean state and disconnect it from cloud sync, without deleting any shared data from the cloud."
-                        )
-                      ) {
-                        localStorage.setItem("weaverbird_cloud_sync", "false");
-                        localStorage.setItem("weaverbird_user_email", "");
-                        localStorage.setItem("weaverbird_user_role", "");
-                        localStorage.setItem("weaverbird_user_authorized", "true");
-                        localStorage.setItem(
-                          "ipm_projects",
-                          JSON.stringify([])
-                        );
-                        localStorage.setItem(
-                          "ipm_schedule",
-                          JSON.stringify([])
-                        );
-                        window.location.reload();
-                      }
-                    }}
-                  >
-                    <span style={{ color: "#ef4444", fontWeight: 600 }}>
-                      Reset App Data
-                    </span>
-                  </div>
-
-                  <div className="settings-row" style={{ cursor: "default" }}>
-                    <div className="settings-row-left">
-                      <span>App Version</span>
-                    </div>
-                    <span
-                      style={{ fontSize: "12px", color: "var(--text-muted)" }}
-                    >
-                      {WEB_APP_VERSION} (Production)
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "24px 16px",
-                    fontSize: "11px",
-                    color: "var(--text-muted)",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  <p>
-                    © {new Date().getFullYear()} WeaverBird Interior Studio.
-                  </p>
-                  <p style={{ marginTop: "4px", opacity: 0.7 }}>
-                    All rights reserved.
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* PERSISTENT BOTTOM NAVIGATION BAR */}
-          {!isKeyboardVisible && (
-            <div className="bottom-nav">
-              <button
-                className={`nav-tab ${currentTab === "projects" ? "active" : ""}`}
-                onClick={() => {
-                  setCurrentTab("projects");
-                  setActiveProjectId(null); // Return to project dashboard list
-                }}
-              >
-                <div className="nav-icon-wrapper">
-                  <Folder size={20} />
-                </div>
-                <span className="nav-label">Projects</span>
-              </button>
-
-              <button
-                className={`nav-tab ${currentTab === "schedule" ? "active" : ""}`}
-                onClick={() => setCurrentTab("schedule")}
-              >
-                <div className="nav-icon-wrapper">
-                  <Calendar size={20} />
-                </div>
-                <span className="nav-label">Schedule</span>
-              </button>
-
-              {/* Center Hump with + Button */}
-              <div 
-                className="nav-hump-container"
-                style={{ visibility: currentTab === "profile" ? "hidden" : "visible" }}
-              >
-                <div className="nav-hump"></div>
-                <button
-                  type="button"
-                  className="nav-add-btn"
-                  onClick={handleNavbarAddClick}
-                  aria-label="Add Item"
-                >
-                  <Plus size={24} />
-                </button>
-              </div>
-
-              <button
-                className={`nav-tab ${currentTab === "profile" ? "active" : ""}`}
-                onClick={() => setCurrentTab("profile")}
-              >
-                <div className="nav-icon-wrapper">
-                  <User size={20} />
-                </div>
-                <span className="nav-label">Profile</span>
-              </button>
-            </div>
-          )}
-
-          {/* --- MODALS --- */}
-
-          {/* Report Preview Modal (In-App sheet to avoid freezing/loading bugs on phones) */}
-          {reportPreview && (
-            <div
-              className="modal-overlay"
-              onClick={() => setReportPreview(null)}
-              style={{ zIndex: 2000 }}
-            >
-              <div
-                className="modal-content"
-                onClick={(e) => e.stopPropagation()}
-                style={{ padding: "24px 20px" }}
-              >
-                <div className="modal-header" style={{ marginBottom: "16px" }}>
-                  <h3 style={{ textTransform: "uppercase", fontSize: "16px", letterSpacing: "1px" }}>
-                    Report Preview
-                  </h3>
-                  <button
-                    className="icon-btn"
-                    onClick={() => setReportPreview(null)}
-                    aria-label="Close Preview"
-                    style={{ padding: "4px" }}
-                  >
-                    <ArrowLeft size={20} />
-                  </button>
-                </div>
-
-                <div 
-                  className="report-preview-box" 
-                  style={{
-                    backgroundColor: "var(--bg-app)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "16px",
-                    padding: "20px",
-                    color: "var(--text-main)",
-                    maxHeight: "350px",
-                    overflowY: "auto",
-                    marginBottom: "20px"
-                  }}
-                >
-                  <div style={{ borderBottom: "2px solid var(--accent-gold)", paddingBottom: "12px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                    <div>
-                      <div style={{ fontFamily: "var(--font-title)", fontSize: "20px", fontWeight: "800", color: "var(--text-title)" }}>WeaverBird</div>
-                      <div style={{ fontFamily: "var(--font-title)", fontSize: "10px", fontWeight: "600", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "2px" }}>Interior Studio</div>
-                    </div>
-                    <div style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "right" }}>
-                      <strong>Date:</strong> {new Date().toLocaleDateString("en-GB")}
-                    </div>
-                  </div>
-
-                  <div style={{ backgroundColor: "rgba(0, 0, 0, 0.02)", borderRadius: "8px", padding: "12px", marginBottom: "16px", fontSize: "13px" }}>
-                    <div style={{ marginBottom: "4px" }}><strong>Project:</strong> {reportPreview.projectName}</div>
-                    <div><strong>Target Deadline:</strong> {reportPreview.targetDate ? formatDisplayDateStr(reportPreview.targetDate) : "No Date Set"}</div>
-                  </div>
-
-                  <h4 style={{ fontFamily: "var(--font-title)", fontSize: "14px", fontWeight: "700", marginBottom: "10px", color: "var(--text-title)", borderLeft: "3px solid var(--accent-gold)", paddingLeft: "8px" }}>
-                    {reportPreview.title}
-                  </h4>
-
-                  {/* Content grouped by room */}
-                  {(() => {
-                    const materialsByRoom = {};
-                    (reportPreview.materials || []).forEach(m => {
-                      const rid = m.roomId || 'general';
-                      if (!materialsByRoom[rid]) materialsByRoom[rid] = [];
-                      materialsByRoom[rid].push(m);
-                    });
-
-                    const tasksByRoom = {};
-                    (reportPreview.tasks || []).forEach(t => {
-                      const rid = t.roomId || 'general';
-                      if (!tasksByRoom[rid]) tasksByRoom[rid] = [];
-                      tasksByRoom[rid].push(t);
-                    });
-
-                    const allRoomIds = [...new Set([...Object.keys(materialsByRoom), ...Object.keys(tasksByRoom)])];
-
-                    if (allRoomIds.length === 0) {
-                      return <div style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No pending items found.</div>;
-                    }
-
-                    return allRoomIds.map(roomId => {
-                      let roomName = 'General / Unassigned';
-                      if (roomId !== 'general') {
-                        const r = (reportPreview.rooms || []).find(x => x.id === roomId);
-                        if (r) roomName = r.name;
-                      }
-
-                      const rMaterials = materialsByRoom[roomId] || [];
-                      const rTasks = tasksByRoom[roomId] || [];
-
-                      return (
-                        <div key={roomId} style={{ marginBottom: "20px", padding: "12px", backgroundColor: "rgba(0,0,0,0.02)", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
-                          <h5 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "800", color: "var(--accent-blue)", borderBottom: "2px solid var(--border-hover)", paddingBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                            {roomName}
-                          </h5>
-
-                          {(reportPreview.type === "materials" || reportPreview.type === "both") && rMaterials.length > 0 && (
-                            <div style={{ marginBottom: "12px" }}>
-                              <div style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>Materials</div>
-                              {rMaterials.map((m, idx) => (
-                                <div key={m.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed var(--border)", fontSize: "12px" }}>
-                                  <span>• {m.name}</span>
-                                  <span style={{ color: "var(--text-muted)" }}>Pending</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {(reportPreview.type === "tasks" || reportPreview.type === "both") && rTasks.length > 0 && (
-                            <div>
-                              <div style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>Works</div>
-                              {rTasks.map((t, idx) => (
-                                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed var(--border)", fontSize: "12px" }}>
-                                  <span>• {t.name}</span>
-                                  <span style={{ 
-                                    textTransform: "uppercase", 
-                                    fontSize: "10px", 
-                                    fontWeight: "700",
-                                    color: t.priority === "high" ? "#ef4444" : t.priority === "medium" ? "#f97316" : "#3b82f6"
-                                  }}>{t.priority || "medium"}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <button
-                    className="btn-primary"
-                    onClick={handleDownloadPDF}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                      width: "100%",
-                      padding: "14px",
-                      backgroundColor: "var(--accent-gold)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "12px",
-                      fontWeight: "700",
-                      fontSize: "14px",
-                      cursor: "pointer"
-                    }}
-                  >
-                    Download PDF Report
-                  </button>
-
-                  <button
-                    className="btn-secondary"
-                    onClick={handleSharePDF}
-                    style={{
-                      width: "100%",
-                      padding: "12px",
-                      backgroundColor: "transparent",
-                      color: "var(--text-main)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "12px",
-                      fontWeight: "600",
-                      fontSize: "13px",
-                      cursor: "pointer"
-                    }}
-                  >
-                    Share PDF Report
-                  </button>
-
-                  {/* Email PDF Section */}
-                  <div style={{
-                    marginTop: "12px",
-                    borderTop: "1px dashed var(--border)",
-                    paddingTop: "16px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px"
-                  }}>
-                    <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-muted)" }}>
-                      Email PDF Report to Partner
-                    </label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        <select
-                          value={recipientEmail}
-                          onChange={(e) => setRecipientEmail(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--bg-main)",
-                            color: "var(--text-main)",
-                            fontSize: "13px"
-                          }}
-                        >
-                          {userEmail && <option value={userEmail.toLowerCase().trim()}>Myself ({userEmail})</option>}
-                          
-                          {/* Custom backupRecipients list */}
-                          {backupRecipients.map(email => (
-                            <option key={email} value={email}>{email} (Recipient)</option>
-                          ))}
-                          
-                          {/* Other partners */}
-                          {authorizedUsers.map(u => u.email.toLowerCase().trim())
-                            .filter(email => email !== userEmail.toLowerCase().trim() && !backupRecipients.includes(email))
-                            .map(email => (
-                              <option key={email} value={email}>{email} (Partner)</option>
-                            ))
-                          }
-                          
-                          <option value="custom">Other Email...</option>
-                        </select>
-                        
-                        <button
-                          onClick={handleEmailReportManually}
-                          disabled={isSendingEmail}
-                          style={{
-                            width: "100%",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "8px",
-                            padding: "10px 16px",
-                            backgroundColor: isSendingEmail ? "var(--border)" : "var(--accent-gold)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "8px",
-                            fontWeight: "700",
-                            fontSize: "13px",
-                            cursor: isSendingEmail ? "not-allowed" : "pointer",
-                            transition: "all 0.2s ease",
-                            boxShadow: "0 4px 10px rgba(212, 175, 55, 0.15)"
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!isSendingEmail) {
-                              e.currentTarget.style.backgroundColor = "var(--accent-gold-dark)";
-                              e.currentTarget.style.boxShadow = "0 6px 14px rgba(212, 175, 55, 0.25)";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!isSendingEmail) {
-                              e.currentTarget.style.backgroundColor = "var(--accent-gold)";
-                              e.currentTarget.style.boxShadow = "0 4px 10px rgba(212, 175, 55, 0.15)";
-                            }
-                          }}
-                        >
-                          {isSendingEmail ? (
-                            <>
-                              <div className="spinner-mini" />
-                              <span>Sending...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Mail size={13} />
-                              <span>Send</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {recipientEmail === "custom" && (
-                        <input
-                          type="email"
-                          placeholder="partner@example.com"
-                          value={customRecipientEmail}
-                          onChange={(e) => setCustomRecipientEmail(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--bg-main)",
-                            color: "var(--text-main)",
-                            fontSize: "13px"
-                          }}
-                        />
-                      )}
-                    </div>
-                    {!(import.meta.env.VITE_EMAILJS_SERVICE_ID || emailJsServiceId) && (
-                      <span style={{ fontSize: "11px", color: "#ef4444" }}>
-                        ⚠️ Email service is not configured in the application environment (.env).
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Recycle Bin (Trash) Modal */}
-          {isTrashBinOpen && (
-            <div className="modal-overlay" onClick={() => setIsTrashBinOpen(false)} style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px", width: "100%", borderRadius: "16px", padding: "24px", maxHeight: "85vh" }}>
-                <div className="modal-header" style={{ marginBottom: "20px" }}>
-                  <h3>Recycle Bin (Trash)</h3>
-                  <button className="icon-btn" onClick={() => setIsTrashBinOpen(false)}>
-                    <ArrowLeft size={18} style={{ transform: "rotate(-90deg)" }} />
-                  </button>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "400px", overflowY: "auto", padding: "8px 0" }}>
-                  {projects.filter(p => p.isTrashed).length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
-                      <Trash2 size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
-                      <p style={{ fontSize: "14px" }}>Your Recycle Bin is empty.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        {userRole !== "admin" && (
-                          <span style={{ fontSize: "11.5px", color: "var(--text-muted)", fontStyle: "italic" }}>
-                            * Only Administrators can permanently empty trash.
+                        {!(import.meta.env.VITE_EMAILJS_SERVICE_ID || emailJsServiceId) && (
+                          <span style={{ fontSize: "11px", color: "#ef4444" }}>
+                            ⚠️ Email service is not configured in the application environment (.env).
                           </span>
                         )}
-                        {userRole === "admin" && (
-                          <button
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to permanently delete all projects in the trash? This cannot be undone!")) {
-                                const trashedIds = projects.filter(p => p.isTrashed).map(p => p.id);
-                                setProjects(projects.filter(p => !p.isTrashed));
-                                setDeletedProjectIds(prev => [...new Set([...prev, ...trashedIds])]);
-                              }
-                            }}
-                            style={{
-                              padding: "8px 12px",
-                              backgroundColor: "rgba(239, 68, 68, 0.1)",
-                              color: "#ef4444",
-                              border: "1px solid rgba(239, 68, 68, 0.2)",
-                              borderRadius: "8px",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              marginLeft: "auto"
-                            }}
-                          >
-                            <Trash2 size={13} />
-                            Empty Trash
-                          </button>
-                        )}
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                      {projects.filter(p => p.isTrashed).map((p) => (
-                        <div key={p.id} style={{
-                          padding: "16px",
-                          borderRadius: "12px",
-                          border: "1px solid var(--border)",
-                          backgroundColor: "var(--bg-card)",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: "12px"
-                        }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
-                            <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-main)" }}>{p.name}</span>
-                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                              Trashed on: {p.trashedAt ? new Date(p.trashedAt).toLocaleString() : "Unknown"}
-                            </span>
-                          </div>
+              {/* Recycle Bin (Trash) Modal */}
+              {isTrashBinOpen && (
+                <div className="modal-overlay" onClick={() => setIsTrashBinOpen(false)} style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
+                  <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px", width: "100%", borderRadius: "16px", padding: "24px", maxHeight: "85vh" }}>
+                    <div className="modal-header" style={{ marginBottom: "20px" }}>
+                      <h3>Recycle Bin (Trash)</h3>
+                      <button className="icon-btn" onClick={() => setIsTrashBinOpen(false)}>
+                        <ArrowLeft size={18} style={{ transform: "rotate(-90deg)" }} />
+                      </button>
+                    </div>
 
-                          <div style={{ display: "flex", gap: "8px" }}>
-                            {/* Restore Button */}
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Are you sure you want to restore the project "${p.name}"?`)) {
-                                  setProjects(projects.map(proj => proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null } : proj));
-                                  alert(`Successfully restored "${p.name}"!`);
-                                }
-                              }}
-                              style={{
-                                padding: "6px 12px",
-                                backgroundColor: "rgba(34, 197, 94, 0.1)",
-                                color: "#22c55e",
-                                border: "1px solid rgba(34, 197, 94, 0.2)",
-                                borderRadius: "8px",
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "4px"
-                              }}
-                            >
-                              <Undo size={12} />
-                              Restore
-                            </button>
-
-                            {/* Delete Permanently Button - Admin Only */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "400px", overflowY: "auto", padding: "8px 0" }}>
+                      {projects.filter(p => p.isTrashed).length === 0 ? (
+                        <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
+                          <Trash2 size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
+                          <p style={{ fontSize: "14px" }}>Your Recycle Bin is empty.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            {userRole !== "admin" && (
+                              <span style={{ fontSize: "11.5px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                                * Only Administrators can permanently empty trash.
+                              </span>
+                            )}
                             {userRole === "admin" && (
                               <button
                                 onClick={() => {
-                                  if (window.confirm(`Are you sure you want to permanently delete "${p.name}"? This cannot be undone!`)) {
-                                    setProjects(projects.filter(proj => proj.id !== p.id));
-                                    setDeletedProjectIds(prev => [...new Set([...prev, p.id])]);
+                                  if (window.confirm("Are you sure you want to permanently delete all projects in the trash? This cannot be undone!")) {
+                                    const trashedIds = projects.filter(p => p.isTrashed).map(p => p.id);
+                                    setProjects(projects.filter(p => !p.isTrashed));
+                                    setDeletedProjectIds(prev => [...new Set([...prev, ...trashedIds])]);
                                   }
                                 }}
                                 style={{
-                                  padding: "6px 10px",
-                                  backgroundColor: "transparent",
+                                  padding: "8px 12px",
+                                  backgroundColor: "rgba(239, 68, 68, 0.1)",
                                   color: "#ef4444",
                                   border: "1px solid rgba(239, 68, 68, 0.2)",
                                   borderRadius: "8px",
                                   fontSize: "12px",
-                                  cursor: "pointer"
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  marginLeft: "auto"
                                 }}
                               >
-                                Delete
+                                <Trash2 size={13} />
+                                Empty Trash
                               </button>
                             )}
                           </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Local Backups Modal */}
-          {isBackupsListOpen && (
-            <div className="modal-overlay" onClick={() => setIsBackupsListOpen(false)} style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px", width: "100%", borderRadius: "16px", padding: "24px", maxHeight: "85vh" }}>
-                <div className="modal-header" style={{ marginBottom: "20px" }}>
-                  <h3>Local Backup Snapshots</h3>
-                  <button className="icon-btn" onClick={() => setIsBackupsListOpen(false)}>
-                    <ArrowLeft size={18} style={{ transform: "rotate(-90deg)" }} />
-                  </button>
-                </div>
+                          {projects.filter(p => p.isTrashed).map((p) => (
+                            <div key={p.id} style={{
+                              padding: "16px",
+                              borderRadius: "12px",
+                              border: "1px solid var(--border)",
+                              backgroundColor: "var(--bg-card)",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: "12px"
+                            }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+                                <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-main)" }}>{p.name}</span>
+                                <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                                  Trashed on: {p.trashedAt ? new Date(p.trashedAt).toLocaleString() : "Unknown"}
+                                </span>
+                              </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "400px", overflowY: "auto", padding: "8px 0" }}>
-                  <p style={{ fontSize: "12.5px", color: "var(--text-muted)", lineHeight: "1.5" }}>
-                    The app saves backup snapshots of your projects locally before sync modifications are made. If you ever lose data, select a timestamped backup below to restore your projects state.
-                  </p>
-
-                  {userRole !== "admin" && (
-                    <div style={{
-                      padding: "10px 14px",
-                      backgroundColor: "rgba(239, 68, 68, 0.1)",
-                      color: "#ef4444",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                      fontWeight: 500,
-                      lineHeight: "1.4"
-                    }}>
-                      ⚠️ Admin-Only Action: You can view the backup history list, but only administrators can execute a restore.
-                    </div>
-                  )}
-
-                  {(() => {
-                    const savedRecentRaw = localStorage.getItem("ipm_projects_backups_recent");
-                    const recentBackups = savedRecentRaw ? JSON.parse(savedRecentRaw) : [];
-
-                    const savedDailyRaw = localStorage.getItem("ipm_projects_backups_daily");
-                    const dailyBackups = savedDailyRaw ? JSON.parse(savedDailyRaw) : [];
-
-                    if (recentBackups.length === 0 && dailyBackups.length === 0) {
-                      return (
-                        <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
-                          <Clock size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
-                          <p style={{ fontSize: "14px" }}>No backup snapshots found yet.</p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                        {/* Recent Section */}
-                        {recentBackups.length > 0 && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                            <h4 style={{ margin: "0 0 4px 0", fontSize: "13px", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                              Recent Changes (Session Backup)
-                            </h4>
-                            {recentBackups.map((b, index) => (
-                              <div key={`recent-${index}`} style={{
-                                padding: "12px 16px",
-                                borderRadius: "12px",
-                                border: "1px solid var(--border)",
-                                backgroundColor: "var(--bg-card)",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: "12px"
-                              }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
-                                  <span style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text-main)" }}>
-                                    {new Date(b.timestamp).toLocaleString()}
-                                  </span>
-                                  <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                                    {b.projects.length} project(s)
-                                  </span>
-                                </div>
-                                {userRole === "admin" ? (
-                                  <button
+                              <div style={{ display: "flex", gap: "8px" }}>
+                                {/* Restore Button */}
+                                <button
                                   onClick={() => {
-                                    if (window.confirm(`Are you sure you want to restore the backup from ${new Date(b.timestamp).toLocaleString()}?`)) {
-                                      isRemoteChange.current = false;
-                                      const restoredIds = b.projects.map(bp => bp.id);
-                                      const updatedDeletedIds = deletedProjectIds.filter(id => !restoredIds.includes(id));
-                                      setDeletedProjectIds(updatedDeletedIds);
-                                      localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(updatedDeletedIds));
-                                      localStorage.setItem("ipm_projects", JSON.stringify(b.projects));
-                                      
-                                      b.projects.forEach((proj) => {
-                                         syncProjectToCloud(proj);
-                                         if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
-                                           deleteDoc(doc(db, "deleted_projects", proj.id))
-                                             .catch(err => console.error("Failed to remove from deleted_projects:", err));
-                                         }
-                                       });
-                                       projects.forEach((proj) => {
-                                         if (!b.projects.some(bp => bp.id === proj.id)) {
-                                           deleteProjectFromCloud(proj.id);
-                                         }
-                                       });
-                                       setProjects(b.projects);
-                                      setIsBackupsListOpen(false);
-                                      alert("Backup successfully restored!");
+                                    if (window.confirm(`Are you sure you want to restore the project "${p.name}"?`)) {
+                                      setProjects(projects.map(proj => proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null } : proj));
+                                      alert(`Successfully restored "${p.name}"!`);
                                     }
                                   }}
                                   style={{
                                     padding: "6px 12px",
-                                    backgroundColor: "rgba(212, 175, 55, 0.1)",
-                                    color: "var(--accent-gold)",
-                                    border: "1px solid rgba(212, 175, 55, 0.2)",
+                                    backgroundColor: "rgba(34, 197, 94, 0.1)",
+                                    color: "#22c55e",
+                                    border: "1px solid rgba(34, 197, 94, 0.2)",
                                     borderRadius: "8px",
-                                    fontSize: "11.5px",
+                                    fontSize: "12px",
                                     fontWeight: 600,
                                     cursor: "pointer",
                                     display: "flex",
@@ -5746,514 +5551,536 @@ function App() {
                                     gap: "4px"
                                   }}
                                 >
-                                  <RotateCcw size={11} />
+                                  <Undo size={12} />
                                   Restore
                                 </button>
-                                ) : (
-                                  <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", border: "1px dashed var(--border)", padding: "4px 8px", borderRadius: "6px" }}>
-                                    Admin Only
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
 
-                        {/* Daily Section */}
-                        {dailyBackups.length > 0 && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
-                            <h4 style={{ margin: "0 0 4px 0", fontSize: "13px", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                              Daily Checkpoints (Last 30 Days)
-                            </h4>
-                            {dailyBackups.map((b, index) => (
-                              <div key={`daily-${index}`} style={{
-                                padding: "12px 16px",
-                                borderRadius: "12px",
-                                border: "1px solid var(--border)",
-                                backgroundColor: "var(--bg-card)",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: "12px"
-                              }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
-                                  <span style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text-main)" }}>
-                                    {new Date(b.timestamp).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                                  </span>
-                                  <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                                    Saved at {new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {b.projects.length} project(s)
-                                  </span>
-                                </div>
-                                {userRole === "admin" ? (
+                                {/* Delete Permanently Button - Admin Only */}
+                                {userRole === "admin" && (
                                   <button
-                                  onClick={() => {
-                                    if (window.confirm(`Are you sure you want to restore the daily backup from ${new Date(b.timestamp).toLocaleDateString()}?`)) {
-                                      isRemoteChange.current = false;
-                                      const restoredIds = b.projects.map(bp => bp.id);
-                                      const updatedDeletedIds = deletedProjectIds.filter(id => !restoredIds.includes(id));
-                                      setDeletedProjectIds(updatedDeletedIds);
-                                      localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(updatedDeletedIds));
-                                      localStorage.setItem("ipm_projects", JSON.stringify(b.projects));
-                                      
-                                      b.projects.forEach((proj) => {
-                                         syncProjectToCloud(proj);
-                                         if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
-                                           deleteDoc(doc(db, "deleted_projects", proj.id))
-                                             .catch(err => console.error("Failed to remove from deleted_projects:", err));
-                                         }
-                                       });
-                                       projects.forEach((proj) => {
-                                         if (!b.projects.some(bp => bp.id === proj.id)) {
-                                           deleteProjectFromCloud(proj.id);
-                                         }
-                                       });
-                                       setProjects(b.projects);
-                                      setIsBackupsListOpen(false);
-                                      alert("Daily backup successfully restored!");
-                                    }
-                                  }}
-                                  style={{
-                                    padding: "6px 12px",
-                                    backgroundColor: "var(--accent-gold-dark)",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "8px",
-                                    fontSize: "11.5px",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "4px"
-                                  }}
-                                >
-                                  <RotateCcw size={11} />
-                                  Restore
-                                </button>
-                                ) : (
-                                  <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", border: "1px dashed var(--border)", padding: "4px 8px", borderRadius: "6px" }}>
-                                    Admin Only
-                                  </span>
+                                    onClick={() => {
+                                      if (window.confirm(`Are you sure you want to permanently delete "${p.name}"? This cannot be undone!`)) {
+                                        setProjects(projects.filter(proj => proj.id !== p.id));
+                                        setDeletedProjectIds(prev => [...new Set([...prev, p.id])]);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: "6px 10px",
+                                      backgroundColor: "transparent",
+                                      color: "#ef4444",
+                                      border: "1px solid rgba(239, 68, 68, 0.2)",
+                                      borderRadius: "8px",
+                                      fontSize: "12px",
+                                      cursor: "pointer"
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
                                 )}
                               </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Add Project Modal */}
-          {isNewProjModalOpen && (
-            <div
-              className="modal-overlay"
-              onClick={() => setIsNewProjModalOpen(false)}
-            >
-              <div
-                className="modal-content"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="modal-header">
-                  <h3>Create New Project</h3>
-                  <button
-                    className="icon-btn"
-                    onClick={() => setIsNewProjModalOpen(false)}
-                  >
-                    <ArrowLeft
-                      size={18}
-                      style={{ transform: "rotate(-90deg)" }}
-                    />
-                  </button>
-                </div>
-
-                <form onSubmit={handleAddProject}>
-                  <div className="form-group">
-                    <label>Project Name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. Riverside Plaza Phase 2"
-                      value={newProjName}
-                      onChange={(e) => setNewProjName(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Initial Status</label>
-                    <select
-                      className="form-control"
-                      value={newProjStatus}
-                      onChange={(e) => setNewProjStatus(e.target.value)}
-                    >
-                      <option value="not-started">Not Started</option>
-                      <option value="ongoing">Ongoing</option>
-                      <option value="completed">Completed</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Target Completion Date</label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      value={newProjCompletionDate}
-                      onChange={(e) => setNewProjCompletionDate(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Rooms</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-                      {newProjAllAvailableRooms.map((roomName) => {
-                        const isSelected = newProjSelectedRooms.includes(roomName);
-                        return (
-                          <div 
-                            key={roomName} 
-                            onClick={() => {
-                              if (isSelected) {
-                                setNewProjSelectedRooms(newProjSelectedRooms.filter(r => r !== roomName));
-                              } else {
-                                setNewProjSelectedRooms([...newProjSelectedRooms, roomName]);
-                              }
-                            }}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '6px 12px',
-                              borderRadius: '16px',
-                              fontSize: '13px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              border: isSelected ? '1px solid var(--accent-blue)' : '1px solid var(--border)',
-                              backgroundColor: isSelected ? 'var(--accent-blue-light)' : 'transparent',
-                              color: isSelected ? 'var(--accent-blue)' : 'var(--text-muted)',
-                              transition: 'all 0.2s ease',
-                              userSelect: 'none'
-                            }}
-                          >
-                            {roomName}
-                          </div>
-                        );
-                      })}
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Add custom room (e.g. Master Bath)"
-                        value={newProjCustomRoomInput}
-                        onChange={(e) => setNewProjCustomRoomInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddCustomRoomToNewProj();
-                          }
-                        }}
-                      />
-                      <button 
-                        type="button" 
-                        className="btn-secondary" 
-                        onClick={handleAddCustomRoomToNewProj}
-                        style={{ whiteSpace: 'nowrap', padding: '0 16px' }}
-                      >
-                        Add
+                  </div>
+                </div>
+              )}
+
+              {/* Local Backups Modal */}
+              {isBackupsListOpen && (
+                <div className="modal-overlay" onClick={() => setIsBackupsListOpen(false)} style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
+                  <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px", width: "100%", borderRadius: "16px", padding: "24px", maxHeight: "85vh" }}>
+                    <div className="modal-header" style={{ marginBottom: "20px" }}>
+                      <h3>Local Backup Snapshots</h3>
+                      <button className="icon-btn" onClick={() => setIsBackupsListOpen(false)}>
+                        <ArrowLeft size={18} style={{ transform: "rotate(-90deg)" }} />
                       </button>
                     </div>
-                  </div>
 
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => setIsNewProjModalOpen(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn-primary">
-                      Create Project
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "400px", overflowY: "auto", padding: "8px 0" }}>
+                      <p style={{ fontSize: "12.5px", color: "var(--text-muted)", lineHeight: "1.5" }}>
+                        The app saves backup snapshots of your projects locally before sync modifications are made. If you ever lose data, select a timestamped backup below to restore your projects state.
+                      </p>
 
-          {/* Add Meeting/Schedule Modal */}
-          {isNewMeetingModalOpen && (
-            <div
-              className="modal-overlay"
-              onClick={() => setIsNewMeetingModalOpen(false)}
-            >
-              <div
-                className="modal-content"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="modal-header">
-                  <h3>Schedule Sync Meeting</h3>
-                  <button
-                    className="icon-btn"
-                    onClick={() => setIsNewMeetingModalOpen(false)}
-                  >
-                    <ArrowLeft
-                      size={18}
-                      style={{ transform: "rotate(-90deg)" }}
-                    />
-                  </button>
-                </div>
+                      {userRole !== "admin" && (
+                        <div style={{
+                          padding: "10px 14px",
+                          backgroundColor: "rgba(239, 68, 68, 0.1)",
+                          color: "#ef4444",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                          lineHeight: "1.4"
+                        }}>
+                          ⚠️ Admin-Only Action: You can view the backup history list, but only administrators can execute a restore.
+                        </div>
+                      )}
 
-                <form onSubmit={handleAddMeeting}>
-                  <div className="form-group">
-                    <label>Meeting Title</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. Supplier Review / Design Alignment"
-                      value={newMeetTitle}
-                      onChange={(e) => setNewMeetTitle(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Meeting Date</label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      value={newMeetDate}
-                      onChange={(e) => setNewMeetDate(e.target.value)}
-                      min={new Date().toISOString().split("T")[0]}
-                      required
-                    />
-                  </div>
-
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => setIsNewMeetingModalOpen(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn-primary">
-                      Add Meeting
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* General Edit Modal */}
-          {editItemModal && (
-            <div
-              className="modal-overlay"
-              onClick={() => setEditItemModal(null)}
-            >
-              <div
-                className="modal-content"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="modal-header">
-                  <h3>Edit {editItemModal.type}</h3>
-                  <button
-                    className="icon-btn"
-                    onClick={() => setEditItemModal(null)}
-                  >
-                    <ArrowLeft
-                      size={18}
-                      style={{ transform: "rotate(-90deg)" }}
-                    />
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveEdit}>
-                  <div className="form-group">
-                    <label>
-                      {editItemModal.type === "meeting"
-                        ? "Meeting Title"
-                        : "Name"}
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={editItemModal.name}
-                      onChange={(e) =>
-                        setEditItemModal({
-                          ...editItemModal,
-                          name: e.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </div>
-
-                  {editItemModal.type === "project" && (
-                    <>
-                      <div className="form-group">
-                        <label>Project Status</label>
-                        <select
-                          className="form-control"
-                          value={editItemModal.status}
-                          onChange={(e) =>
-                            setEditItemModal({
-                              ...editItemModal,
-                              status: e.target.value,
-                            })
-                          }
-                        >
-                          <option value="not-started">Not Started</option>
-                          <option value="ongoing">Ongoing</option>
-                          <option value="completed">Completed</option>
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Target Completion Date</label>
-                        <input
-                          type="date"
-                          className="form-control"
-                          value={editItemModal.completionDate || ""}
-                          onChange={(e) =>
-                            setEditItemModal({
-                              ...editItemModal,
-                              completionDate: e.target.value,
-                            })
-                          }
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {editItemModal.type === "task" && (
-                    <>
-                      <div className="form-group">
-                        <label>Task Priority</label>
-                        <select
-                          className="form-control"
-                          value={editItemModal.priority || "medium"}
-                          onChange={(e) =>
-                            setEditItemModal({
-                              ...editItemModal,
-                              priority: e.target.value,
-                            })
-                          }
-                        >
-                          <option value="high">High</option>
-                          <option value="medium">Medium</option>
-                          <option value="low">Low</option>
-                        </select>
-                      </div>
-
-                      {/* Dependencies Multi-select Grid */}
                       {(() => {
-                        const activeProj = projects.find(p => p.id === editItemModal.projectId);
-                        const otherTasks = activeProj ? (activeProj.tasks || []).filter(t => t.id !== editItemModal.itemId) : [];
-                        if (otherTasks.length === 0) return null;
-                        
-                        return (
-                          <div className="form-group" style={{ marginTop: "14px" }}>
-                            <label style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px", display: "block" }}>Dependencies (Preceding Tasks)</label>
-                            <div style={{
-                              maxHeight: "120px",
-                              overflowY: "auto",
-                              border: "1px solid var(--border)",
-                              borderRadius: "8px",
-                              padding: "8px 12px",
-                              backgroundColor: "var(--bg-app)",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "8px",
-                              marginTop: "4px"
-                            }}>
-                              {otherTasks.map(ot => {
-                                const isChecked = (editItemModal.dependencies || []).includes(ot.id);
-                                return (
-                                  <label key={ot.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer", color: "var(--text-title)", margin: 0 }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => {
-                                        if (!isChecked) {
-                                           const hasCycle = (tasksList, startId, targetId) => {
-                                             const visited = new Set();
-                                             const check = (currId) => {
-                                               if (currId === targetId) return true;
-                                               if (visited.has(currId)) return false;
-                                               visited.add(currId);
-                                               const t = tasksList.find(x => x.id === currId);
-                                               if (!t || !t.dependencies) return false;
-                                               for (const dId of t.dependencies) {
-                                                 if (check(dId)) return true;
-                                               }
-                                               return false;
-                                             };
-                                             return check(startId);
-                                           };
+                        const savedRecentRaw = localStorage.getItem("ipm_projects_backups_recent");
+                        const recentBackups = savedRecentRaw ? JSON.parse(savedRecentRaw) : [];
 
-                                           if (hasCycle(activeProj.tasks || [], ot.id, editItemModal.itemId)) {
-                                             alert(`Cannot add "${ot.name}" as a dependency because it already depends on this task, creating a circular loop.`);
-                                             return;
-                                           }
-                                         }
-                                         const newDeps = isChecked
-                                           ? (editItemModal.dependencies || []).filter(id => id !== ot.id)
-                                           : [...(editItemModal.dependencies || []), ot.id];
-                                         setEditItemModal({
-                                           ...editItemModal,
-                                           dependencies: newDeps
-                                         });
-                                       }}
-                                    />
-                                    {ot.name}
-                                  </label>
-                                );
-                              })}
+                        const savedDailyRaw = localStorage.getItem("ipm_projects_backups_daily");
+                        const dailyBackups = savedDailyRaw ? JSON.parse(savedDailyRaw) : [];
+
+                        if (recentBackups.length === 0 && dailyBackups.length === 0) {
+                          return (
+                            <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
+                              <Clock size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
+                              <p style={{ fontSize: "14px" }}>No backup snapshots found yet.</p>
                             </div>
+                          );
+                        }
+
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                            {/* Recent Section */}
+                            {recentBackups.length > 0 && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                <h4 style={{ margin: "0 0 4px 0", fontSize: "13px", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                  Recent Changes (Session Backup)
+                                </h4>
+                                {recentBackups.map((b, index) => (
+                                  <div key={`recent-${index}`} style={{
+                                    padding: "12px 16px",
+                                    borderRadius: "12px",
+                                    border: "1px solid var(--border)",
+                                    backgroundColor: "var(--bg-card)",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    gap: "12px"
+                                  }}>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
+                                      <span style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text-main)" }}>
+                                        {new Date(b.timestamp).toLocaleString()}
+                                      </span>
+                                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                                        {b.projects.length} project(s)
+                                      </span>
+                                    </div>
+                                    {userRole === "admin" ? (
+                                      <button
+                                        onClick={() => {
+                                          if (window.confirm(`Are you sure you want to restore the backup from ${new Date(b.timestamp).toLocaleString()}?`)) {
+                                            isRemoteChange.current = false;
+                                            const restoredIds = b.projects.map(bp => bp.id);
+                                            const updatedDeletedIds = deletedProjectIds.filter(id => !restoredIds.includes(id));
+                                            setDeletedProjectIds(updatedDeletedIds);
+                                            localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(updatedDeletedIds));
+                                            localStorage.setItem("ipm_projects", JSON.stringify(b.projects));
+
+                                            b.projects.forEach((proj) => {
+                                              syncProjectToCloud(proj);
+                                              if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
+                                                deleteDoc(doc(db, "deleted_projects", proj.id))
+                                                  .catch(err => console.error("Failed to remove from deleted_projects:", err));
+                                              }
+                                            });
+                                            projects.forEach((proj) => {
+                                              if (!b.projects.some(bp => bp.id === proj.id)) {
+                                                deleteProjectFromCloud(proj.id);
+                                              }
+                                            });
+                                            setProjects(b.projects);
+                                            setIsBackupsListOpen(false);
+                                            alert("Backup successfully restored!");
+                                          }
+                                        }}
+                                        style={{
+                                          padding: "6px 12px",
+                                          backgroundColor: "rgba(212, 175, 55, 0.1)",
+                                          color: "var(--accent-gold)",
+                                          border: "1px solid rgba(212, 175, 55, 0.2)",
+                                          borderRadius: "8px",
+                                          fontSize: "11.5px",
+                                          fontWeight: 600,
+                                          cursor: "pointer",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "4px"
+                                        }}
+                                      >
+                                        <RotateCcw size={11} />
+                                        Restore
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", border: "1px dashed var(--border)", padding: "4px 8px", borderRadius: "6px" }}>
+                                        Admin Only
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Daily Section */}
+                            {dailyBackups.length > 0 && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
+                                <h4 style={{ margin: "0 0 4px 0", fontSize: "13px", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                  Daily Checkpoints (Last 30 Days)
+                                </h4>
+                                {dailyBackups.map((b, index) => (
+                                  <div key={`daily-${index}`} style={{
+                                    padding: "12px 16px",
+                                    borderRadius: "12px",
+                                    border: "1px solid var(--border)",
+                                    backgroundColor: "var(--bg-card)",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    gap: "12px"
+                                  }}>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
+                                      <span style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text-main)" }}>
+                                        {new Date(b.timestamp).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                      </span>
+                                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                                        Saved at {new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {b.projects.length} project(s)
+                                      </span>
+                                    </div>
+                                    {userRole === "admin" ? (
+                                      <button
+                                        onClick={() => {
+                                          if (window.confirm(`Are you sure you want to restore the daily backup from ${new Date(b.timestamp).toLocaleDateString()}?`)) {
+                                            isRemoteChange.current = false;
+                                            const restoredIds = b.projects.map(bp => bp.id);
+                                            const updatedDeletedIds = deletedProjectIds.filter(id => !restoredIds.includes(id));
+                                            setDeletedProjectIds(updatedDeletedIds);
+                                            localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(updatedDeletedIds));
+                                            localStorage.setItem("ipm_projects", JSON.stringify(b.projects));
+
+                                            b.projects.forEach((proj) => {
+                                              syncProjectToCloud(proj);
+                                              if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
+                                                deleteDoc(doc(db, "deleted_projects", proj.id))
+                                                  .catch(err => console.error("Failed to remove from deleted_projects:", err));
+                                              }
+                                            });
+                                            projects.forEach((proj) => {
+                                              if (!b.projects.some(bp => bp.id === proj.id)) {
+                                                deleteProjectFromCloud(proj.id);
+                                              }
+                                            });
+                                            setProjects(b.projects);
+                                            setIsBackupsListOpen(false);
+                                            alert("Daily backup successfully restored!");
+                                          }
+                                        }}
+                                        style={{
+                                          padding: "6px 12px",
+                                          backgroundColor: "var(--accent-gold-dark)",
+                                          color: "white",
+                                          border: "none",
+                                          borderRadius: "8px",
+                                          fontSize: "11.5px",
+                                          fontWeight: 600,
+                                          cursor: "pointer",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "4px"
+                                        }}
+                                      >
+                                        <RotateCcw size={11} />
+                                        Restore
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", border: "1px dashed var(--border)", padding: "4px 8px", borderRadius: "6px" }}>
+                                        Admin Only
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
-                    </>
-                  )}
-
-                  {editItemModal.type === "meeting" && (
-                    <div className="form-group">
-                      <label>Meeting Date</label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={editItemModal.date}
-                        onChange={(e) =>
-                          setEditItemModal({
-                            ...editItemModal,
-                            date: e.target.value,
-                          })
-                        }
-                        min={new Date().toISOString().split("T")[0]}
-                        required
-                      />
                     </div>
-                  )}
-
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => setEditItemModal(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn-primary">
-                      Save Changes
-                    </button>
                   </div>
-                </form>
-              </div>
-            </div>
-          )}
+                </div>
+              )}
+
+              {/* Add Project Modal */}
+              <AddProjectModal
+                isOpen={isNewProjModalOpen}
+                onClose={() => setIsNewProjModalOpen(false)}
+                onAddProject={handleAddProject}
+              />
+
+              {/* Add Meeting/Schedule Modal */}
+              {isNewMeetingModalOpen && (
+                <div
+                  className="modal-overlay"
+                  onClick={() => setIsNewMeetingModalOpen(false)}
+                >
+                  <div
+                    className="modal-content"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="modal-header">
+                      <h3>Schedule Sync Meeting</h3>
+                      <button
+                        className="icon-btn"
+                        onClick={() => setIsNewMeetingModalOpen(false)}
+                      >
+                        <ArrowLeft
+                          size={18}
+                          style={{ transform: "rotate(-90deg)" }}
+                        />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleAddMeeting}>
+                      <div className="form-group">
+                        <label>Meeting Title</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="e.g. Supplier Review / Design Alignment"
+                          value={newMeetTitle}
+                          onChange={(e) => setNewMeetTitle(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Meeting Date</label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={newMeetDate}
+                          onChange={(e) => setNewMeetDate(e.target.value)}
+                          min={new Date().toISOString().split("T")[0]}
+                          required
+                        />
+                      </div>
+
+                      <div className="modal-footer">
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setIsNewMeetingModalOpen(false)}
+                        >
+                          Cancel
+                        </button>
+                        <button type="submit" className="btn-primary">
+                          Add Meeting
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* General Edit Modal */}
+              {editItemModal && (
+                <div
+                  className="modal-overlay"
+                  onClick={() => setEditItemModal(null)}
+                >
+                  <div
+                    className="modal-content"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="modal-header">
+                      <h3>Edit {editItemModal.type}</h3>
+                      <button
+                        className="icon-btn"
+                        onClick={() => setEditItemModal(null)}
+                      >
+                        <ArrowLeft
+                          size={18}
+                          style={{ transform: "rotate(-90deg)" }}
+                        />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSaveEdit}>
+                      <div className="form-group">
+                        <label>
+                          {editItemModal.type === "meeting"
+                            ? "Meeting Title"
+                            : "Name"}
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={editItemModal.name}
+                          onChange={(e) =>
+                            setEditItemModal({
+                              ...editItemModal,
+                              name: e.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </div>
+
+                      {editItemModal.type === "project" && (
+                        <>
+                          <div className="form-group">
+                            <label>Project Status</label>
+                            <select
+                              className="form-control"
+                              value={editItemModal.status}
+                              onChange={(e) =>
+                                setEditItemModal({
+                                  ...editItemModal,
+                                  status: e.target.value,
+                                })
+                              }
+                            >
+                              <option value="not-started">Not Started</option>
+                              <option value="ongoing">Ongoing</option>
+                              <option value="completed">Completed</option>
+                            </select>
+                          </div>
+
+                          <div className="form-group">
+                            <label>Target Completion Date</label>
+                            <input
+                              type="date"
+                              className="form-control"
+                              value={editItemModal.completionDate || ""}
+                              onChange={(e) =>
+                                setEditItemModal({
+                                  ...editItemModal,
+                                  completionDate: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {editItemModal.type === "task" && (
+                        <>
+                          <div className="form-group">
+                            <label>Task Priority</label>
+                            <select
+                              className="form-control"
+                              value={editItemModal.priority || "medium"}
+                              onChange={(e) =>
+                                setEditItemModal({
+                                  ...editItemModal,
+                                  priority: e.target.value,
+                                })
+                              }
+                            >
+                              <option value="high">High</option>
+                              <option value="medium">Medium</option>
+                              <option value="low">Low</option>
+                            </select>
+                          </div>
+
+                          {/* Dependencies Multi-select Grid */}
+                          {(() => {
+                            const activeProj = projects.find(p => p.id === editItemModal.projectId);
+                            const otherTasks = activeProj ? (activeProj.tasks || []).filter(t => t.id !== editItemModal.itemId) : [];
+                            if (otherTasks.length === 0) return null;
+
+                            return (
+                              <div className="form-group" style={{ marginTop: "14px" }}>
+                                <label style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px", display: "block" }}>Dependencies (Preceding Tasks)</label>
+                                <div style={{
+                                  maxHeight: "120px",
+                                  overflowY: "auto",
+                                  border: "1px solid var(--border)",
+                                  borderRadius: "8px",
+                                  padding: "8px 12px",
+                                  backgroundColor: "var(--bg-app)",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "8px",
+                                  marginTop: "4px"
+                                }}>
+                                  {otherTasks.map(ot => {
+                                    const isChecked = (editItemModal.dependencies || []).includes(ot.id);
+                                    return (
+                                      <label key={ot.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer", color: "var(--text-title)", margin: 0 }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => {
+                                            if (!isChecked) {
+                                              const hasCycle = (tasksList, startId, targetId) => {
+                                                const visited = new Set();
+                                                const check = (currId) => {
+                                                  if (currId === targetId) return true;
+                                                  if (visited.has(currId)) return false;
+                                                  visited.add(currId);
+                                                  const t = tasksList.find(x => x.id === currId);
+                                                  if (!t || !t.dependencies) return false;
+                                                  for (const dId of t.dependencies) {
+                                                    if (check(dId)) return true;
+                                                  }
+                                                  return false;
+                                                };
+                                                return check(startId);
+                                              };
+
+                                              if (hasCycle(activeProj.tasks || [], ot.id, editItemModal.itemId)) {
+                                                alert(`Cannot add "${ot.name}" as a dependency because it already depends on this task, creating a circular loop.`);
+                                                return;
+                                              }
+                                            }
+                                            const newDeps = isChecked
+                                              ? (editItemModal.dependencies || []).filter(id => id !== ot.id)
+                                              : [...(editItemModal.dependencies || []), ot.id];
+                                            setEditItemModal({
+                                              ...editItemModal,
+                                              dependencies: newDeps
+                                            });
+                                          }}
+                                        />
+                                        {ot.name}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </>
+                      )}
+
+                      {editItemModal.type === "meeting" && (
+                        <div className="form-group">
+                          <label>Meeting Date</label>
+                          <input
+                            type="date"
+                            className="form-control"
+                            value={editItemModal.date}
+                            onChange={(e) =>
+                              setEditItemModal({
+                                ...editItemModal,
+                                date: e.target.value,
+                              })
+                            }
+                            min={new Date().toISOString().split("T")[0]}
+                            required
+                          />
+                        </div>
+                      )}
+
+                      <div className="modal-footer">
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setEditItemModal(null)}
+                        >
+                          Cancel
+                        </button>
+                        <button type="submit" className="btn-primary">
+                          Save Changes
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

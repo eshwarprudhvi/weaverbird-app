@@ -65,6 +65,14 @@
   --nav-active-text: #0f172a;
 }
 
+.dark-theme .screen-content {
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+.dark-theme .screen-content::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+}
+
 /* Global Reset */
 * {
   box-sizing: border-box;
@@ -81,6 +89,7 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -186,6 +195,7 @@ body {
   position: relative;
   overflow: hidden;
   will-change: transform;
+  min-height: 0; /* Critical: allows flex children to shrink & scroll */
 }
 
 .app-container::before {
@@ -224,14 +234,28 @@ body {
 .screen-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px 20px 100px 20px;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   position: relative;
   z-index: 10;
-  scrollbar-width: none;
+  min-height: 0; /* Critical: allows flex child to scroll */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.15) transparent;
 }
 
 .screen-content::-webkit-scrollbar {
-  display: none;
+  width: 4px;
+}
+
+.screen-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.screen-content::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15);
+  border-radius: 4px;
 }
 
 /* Elegant Headers */
@@ -606,11 +630,13 @@ body {
 .modal-content {
   background: var(--bg-app);
   border-radius: 32px 32px 0 0;
-  padding: 32px 24px 40px 24px;
-  max-height: 85%;
+  padding: 24px 20px 32px 20px;
+  max-height: 90%;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
 }
 
 @keyframes slideUp {
@@ -1630,15 +1656,19 @@ textarea.form-control {
 @media (max-width: 480px) {
   body {
     background-color: var(--bg-app);
+    overflow: auto;
   }
 
   .desktop-wrapper {
     padding: 0;
+    height: 100vh;
+    height: 100dvh;
   }
 
   .phone-frame {
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     border-radius: 0;
     padding: 0;
     border: none;
@@ -1647,21 +1677,247 @@ textarea.form-control {
 
   .phone-notch,
   .simulated-status-bar {
-    display: none !important; /* Hide notch/simulated bar on real mobile screens since phone has system status bar */
+    display: none !important;
   }
 
   .app-container {
     border-radius: 0;
+    height: 100vh;
+    height: 100dvh;
   }
 
   /* Handle system notch spacing in full screen if Capacitor uses overlays */
   .app-header {
     padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .app-header h1 {
+    font-size: 18px;
+    max-width: 180px;
   }
 
   .bottom-nav {
-    height: calc(72px + env(safe-area-inset-bottom, 0px));
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .screen-content {
+    padding: 16px 16px 90px 16px;
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Project cards — compact on mobile */
+  .project-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .project-name {
+    font-size: 16px;
+    word-break: break-word;
+  }
+
+  /* Overview card */
+  .overview-card {
+    padding: 20px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+  }
+
+  .overview-card h2 {
+    font-size: 22px;
+  }
+
+  /* Modals — properly scroll on mobile */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  .modal-content {
+    max-height: 92vh;
+    max-height: 92dvh;
+    padding: 20px 16px 24px 16px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    border-radius: 24px 24px 0 0;
+  }
+
+  .modal-header {
+    margin-bottom: 16px;
+  }
+
+  /* Search bar */
+  .search-input {
+    font-size: 14px;
+    padding: 12px 14px 12px 42px;
+    border-radius: 14px;
+  }
+
+  /* Room cards compact */
+  .room-card {
+    padding: 10px;
+    border-radius: 12px;
+    min-height: 80px;
+  }
+
+  .room-card-title {
+    font-size: 14px;
+  }
+
+  .room-card-stats {
+    font-size: 11px;
+  }
+
+  /* Calendar compact */
+  .calendar-card {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  /* Quick add compact */
+  .quick-add-card {
+    padding: 6px;
+    border-radius: 14px;
+    margin-bottom: 20px;
+  }
+
+  /* Form controls */
+  .form-control {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  /* Tabs */
+  .tabs-bar-new {
+    padding: 4px 10px 0 10px;
+  }
+
+  .tab-btn-new {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  /* Nav add button  */
+  .nav-hump {
+    width: 56px;
+    height: 56px;
+    top: -14px;
+  }
+
+  .nav-add-btn {
+    width: 44px;
+    height: 44px;
+    top: -10px;
+  }
+}
+
+/* Extra-small phones (e.g. iPhone SE, Galaxy S21) */
+@media (max-width: 375px) {
+  .app-header {
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 10px 8px 10px;
+  }
+
+  .app-header h1 {
+    font-size: 16px;
+    max-width: 150px;
+  }
+
+  .header-subtitle {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+  }
+
+  .screen-content {
+    padding: 12px 12px 84px 12px;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .overview-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .overview-card h2 {
+    font-size: 20px;
+  }
+
+  .project-card {
+    padding: 14px;
+  }
+
+  .project-name {
+    font-size: 15px;
+  }
+
+  .status-pill {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .modal-content {
+    padding: 16px 12px 20px 12px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .icon-btn {
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .bottom-nav {
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding: 0 8px;
+  }
+
+  .nav-label {
+    font-size: 10px;
+  }
+
+  .nav-icon-wrapper {
+    padding: 4px 14px;
+  }
+}
+
+/* Very short screens (landscape or short phones) */
+@media (max-height: 600px) and (max-width: 480px) {
+  .screen-content {
+    padding-top: 8px;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .overview-card {
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+
+  .overview-card h2 {
+    font-size: 18px;
+  }
+
+  .modal-content {
+    max-height: 95vh;
+    max-height: 95dvh;
+  }
+
+  .bottom-nav {
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .nav-hump {
+    width: 52px;
+    height: 52px;
+    top: -12px;
+  }
+
+  .nav-add-btn {
+    width: 40px;
+    height: 40px;
+    top: -8px;
   }
 }
 
@@ -2990,15 +3246,15 @@ textarea.form-control {
 .room-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 120px;
+  min-height: 90px;
   position: relative;
 }
 
@@ -3036,9 +3292,9 @@ textarea.form-control {
 
 .room-card-stats {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
   font-weight: 600;
