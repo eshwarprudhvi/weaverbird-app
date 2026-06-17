@@ -2978,3 +2978,165 @@ textarea.form-control {
   margin-bottom: 8px;
   padding-left: 4px;
 }
+
+/* ===== ROOMS LIST VIEW ===== */
+.rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  padding: 0 20px 20px 20px;
+}
+
+.room-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 120px;
+  position: relative;
+}
+
+.room-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent-blue);
+}
+
+.room-card.general-room {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(59, 130, 246, 0.0) 100%);
+  border: 1px dashed var(--accent-blue);
+}
+
+.room-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.room-card-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.room-card-title {
+  font-family: var(--font-title);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-title);
+  margin: 0;
+  flex-grow: 1;
+}
+
+.room-card-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.room-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.room-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.room-action-btn:hover {
+  background: var(--bg-active);
+  transform: scale(1.05);
+}
+
+.room-action-btn.edit:hover {
+  color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.room-action-btn.delete:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.room-action-btn.share {
+  color: #25D366;
+  background: rgba(37, 211, 102, 0.1);
+}
+.room-action-btn.share:hover {
+  background: rgba(37, 211, 102, 0.2);
+}
+
+.room-action-btn.pdf {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+.room-action-btn.pdf:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.dot-separator {
+  color: var(--border-hover);
+  font-size: 14px;
+}
+
+/* Room Chips for Add Project Modal */
+.room-chip {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--accent-blue-light);
+  color: var(--accent-blue);
+  border: 1px solid var(--accent-blue);
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 6px;
+}
+
+.room-chip-delete {
+  background: none;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  transition: background-color 0.2s;
+}
+
+.room-chip-delete:hover {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+

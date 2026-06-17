@@ -283,6 +283,7 @@ function App() {
 
   const [currentTab, setCurrentTab] = useState("projects"); // projects | work | schedule | profile
   const [activeProjectId, setActiveProjectId] = useState(null); // null means dashboard, otherwise project detail
+  const [activeRoomId, setActiveRoomId] = useState(null); // null means rooms list, otherwise room detail
 
   // Project detail sub-tabs: 'materials' or 'work'
   const [projectSubTab, setProjectSubTab] = useState("materials");
@@ -303,11 +304,8 @@ function App() {
   );
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
 
-  // Todo list state (persisted in localStorage)
-  const [todos, setTodos] = useState(() => {
-    const saved = localStorage.getItem("ipm_todos");
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Todo list state (synced with cloud)
+  const [todos, setTodos] = useState([]);
   const [newTodoInput, setNewTodoInput] = useState("");
   const [isTodoScreenOpen, setIsTodoScreenOpen] = useState(false);
   const [editTodoId, setEditTodoId] = useState(null);
@@ -339,6 +337,25 @@ function App() {
   const [newProjDesc, setNewProjDesc] = useState("");
   const [newProjStatus, setNewProjStatus] = useState("not-started");
   const [newProjCompletionDate, setNewProjCompletionDate] = useState("");
+  
+  // Room selection for new project
+  const defaultRoomsList = ["MBR", "Kitchen", "KBR", "Living Area"];
+  const [newProjAllAvailableRooms, setNewProjAllAvailableRooms] = useState([...defaultRoomsList]);
+  const [newProjSelectedRooms, setNewProjSelectedRooms] = useState([...defaultRoomsList]);
+  const [newProjCustomRoomInput, setNewProjCustomRoomInput] = useState("");
+
+  const handleAddCustomRoomToNewProj = () => {
+    const r = newProjCustomRoomInput.trim();
+    if (r) {
+      if (!newProjAllAvailableRooms.includes(r)) {
+        setNewProjAllAvailableRooms([...newProjAllAvailableRooms, r]);
+      }
+      if (!newProjSelectedRooms.includes(r)) {
+        setNewProjSelectedRooms([...newProjSelectedRooms, r]);
+      }
+    }
+    setNewProjCustomRoomInput("");
+  };
 
   // Add Meeting Form state
   const [newMeetTitle, setNewMeetTitle] = useState("");
@@ -365,6 +382,7 @@ function App() {
   const [isConnectingCloud, setIsConnectingCloud] = useState(false);
   const [hasLoadedProjectsFromCloud, setHasLoadedProjectsFromCloud] = useState(false);
   const [hasLoadedScheduleFromCloud, setHasLoadedScheduleFromCloud] = useState(false);
+  const [hasLoadedTodosFromCloud, setHasLoadedTodosFromCloud] = useState(false);
 
   // EmailJS & Email Automation States
   const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem("ipm_emailjs_service_id") || "");
@@ -423,8 +441,11 @@ function App() {
         setIsNewMeetingModalOpen(false);
       } else if (editItemModal) {
         setEditItemModal(null);
+      } else if (activeRoomId !== null) {
+        // If inside room details, go back to rooms list
+        setActiveRoomId(null);
       } else if (activeProjectId !== null) {
-        // If inside a project details page, go back to main dashboard
+        // If inside a project's rooms list, go back to main dashboard
         setActiveProjectId(null);
       } else {
         // Exit app if on main dashboard
@@ -441,7 +462,8 @@ function App() {
     isNewProjModalOpen,
     isNewMeetingModalOpen,
     editItemModal,
-    activeProjectId
+    activeProjectId,
+    activeRoomId
   ]);
 
   // Schedule Local Notifications for all upcoming incomplete meetings
@@ -540,6 +562,21 @@ function App() {
     }
   };
 
+  // Sync todos to user-specific private document in cloud
+  const syncTodosToCloud = async (newTodos) => {
+    if (!isConfigured || !db || !cloudSyncEnabled || !isAuthorized || !userEmail) return;
+    try {
+      const cleanEmail = userEmail.toLowerCase().trim();
+      const dataDocRef = doc(db, "users", cleanEmail, "private", "todos");
+      await setDoc(dataDocRef, {
+        todos: newTodos,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Failed to sync private todos to cloud:", err);
+    }
+  };
+
   // Sync projects state to localStorage and cloud incrementally
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -596,10 +633,14 @@ function App() {
     scheduleAllUpcomingMeetings(schedule);
   }, [schedule, hasLoadedScheduleFromCloud, cloudSyncEnabled]);
 
-  // Persist todos to localStorage
+  // Sync todos state to cloud
   useEffect(() => {
-    localStorage.setItem("ipm_todos", JSON.stringify(todos));
-  }, [todos]);
+    if (!cloudSyncEnabled || hasLoadedTodosFromCloud) {
+      if (!isRemoteChange.current) {
+        syncTodosToCloud(todos);
+      }
+    }
+  }, [todos, hasLoadedTodosFromCloud, cloudSyncEnabled]);
 
   // Handle Firestore cloud database listeners (real-time data sync and access rules)
   useEffect(() => {
@@ -618,6 +659,7 @@ function App() {
     let unsubscribeData = () => {};
     let unsubscribeDeleted = () => {};
     let unsubscribeSchedule = () => {};
+    let unsubscribeTodos = () => {};
 
     try {
       // 1. Listen to authorized users list & check access role
@@ -833,6 +875,31 @@ function App() {
         console.error("Error listening to private schedule updates:", error);
       });
 
+      // 5. Listen to real-time private todos sync edits (private per user)
+      const todosDocRef = doc(db, "users", cleanEmail, "private", "todos");
+      unsubscribeTodos = onSnapshot(todosDocRef, (docSnap) => {
+        try {
+          if (docSnap.exists()) {
+            const cloudData = docSnap.data();
+            
+            isRemoteChange.current = true;
+            
+            if (cloudData.todos) {
+              setTodos(cloudData.todos);
+            }
+
+            setTimeout(() => {
+              isRemoteChange.current = false;
+            }, 100);
+          }
+          setHasLoadedTodosFromCloud(true);
+        } catch (err) {
+          console.error("Error processing private todos snapshot:", err);
+        }
+      }, (error) => {
+        console.error("Error listening to private todos updates:", error);
+      });
+
     } catch (err) {
       console.error("Failed to initialize Firestore snapshot listeners:", err);
     }
@@ -842,6 +909,7 @@ function App() {
       unsubscribeData();
       unsubscribeDeleted();
       unsubscribeSchedule();
+      unsubscribeTodos();
     };
   }, [cloudSyncEnabled, userEmail]);
 
@@ -1220,12 +1288,18 @@ function App() {
     e.preventDefault();
     if (!newProjName.trim()) return;
 
+    const projectRooms = newProjSelectedRooms.map((name, index) => ({
+      id: "room_" + Date.now() + "_" + index,
+      name: name
+    }));
+
     const newProject = {
       id: Date.now().toString(),
       name: newProjName,
       description: newProjDesc || "No description provided.",
       status: newProjStatus,
       completionDate: newProjCompletionDate || "",
+      rooms: projectRooms,
       materials: [],
       tasks: [],
     };
@@ -1235,7 +1309,56 @@ function App() {
     setNewProjDesc("");
     setNewProjStatus("not-started");
     setNewProjCompletionDate("");
+    setNewProjSelectedRooms([...defaultRoomsList]);
+    setNewProjAllAvailableRooms([...defaultRoomsList]);
+    setNewProjCustomRoomInput("");
     setIsNewProjModalOpen(false);
+  };
+
+  const handleAddRoomToExistingProject = () => {
+    const roomName = window.prompt("Enter new room name:");
+    if (roomName && roomName.trim()) {
+      setProjects(projects.map(p => {
+        if (p.id === activeProjectId) {
+          const newRoom = { id: "room_" + Date.now(), name: roomName.trim() };
+          return { ...p, rooms: [...(p.rooms || []), newRoom] };
+        }
+        return p;
+      }));
+    }
+  };
+
+  const handleEditRoom = (e, roomId, currentName) => {
+    e.stopPropagation();
+    const newName = window.prompt("Edit room name:", currentName);
+    if (newName && newName.trim() && newName.trim() !== currentName) {
+      setProjects(projects.map(p => {
+        if (p.id === activeProjectId) {
+          return {
+            ...p,
+            rooms: (p.rooms || []).map(r => r.id === roomId ? { ...r, name: newName.trim() } : r)
+          };
+        }
+        return p;
+      }));
+    }
+  };
+
+  const handleDeleteRoom = (e, roomId) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this room? Materials and Tasks assigned to this room will become unassigned.")) {
+      setProjects(projects.map(p => {
+        if (p.id === activeProjectId) {
+          return {
+            ...p,
+            rooms: (p.rooms || []).filter(r => r.id !== roomId),
+            materials: (p.materials || []).map(m => m.roomId === roomId ? { ...m, roomId: null } : m),
+            tasks: (p.tasks || []).map(t => t.roomId === roomId ? { ...t, roomId: null } : t),
+          };
+        }
+        return p;
+      }));
+    }
   };
 
   // Delete Project (Move to Recycle Bin)
@@ -1281,6 +1404,7 @@ function App() {
             id: "m_" + Date.now(),
             name: newMaterialInput.trim(),
             completed: false,
+            roomId: activeRoomId,
           };
           return {
             ...p,
@@ -1342,6 +1466,7 @@ function App() {
             name: newWorkInput.trim(),
             completed: false,
             priority: newTaskPriority, // Use state priority
+            roomId: activeRoomId,
           };
           return {
             ...p,
@@ -1686,14 +1811,34 @@ function App() {
 
   const handleShareProjectOverview = () => {
     if (!activeProject) return;
-    const pendingMaterials =
-      activeProject.materials?.filter((m) => !m.completed) || [];
+    const pendingMaterials = activeProject.materials?.filter((m) => !m.completed) || [];
     const pendingTasks = activeProject.tasks?.filter((t) => !t.completed) || [];
 
     if (pendingMaterials.length === 0 && pendingTasks.length === 0) {
       alert("No pending materials or tasks to share!");
       return;
     }
+
+    const rooms = activeProject.rooms || [];
+    const roomsMap = new Map();
+    rooms.forEach(r => roomsMap.set(r.id, r.name));
+    roomsMap.set('general', 'General / Unassigned');
+
+    const materialsByRoom = {};
+    pendingMaterials.forEach(m => {
+      const roomId = m.roomId || 'general';
+      if (!materialsByRoom[roomId]) materialsByRoom[roomId] = [];
+      materialsByRoom[roomId].push(m);
+    });
+
+    const tasksByRoom = {};
+    pendingTasks.forEach(t => {
+      const roomId = t.roomId || 'general';
+      if (!tasksByRoom[roomId]) tasksByRoom[roomId] = [];
+      tasksByRoom[roomId].push(t);
+    });
+
+    const allRoomIds = [...new Set([...Object.keys(materialsByRoom), ...Object.keys(tasksByRoom)])];
 
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, "0");
@@ -1705,36 +1850,32 @@ function App() {
     text += `*Date:* ${dateStr}\n`;
     text += `*Project:* ${activeProject.name}\n`;
     if (activeProject.completionDate) {
-      text += `*Target Deadline:* ${formatDisplayDateStr(
-        activeProject.completionDate
-      )}\n`;
-    }
-    text += `\n`;
-
-    if (pendingMaterials.length > 0) {
-      text += `*Pending Materials:*\n`;
-      pendingMaterials.forEach((m) => {
-        text += `- ${m.name}\n`;
-      });
-      text += `\n`;
+      text += `*Target Deadline:* ${formatDisplayDateStr(activeProject.completionDate)}\n`;
     }
 
-    if (pendingTasks.length > 0) {
-      text += `*Pending Tasks (Sorted by Priority):*\n`;
-      const sorted = [...pendingTasks].sort(
-        (a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)
-      );
-      sorted.forEach((t) => {
-        const priorityStr = (t.priority || "medium").toUpperCase();
-        const emoji =
-          t.priority === "high" ? "🔴" : t.priority === "low" ? "🔵" : "🟠";
-        text += `${emoji} [${priorityStr}] ${t.name}\n`;
-      });
-    }
+    allRoomIds.forEach(roomId => {
+      const roomName = roomsMap.get(roomId) || 'Unknown Room';
+      text += `\n--- *${roomName.toUpperCase()}* ---\n`;
+      
+      const rMaterials = materialsByRoom[roomId] || [];
+      if (rMaterials.length > 0) {
+        text += `*Materials:*\n`;
+        rMaterials.forEach(m => { text += `- ${m.name}\n`; });
+      }
 
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(
-      text.trim()
-    )}`;
+      const rTasks = tasksByRoom[roomId] || [];
+      if (rTasks.length > 0) {
+        text += `*Work:*\n`;
+        const sorted = [...rTasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority));
+        sorted.forEach(t => {
+          const emoji = t.priority === "high" ? "🔴" : t.priority === "low" ? "🔵" : "🟠";
+          const priorityStr = (t.priority || "medium").toUpperCase();
+          text += `${emoji} [${priorityStr}] ${t.name}\n`;
+        });
+      }
+    });
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text.trim())}`;
     window.open(url, "_blank");
   };
 
@@ -1764,15 +1905,80 @@ function App() {
     else if (type === "tasks") reportTitle = "Pending Works";
     else reportTitle = "Project Status Report";
 
-    // Set state to trigger the in-app bottom sheet preview modal
     setReportPreview({
       type,
       title: reportTitle,
       projectName: activeProject.name,
       targetDate: activeProject.completionDate,
       materials: pendingMaterials,
-      tasks: [...pendingTasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority))
+      tasks: [...pendingTasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)),
+      rooms: activeProject.rooms || []
     });
+  };
+
+  const handleGenerateRoomPDF = (e, room) => {
+    e.stopPropagation();
+    if (!activeProject) return;
+
+    const pendingMaterials = activeProject.materials?.filter(m => (room.id === 'general' ? (!m.roomId || m.roomId === 'general') : m.roomId === room.id) && !m.completed) || [];
+    const pendingTasks = activeProject.tasks?.filter(t => (room.id === 'general' ? (!t.roomId || t.roomId === 'general') : t.roomId === room.id) && !t.completed) || [];
+
+    if (pendingMaterials.length === 0 && pendingTasks.length === 0) {
+      alert("No pending materials or tasks in this room to generate a PDF.");
+      return;
+    }
+
+    setReportPreview({
+      type: "both",
+      title: `${room.name} Report`,
+      projectName: activeProject.name,
+      targetDate: activeProject.completionDate,
+      materials: pendingMaterials,
+      tasks: [...pendingTasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)),
+      rooms: activeProject.rooms || []
+    });
+  };
+
+  const handleShareRoom = (e, room) => {
+    e.stopPropagation();
+    if (!activeProject) return;
+
+    const pendingMaterials = activeProject.materials?.filter(m => (room.id === 'general' ? (!m.roomId || m.roomId === 'general') : m.roomId === room.id) && !m.completed) || [];
+    const pendingTasks = activeProject.tasks?.filter(t => (room.id === 'general' ? (!t.roomId || t.roomId === 'general') : t.roomId === room.id) && !t.completed) || [];
+
+    if (pendingMaterials.length === 0 && pendingTasks.length === 0) {
+      alert("No pending materials or tasks in this room to share!");
+      return;
+    }
+
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, "0");
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const yy = String(today.getFullYear()).slice(-2);
+    const dateStr = `${dd}/${mm}/${yy}`;
+
+    let text = `*WeaverBird Interior Studio*\n`;
+    text += `*Date:* ${dateStr}\n`;
+    text += `*Project:* ${activeProject.name}\n`;
+    text += `*Room:* ${room.name}\n\n`;
+
+    if (pendingMaterials.length > 0) {
+      text += `*Pending Materials:*\n`;
+      pendingMaterials.forEach((m) => {
+        text += `- ${m.name}\n`;
+      });
+      text += `\n`;
+    }
+
+    if (pendingTasks.length > 0) {
+      text += `*Pending Work:*\n`;
+      pendingTasks.forEach((t) => {
+        text += `- ${t.name}\n`;
+      });
+    }
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text.trim())}`;
+    window.open(url, "_blank");
   };
 
   // --- EMAIL UTILITIES AND AUTOMATED REPORT SYNC ---
@@ -1946,58 +2152,121 @@ function App() {
     doc.text(report.title, 20, 76);
     
     let y = 86;
-    
-    // Materials list
-    if (report.type === "materials" || report.type === "both") {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(100, 116, 139);
-      doc.text("PENDING MATERIALS", 20, y);
-      y += 8;
-      
-      doc.setFont("helvetica", "normal");
+
+    const materialsByRoom = {};
+    (report.materials || []).forEach(m => {
+      const rid = m.roomId || 'general';
+      if (!materialsByRoom[rid]) materialsByRoom[rid] = [];
+      materialsByRoom[rid].push(m);
+    });
+
+    const tasksByRoom = {};
+    (report.tasks || []).forEach(t => {
+      const rid = t.roomId || 'general';
+      if (!tasksByRoom[rid]) tasksByRoom[rid] = [];
+      tasksByRoom[rid].push(t);
+    });
+
+    const allRoomIds = [...new Set([...Object.keys(materialsByRoom), ...Object.keys(tasksByRoom)])];
+
+    if (allRoomIds.length === 0) {
+      doc.setFont("helvetica", "italic");
       doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      if (report.materials && report.materials.length > 0) {
-        report.materials.forEach((m, idx) => {
-          doc.text(`${idx + 1}. ${m.name}`, 25, y);
-          doc.text("Pending", 155, y);
-          y += 8;
-          if (y > 270) { doc.addPage(); y = 20; }
-        });
-      } else {
-        doc.text("No pending materials.", 25, y);
-        y += 8;
-      }
-      y += 6;
+      doc.setTextColor(100, 116, 139);
+      doc.text("No pending items found.", 20, y);
+      return doc;
     }
-    
-    // Tasks list
-    if (report.type === "tasks" || report.type === "both") {
-      if (y > 250) { doc.addPage(); y = 20; }
+
+    allRoomIds.forEach((roomId) => {
+      let roomName = 'General / Unassigned';
+      if (roomId !== 'general') {
+        const r = (report.rooms || []).find(x => x.id === roomId);
+        if (r) roomName = r.name;
+      }
+
+      if (y > 260) { doc.addPage(); y = 20; }
+
+      // Room Header
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(100, 116, 139);
-      doc.text("PENDING WORKS", 20, y);
-      y += 8;
+      doc.setFontSize(12);
+      doc.setTextColor(59, 130, 246); // accent blue
+      doc.text(roomName.toUpperCase(), 20, y);
+      y += 2;
       
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(51, 65, 85);
-      if (report.tasks && report.tasks.length > 0) {
-        report.tasks.forEach((t, idx) => {
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.5);
+      doc.line(20, y, 190, y);
+      y += 8;
+
+      const rMaterials = materialsByRoom[roomId] || [];
+      const rTasks = tasksByRoom[roomId] || [];
+
+      // Render Materials
+      if ((report.type === "materials" || report.type === "both") && rMaterials.length > 0) {
+        if (y > 270) { doc.addPage(); y = 20; }
+        // Table Header
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        doc.text("MATERIAL", 22, y);
+        doc.text("STATUS", 160, y);
+        y += 6;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(51, 65, 85);
+
+        rMaterials.forEach((m, idx) => {
+          if (y > 275) { doc.addPage(); y = 20; }
+          // Background band for alternate rows
+          if (idx % 2 === 0) {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(20, y - 4, 170, 7, "F");
+          }
+          doc.text(`• ${m.name}`, 22, y + 1);
+          doc.text("Pending", 160, y + 1);
+          y += 8;
+        });
+        y += 4; // gap
+      }
+
+      // Render Tasks
+      if ((report.type === "tasks" || report.type === "both") && rTasks.length > 0) {
+        if (y > 270) { doc.addPage(); y = 20; }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        doc.text("WORK / TASK", 22, y);
+        doc.text("PRIORITY", 160, y);
+        y += 6;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(51, 65, 85);
+
+        rTasks.forEach((t, idx) => {
+          if (y > 275) { doc.addPage(); y = 20; }
+          if (idx % 2 === 0) {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(20, y - 4, 170, 7, "F");
+          }
+          doc.text(`• ${t.name}`, 22, y + 1);
+          
           const pStr = (t.priority || "medium").toUpperCase();
-          doc.text(`${idx + 1}. ${t.name}`, 25, y);
-          doc.text(`[Priority: ${pStr}]`, 155, y);
+          if (t.priority === "high") doc.setTextColor(239, 68, 68);
+          else if (t.priority === "low") doc.setTextColor(59, 130, 246);
+          else doc.setTextColor(249, 115, 22);
+
+          doc.text(pStr, 160, y + 1);
+          doc.setTextColor(51, 65, 85); // reset
           y += 8;
-          if (y > 270) { doc.addPage(); y = 20; }
         });
-      } else {
-        doc.text("No pending works.", 25, y);
-        y += 8;
+        y += 4; // gap
       }
-    }
-    
+
+      y += 6; // Extra gap before next room
+    });
+
     return doc;
   };
 
@@ -2343,6 +2612,8 @@ function App() {
   const handleNavbarAddClick = () => {
     if (currentTab === "schedule") {
       setIsNewMeetingModalOpen(true);
+    } else if (currentTab === "projects" && activeProjectId !== null && activeRoomId === null) {
+      handleAddRoomToExistingProject();
     } else {
       setIsNewProjModalOpen(true);
     }
@@ -2927,7 +3198,103 @@ function App() {
 
                   {/* Target Completion Banner removed to reduce vertical spacing as target is already displayed in header */}
 
-                  {/* Sub-tabs for Materials and Work */}
+                  {activeRoomId === null ? (
+                    // ROOMS LIST VIEW
+                    <div className="screen-content fade-in" style={{ paddingTop: "12px" }}>
+                      <div className="rooms-grid">
+                        {(activeProject?.rooms || []).map((room) => (
+                          <div 
+                            key={room.id} 
+                            className="room-card fade-in"
+                            onClick={() => setActiveRoomId(room.id)}
+                          >
+                            <div className="room-card-header">
+                              <h3 className="room-card-title">{room.name}</h3>
+                              <div className="room-card-actions">
+                                <button 
+                                  className="room-action-btn edit" 
+                                  onClick={(e) => handleEditRoom(e, room.id, room.name)}
+                                  title="Edit Room Name"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button 
+                                  className="room-action-btn delete" 
+                                  onClick={(e) => handleDeleteRoom(e, room.id)}
+                                  title="Delete Room"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="room-card-stats">
+                              <span>{activeProject?.materials?.filter(m => m.roomId === room.id && !m.completed).length || 0} materials</span>
+                              <span className="dot-separator">•</span>
+                              <span>{activeProject?.tasks?.filter(t => t.roomId === room.id && !t.completed).length || 0} tasks</span>
+                            </div>
+                            <div className="room-card-footer">
+                                <button
+                                  className="room-action-btn share"
+                                  onClick={(e) => handleShareRoom(e, room)}
+                                  title="Share Room to WhatsApp"
+                                >
+                                  <Share2 size={16} />
+                                </button>
+                                <button
+                                  className="room-action-btn pdf"
+                                  onClick={(e) => handleGenerateRoomPDF(e, room)}
+                                  title="Download Room PDF"
+                                >
+                                  <FileText size={16} />
+                                </button>
+                            </div>
+                          </div>
+                        ))}
+                        <div  
+                          className="room-card general-room fade-in"
+                          onClick={() => setActiveRoomId("general")}
+                        >
+                          <div className="room-card-header">
+                            <h3 className="room-card-title">General / Unassigned</h3>
+                          </div>
+                          <div className="room-card-stats">
+                            <span>{activeProject?.materials?.filter(m => (!m.roomId || m.roomId === "general") && !m.completed).length || 0} materials</span>
+                            <span className="dot-separator">•</span>
+                            <span>{activeProject?.tasks?.filter(t => (!t.roomId || t.roomId === "general") && !t.completed).length || 0} tasks</span>
+                          </div>
+                          <div className="room-card-footer">
+                                <button
+                                  className="room-action-btn share"
+                                  onClick={(e) => handleShareRoom(e, { id: 'general', name: 'General / Unassigned' })}
+                                  title="Share Room to WhatsApp"
+                                >
+                                  <Share2 size={16} />
+                                </button>
+                                <button
+                                  className="room-action-btn pdf"
+                                  onClick={(e) => handleGenerateRoomPDF(e, { id: 'general', name: 'General / Unassigned' })}
+                                  title="Download Room PDF"
+                                >
+                                  <FileText size={16} />
+                                </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // ROOM DETAILS VIEW (Materials & Work tabs)
+                    <>
+                      {/* Room Header with Back Button to go back to Rooms List */}
+                      <div className="room-detail-header fade-in" style={{ padding: "0 20px", display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", marginBottom: "5px" }}>
+                        <button className="icon-btn" onClick={() => setActiveRoomId(null)} style={{ padding: "4px" }}>
+                          <ArrowLeft size={16} />
+                        </button>
+                        <h2 style={{ fontSize: "16px", margin: 0, color: "var(--text-title)" }}>
+                          {activeRoomId === "general" ? "General / Unassigned" : activeProject?.rooms?.find(r => r.id === activeRoomId)?.name || "Room"}
+                        </h2>
+                      </div>
+
+                      {/* Sub-tabs for Materials and Work */}
                   <div className="tabs-bar-new fade-in">
                     <button
                       className={`tab-btn-new ${
@@ -2958,7 +3325,7 @@ function App() {
                           <h2 className="section-title-new">Materials</h2>
                           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                             <span className="section-count-new">
-                              {(activeProject?.materials?.filter((m) => !m.completed).length || 0)} ITEMS
+                              {(activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed).length || 0)} ITEMS
                             </span>
                             <button
                               className="icon-btn"
@@ -3009,9 +3376,9 @@ function App() {
 
                           {/* Pending Materials List */}
                           <div className="list-rows-container-new">
-                            {activeProject?.materials?.filter((m) => !m.completed).length > 0 ? (
+                            {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed).length > 0 ? (
                               activeProject.materials
-                                .filter((m) => !m.completed)
+                                .filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed)
                                 .map((mat) => (
                                   <div key={mat.id} className="list-item-row-new">
                                     <label className="checkbox-container-new">
@@ -3069,12 +3436,12 @@ function App() {
                               Completed Materials
                             </span>
                             <span className="collapsible-badge-new">
-                              {activeProject?.materials?.filter((m) => m.completed).length || 0}
+                              {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length || 0}
                             </span>
                           </div>
                           
                           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                            {activeProject?.materials?.filter((m) => m.completed).length > 0 && (
+                            {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length > 0 && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -3106,9 +3473,9 @@ function App() {
 
                         {!materialsCollapsed && (
                           <div className="collapsible-content-new">
-                            {activeProject?.materials?.filter((m) => m.completed).length > 0 ? (
+                            {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length > 0 ? (
                               activeProject.materials
-                                .filter((m) => m.completed)
+                                .filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed)
                                 .map((mat) => (
                                   <div key={mat.id} className="list-item-row-new completed-row-new">
                                     <label className="checkbox-container-new">
@@ -3147,7 +3514,7 @@ function App() {
                           <h2 className="section-title-new">Work</h2>
                           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                             <span className="section-count-new">
-                              {(activeProject?.tasks?.filter((t) => !t.completed).length || 0)} ITEMS
+                              {(activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed).length || 0)} ITEMS
                             </span>
                             <button
                               className="icon-btn"
@@ -3226,9 +3593,9 @@ function App() {
 
                           {/* Pending Tasks List */}
                           <div className="list-rows-container-new">
-                            {activeProject?.tasks?.filter((t) => !t.completed).length > 0 ? (
+                            {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed).length > 0 ? (
                               [...activeProject.tasks]
-                                .filter((t) => !t.completed)
+                                .filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed)
                                 .sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority))
                                 .map((task) => (
                                   <div
@@ -3306,12 +3673,12 @@ function App() {
                               Completed Tasks
                             </span>
                             <span className="collapsible-badge-new">
-                              {activeProject?.tasks?.filter((t) => t.completed).length || 0}
+                              {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length || 0}
                             </span>
                           </div>
                           
                           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                            {activeProject?.tasks?.filter((t) => t.completed).length > 0 && (
+                            {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length > 0 && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -3343,9 +3710,9 @@ function App() {
 
                         {!tasksCollapsed && (
                           <div className="collapsible-content-new">
-                            {activeProject?.tasks?.filter((t) => t.completed).length > 0 ? (
+                            {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length > 0 ? (
                               activeProject.tasks
-                                .filter((t) => t.completed)
+                                .filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed)
                                 .map((task) => (
                                   <div key={task.id} className="list-item-row-new completed-row-new">
                                     <label className="checkbox-container-new">
@@ -3379,6 +3746,8 @@ function App() {
                       </>
                     )}
                   </div>
+                  </>
+                )}
                 </>
               )}
             </>
@@ -4896,44 +5265,76 @@ function App() {
                     {reportPreview.title}
                   </h4>
 
-                  {/* Materials list */}
-                  {(reportPreview.type === "materials" || reportPreview.type === "both") && (
-                    <div style={{ marginBottom: "16px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "6px" }}>Pending Materials</div>
-                      {reportPreview.materials.length > 0 ? (
-                        reportPreview.materials.map((m, idx) => (
-                          <div key={m.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: "13px" }}>
-                            <span>{idx + 1}. {m.name}</span>
-                            <span style={{ color: "var(--text-muted)" }}>Pending</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ fontSize: "12px", color: "var(--text-muted)", fontStyle: "italic" }}>No pending materials.</div>
-                      )}
-                    </div>
-                  )}
+                  {/* Content grouped by room */}
+                  {(() => {
+                    const materialsByRoom = {};
+                    (reportPreview.materials || []).forEach(m => {
+                      const rid = m.roomId || 'general';
+                      if (!materialsByRoom[rid]) materialsByRoom[rid] = [];
+                      materialsByRoom[rid].push(m);
+                    });
 
-                  {/* Tasks list */}
-                  {(reportPreview.type === "tasks" || reportPreview.type === "both") && (
-                    <div>
-                      <div style={{ fontSize: "12px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "6px" }}>Pending Works</div>
-                      {reportPreview.tasks.length > 0 ? (
-                        reportPreview.tasks.map((t, idx) => (
-                          <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: "13px" }}>
-                            <span>{idx + 1}. {t.name}</span>
-                            <span style={{ 
-                              textTransform: "uppercase", 
-                              fontSize: "10px", 
-                              fontWeight: "700",
-                              color: t.priority === "high" ? "#ef4444" : t.priority === "medium" ? "#f97316" : "#3b82f6"
-                            }}>{t.priority || "medium"}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ fontSize: "12px", color: "var(--text-muted)", fontStyle: "italic" }}>No pending tasks.</div>
-                      )}
-                    </div>
-                  )}
+                    const tasksByRoom = {};
+                    (reportPreview.tasks || []).forEach(t => {
+                      const rid = t.roomId || 'general';
+                      if (!tasksByRoom[rid]) tasksByRoom[rid] = [];
+                      tasksByRoom[rid].push(t);
+                    });
+
+                    const allRoomIds = [...new Set([...Object.keys(materialsByRoom), ...Object.keys(tasksByRoom)])];
+
+                    if (allRoomIds.length === 0) {
+                      return <div style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No pending items found.</div>;
+                    }
+
+                    return allRoomIds.map(roomId => {
+                      let roomName = 'General / Unassigned';
+                      if (roomId !== 'general') {
+                        const r = (reportPreview.rooms || []).find(x => x.id === roomId);
+                        if (r) roomName = r.name;
+                      }
+
+                      const rMaterials = materialsByRoom[roomId] || [];
+                      const rTasks = tasksByRoom[roomId] || [];
+
+                      return (
+                        <div key={roomId} style={{ marginBottom: "20px", padding: "12px", backgroundColor: "rgba(0,0,0,0.02)", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+                          <h5 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "800", color: "var(--accent-blue)", borderBottom: "2px solid var(--border-hover)", paddingBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                            {roomName}
+                          </h5>
+
+                          {(reportPreview.type === "materials" || reportPreview.type === "both") && rMaterials.length > 0 && (
+                            <div style={{ marginBottom: "12px" }}>
+                              <div style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>Materials</div>
+                              {rMaterials.map((m, idx) => (
+                                <div key={m.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed var(--border)", fontSize: "12px" }}>
+                                  <span>• {m.name}</span>
+                                  <span style={{ color: "var(--text-muted)" }}>Pending</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {(reportPreview.type === "tasks" || reportPreview.type === "both") && rTasks.length > 0 && (
+                            <div>
+                              <div style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>Works</div>
+                              {rTasks.map((t, idx) => (
+                                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed var(--border)", fontSize: "12px" }}>
+                                  <span>• {t.name}</span>
+                                  <span style={{ 
+                                    textTransform: "uppercase", 
+                                    fontSize: "10px", 
+                                    fontWeight: "700",
+                                    color: t.priority === "high" ? "#ef4444" : t.priority === "medium" ? "#f97316" : "#3b82f6"
+                                  }}>{t.priority || "medium"}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -5502,6 +5903,66 @@ function App() {
                       value={newProjCompletionDate}
                       onChange={(e) => setNewProjCompletionDate(e.target.value)}
                     />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Rooms</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                      {newProjAllAvailableRooms.map((roomName) => {
+                        const isSelected = newProjSelectedRooms.includes(roomName);
+                        return (
+                          <div 
+                            key={roomName} 
+                            onClick={() => {
+                              if (isSelected) {
+                                setNewProjSelectedRooms(newProjSelectedRooms.filter(r => r !== roomName));
+                              } else {
+                                setNewProjSelectedRooms([...newProjSelectedRooms, roomName]);
+                              }
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '6px 12px',
+                              borderRadius: '16px',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              border: isSelected ? '1px solid var(--accent-blue)' : '1px solid var(--border)',
+                              backgroundColor: isSelected ? 'var(--accent-blue-light)' : 'transparent',
+                              color: isSelected ? 'var(--accent-blue)' : 'var(--text-muted)',
+                              transition: 'all 0.2s ease',
+                              userSelect: 'none'
+                            }}
+                          >
+                            {roomName}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Add custom room (e.g. Master Bath)"
+                        value={newProjCustomRoomInput}
+                        onChange={(e) => setNewProjCustomRoomInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomRoomToNewProj();
+                          }
+                        }}
+                      />
+                      <button 
+                        type="button" 
+                        className="btn-secondary" 
+                        onClick={handleAddCustomRoomToNewProj}
+                        style={{ whiteSpace: 'nowrap', padding: '0 16px' }}
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
 
                   <div className="modal-footer">
