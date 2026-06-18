@@ -43,6 +43,7 @@ import {
   Undo,
   RotateCcw,
   Mail,
+  MoreVertical,
 } from "lucide-react";
 
 const WEB_APP_VERSION = "1.1.0";
@@ -50,38 +51,7 @@ const WEB_APP_VERSION = "1.1.0";
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
 
-const INITIAL_SCHEDULE = [
-  {
-    id: "s1",
-    title: "Internal Sync: Q4 Logistics",
-    date: new Date().toISOString().split("T")[0],
-    completed: false,
-  },
-  {
-    id: "s2",
-    title: "Client Review: Project Zenith",
-    date: new Date().toISOString().split("T")[0],
-    completed: false,
-  },
-  {
-    id: "s3",
-    title: "Design Handoff",
-    date: new Date().toISOString().split("T")[0],
-    completed: false,
-  },
-  {
-    id: "s4",
-    title: "Site Inspection: Riverside",
-    date: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-    completed: false,
-  },
-  {
-    id: "s5",
-    title: "Supplier Contract Signing",
-    date: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-    completed: false,
-  },
-];
+const INITIAL_SCHEDULE = [];
 
 function App() {
   const formatDate = (dateStr) => {
@@ -153,6 +123,7 @@ function App() {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isEmailReportsOpen, setIsEmailReportsOpen] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [openRoomMenuId, setOpenRoomMenuId] = useState(null);
 
   const [updateDebugInfo, setUpdateDebugInfo] = useState({
     status: "Idle",
@@ -2966,8 +2937,8 @@ function App() {
                                       )}
                                       <span
                                         className={`status-pill ${project.status === "not-started"
-                                            ? "not-started"
-                                            : project.status
+                                          ? "not-started"
+                                          : project.status
                                           }`}
                                       >
                                         {project.status.replace("-", " ")}
@@ -3078,101 +3049,148 @@ function App() {
                         // ROOMS LIST VIEW
                         <div className="screen-content fade-in" style={{ paddingTop: "12px" }}>
                           <div className="rooms-grid">
-                            {(activeProject?.rooms || []).map((room) => (
-                              <div
-                                key={room.id}
-                                className="room-card fade-in"
-                                onClick={() => setActiveRoomId(room.id)}
-                              >
-                                <div className="room-card-header">
-                                  <h3 className="room-card-title">{room.name}</h3>
-                                  <div className="room-card-actions">
+                            {(activeProject?.rooms || []).map((room) => {
+                              const mTotal = activeProject?.materials?.filter(m => m.roomId === room.id)?.length || 0;
+                              const mPending = activeProject?.materials?.filter(m => m.roomId === room.id && !m.completed)?.length || 0;
+                              const tTotal = activeProject?.tasks?.filter(t => t.roomId === room.id)?.length || 0;
+                              const tPending = activeProject?.tasks?.filter(t => t.roomId === room.id && !t.completed)?.length || 0;
+
+                              return (
+                                <div
+                                  key={room.id}
+                                  className="room-card fade-in"
+                                  onClick={() => setActiveRoomId(room.id)}
+                                >
+                                  <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 10 }}>
                                     <button
-                                      className="room-action-btn edit"
-                                      onClick={(e) => handleEditRoom(e, room.id, room.name)}
-                                      title="Edit Room Name"
+                                      className="icon-btn"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenRoomMenuId(openRoomMenuId === room.id ? null : room.id);
+                                      }}
+                                      style={{ padding: '4px', background: 'transparent', border: 'none', color: 'var(--text-muted)' }}
                                     >
-                                      <Edit2 size={16} />
+                                      <MoreVertical size={18} />
                                     </button>
-                                    <button
-                                      className="room-action-btn delete"
-                                      onClick={(e) => handleDeleteRoom(e, room.id)}
-                                      title="Delete Room"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
+
+                                    {openRoomMenuId === room.id && (
+                                      <>
+                                        <div
+                                          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 11 }}
+                                          onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); }}
+                                        />
+                                        <div className="popover-menu" style={{ flexDirection: 'row', minWidth: 'auto', gap: '8px', padding: '8px', borderRadius: '12px' }}>
+                                          <button
+                                            className="room-action-btn edit"
+                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleEditRoom(e, room.id, room.name); }}
+                                            title="Edit Room Name"
+                                          >
+                                            <Edit2 size={14} />
+                                          </button>
+                                          <button
+                                            className="room-action-btn delete"
+                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleDeleteRoom(e, room.id); }}
+                                            title="Delete Room"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                          <button
+                                            className="room-action-btn share"
+                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleShareRoom(e, room); }}
+                                            title="Share Room to WhatsApp"
+                                          >
+                                            <Share2 size={14} />
+                                          </button>
+                                          <button
+                                            className="room-action-btn pdf"
+                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleGenerateRoomPDF(e, room); }}
+                                            title="Download Room PDF"
+                                          >
+                                            <FileText size={14} />
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  <div className="room-info">
+                                    <span className="room-card-title" style={{ paddingRight: '40px', display: 'block', fontSize: '18px', fontWeight: '700', color: 'var(--text-title)' }}>
+                                      {room.name}
+                                    </span>
+
+                                    {/* Stats */}
+                                    <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--text-muted)", display: "flex", gap: "16px", fontWeight: "600", paddingBottom: "4px" }}>
+                                      <span>Materials: <strong style={{ color: "var(--text-title)" }}>{mPending}/{mTotal}</strong></span>
+                                      <span>Works: <strong style={{ color: "var(--text-title)" }}>{tPending}/{tTotal}</strong></span>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="room-card-stats">
-                                  {(() => {
-                                    const mTotal = activeProject?.materials?.filter(m => m.roomId === room.id)?.length || 0;
-                                    const mPending = activeProject?.materials?.filter(m => m.roomId === room.id && !m.completed)?.length || 0;
-                                    const tTotal = activeProject?.tasks?.filter(t => t.roomId === room.id)?.length || 0;
-                                    const tPending = activeProject?.tasks?.filter(t => t.roomId === room.id && !t.completed)?.length || 0;
-                                    return (
+                              );
+                            })}
+
+                            {/* General / Unassigned Room */}
+                            {(() => {
+                              const mTotal = activeProject?.materials?.filter(m => !m.roomId || m.roomId === "general")?.length || 0;
+                              const mPending = activeProject?.materials?.filter(m => (!m.roomId || m.roomId === "general") && !m.completed)?.length || 0;
+                              const tTotal = activeProject?.tasks?.filter(t => !t.roomId || t.roomId === "general")?.length || 0;
+                              const tPending = activeProject?.tasks?.filter(t => (!t.roomId || t.roomId === "general") && !t.completed)?.length || 0;
+
+                              return (
+                                <div
+                                  className="room-card general-room fade-in"
+                                  onClick={() => setActiveRoomId("general")}
+                                >
+                                  <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 10 }}>
+                                    <button
+                                      className="icon-btn"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenRoomMenuId(openRoomMenuId === "general" ? null : "general");
+                                      }}
+                                      style={{ padding: '4px', background: 'transparent', border: 'none', color: 'var(--text-muted)' }}
+                                    >
+                                      <MoreVertical size={18} />
+                                    </button>
+
+                                    {openRoomMenuId === "general" && (
                                       <>
-                                        <span>Materials: {mPending}/{mTotal}</span>
-                                    <span>Works: {tPending}/{tTotal}</span>
+                                        <div
+                                          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 11 }}
+                                          onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); }}
+                                        />
+                                        <div className="popover-menu" style={{ flexDirection: 'row', minWidth: 'auto', gap: '8px', padding: '8px', borderRadius: '12px' }}>
+                                          <button
+                                            className="room-action-btn share"
+                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleShareRoom(e, { id: 'general', name: 'General / Unassigned' }); }}
+                                            title="Share Room to WhatsApp"
+                                          >
+                                            <Share2 size={14} />
+                                          </button>
+                                          <button
+                                            className="room-action-btn pdf"
+                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleGenerateRoomPDF(e, { id: 'general', name: 'General / Unassigned' }); }}
+                                            title="Download Room PDF"
+                                          >
+                                            <FileText size={14} />
+                                          </button>
+                                        </div>
                                       </>
-                                    );
-                                  })()}
+                                    )}
+                                  </div>
+
+                                  <div className="room-info">
+                                    <span className="room-card-title" style={{ paddingRight: '40px', display: 'block', fontSize: '18px', fontWeight: '700', color: 'var(--text-title)' }}>
+                                      General / Unassigned
+                                    </span>
+
+                                    <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--text-muted)", display: "flex", gap: "16px", fontWeight: "600", paddingBottom: "4px" }}>
+                                      <span>Materials: <strong style={{ color: "var(--text-title)" }}>{mPending}/{mTotal}</strong></span>
+                                      <span>Works: <strong style={{ color: "var(--text-title)" }}>{tPending}/{tTotal}</strong></span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="room-card-footer">
-                                  <button
-                                    className="room-action-btn share"
-                                    onClick={(e) => handleShareRoom(e, room)}
-                                    title="Share Room to WhatsApp"
-                                  >
-                                    <Share2 size={16} />
-                                  </button>
-                                  <button
-                                    className="room-action-btn pdf"
-                                    onClick={(e) => handleGenerateRoomPDF(e, room)}
-                                    title="Download Room PDF"
-                                  >
-                                    <FileText size={16} />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                            <div
-                              className="room-card general-room fade-in"
-                              onClick={() => setActiveRoomId("general")}
-                            >
-                              <div className="room-card-header">
-                                <h3 className="room-card-title">General / Unassigned</h3>
-                              </div>
-                              <div className="room-card-stats">
-                                {(() => {
-                                  const mTotal = activeProject?.materials?.filter(m => !m.roomId || m.roomId === "general")?.length || 0;
-                                  const mPending = activeProject?.materials?.filter(m => (!m.roomId || m.roomId === "general") && !m.completed)?.length || 0;
-                                  const tTotal = activeProject?.tasks?.filter(t => !t.roomId || t.roomId === "general")?.length || 0;
-                                  const tPending = activeProject?.tasks?.filter(t => (!t.roomId || t.roomId === "general") && !t.completed)?.length || 0;
-                                  return (
-                                    <>
-                                      <span>Materials: {mPending}/{mTotal}</span>
-                                  <span>Works: {tPending}/{tTotal}</span>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                              <div className="room-card-footer">
-                                <button
-                                  className="room-action-btn share"
-                                  onClick={(e) => handleShareRoom(e, { id: 'general', name: 'General / Unassigned' })}
-                                  title="Share Room to WhatsApp"
-                                >
-                                  <Share2 size={16} />
-                                </button>
-                                <button
-                                  className="room-action-btn pdf"
-                                  onClick={(e) => handleGenerateRoomPDF(e, { id: 'general', name: 'General / Unassigned' })}
-                                  title="Download Room PDF"
-                                >
-                                  <FileText size={16} />
-                                </button>
-                              </div>
-                            </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       ) : (

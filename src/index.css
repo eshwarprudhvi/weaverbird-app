@@ -3276,36 +3276,33 @@ textarea.form-control {
 
 /* ===== ROOMS LIST VIEW ===== */
 .rooms-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   padding: 0 20px 20px 20px;
 }
 
 .room-card {
   background: var(--bg-card);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
+  border-left: 4px solid var(--accent-blue);
+  border-radius: 16px;
+  padding: 12px 14px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 90px;
   position: relative;
 }
 
 .room-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--accent-blue);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 .room-card.general-room {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(59, 130, 246, 0.0) 100%);
-  border: 1px dashed var(--accent-blue);
+  border-left-color: var(--text-muted);
 }
 
 .room-card-header {
@@ -3367,14 +3364,20 @@ textarea.form-control {
   transform: scale(1.05);
 }
 
-.room-action-btn.edit:hover {
+.room-action-btn.edit {
   color: var(--accent-blue);
   background: rgba(59, 130, 246, 0.1);
 }
+.room-action-btn.edit:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
 
-.room-action-btn.delete:hover {
+.room-action-btn.delete {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.1);
+}
+.room-action-btn.delete:hover {
+  background: rgba(239, 68, 68, 0.2);
 }
 
 .room-action-btn.share {
@@ -3571,4 +3574,89 @@ textarea.form-control {
   height: 5px;
   border-radius: 50%;
   display: inline-block;
+}
+
+/* ===== MODERN POPOVER MENU ===== */
+.popover-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+  z-index: 20;
+  animation: popoverFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top right;
+}
+
+@keyframes popoverFadeIn {
+  0% { opacity: 0; transform: scale(0.95) translateY(-5px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.popover-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-title);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.popover-item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.dark-theme .popover-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.popover-item .item-icon {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.popover-item:hover .item-icon {
+  color: var(--text-title);
+}
+
+.popover-divider {
+  height: 1px;
+  background-color: var(--border);
+  margin: 6px 0;
+}
+
+/* Destructive action */
+.popover-item.danger {
+  color: #ef4444;
+}
+.popover-item.danger .item-icon {
+  color: #ef4444;
+}
+.popover-item.danger:hover {
+  background-color: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+}
+.popover-item.danger:hover .item-icon {
+  color: #dc2626;
 }
