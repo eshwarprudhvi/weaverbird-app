@@ -118,7 +118,7 @@ function App() {
 
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem("ipm_theme");
-    return saved || "light";
+    return (saved === "dark" || saved === "light") ? saved : "light";
   });
 
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
@@ -1254,12 +1254,7 @@ function App() {
 
   // --- HANDLERS ---
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "theme"));
-    // Simple classes switch
-    const root = document.getElementById("app-root");
-    if (root) {
-      root.classList.toggle("dark-theme");
-    }
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
   // Add Project
