@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { ArrowLeft, Mail } from 'lucide-react';
 
 export default function ReportPreviewModal({
@@ -121,7 +121,9 @@ export default function ReportPreviewModal({
                                   {rMaterials.map((m, idx) => (
                                     <div key={m.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed var(--border)", fontSize: "12px" }}>
                                       <span>â€¢ {m.name}</span>
-                                      <span style={{ color: "var(--text-muted)" }}>Pending</span>
+                                      <span style={{ color: m.completed ? "#22c55e" : "var(--text-muted)", fontWeight: "600" }}>
+                                        {m.completed ? "Completed" : "Pending"}
+                                      </span>
                                     </div>
                                   ))}
                                 </div>
@@ -137,8 +139,8 @@ export default function ReportPreviewModal({
                                         textTransform: "uppercase",
                                         fontSize: "10px",
                                         fontWeight: "700",
-                                        color: t.priority === "high" ? "#ef4444" : t.priority === "medium" ? "#f97316" : "#3b82f6"
-                                      }}>{t.priority || "medium"}</span>
+                                        color: t.completed ? "#22c55e" : t.priority === "high" ? "#ef4444" : t.priority === "medium" ? "#f97316" : "#3b82f6"
+                                      }}>{t.completed ? "COMPLETED" : (t.priority || "medium")}</span>
                                     </div>
                                   ))}
                                 </div>

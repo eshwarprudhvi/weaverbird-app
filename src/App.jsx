@@ -32,6 +32,7 @@ import {
   Sun,
   Check,
   Briefcase,
+  BookOpen,
   Sliders,
   Clock,
   CheckCircle2,
@@ -46,7 +47,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.1.0";
+const WEB_APP_VERSION = "1.1.1";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
@@ -315,6 +316,17 @@ function App() {
   const [reportPreview, setReportPreview] = useState(null);
   const [customConfirm, setCustomConfirm] = useState(null); // { title, message, onConfirm }
 
+  // Material Price Catalog States
+  const [materialCatalog, setMaterialCatalog] = useState(() => {
+    const saved = localStorage.getItem("ipm_material_catalog");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isCatalogExpanded, setIsCatalogExpanded] = useState(false);
+  const [isCatalogScreenOpen, setIsCatalogScreenOpen] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [newCatalogName, setNewCatalogName] = useState("");
+  const [newCatalogPrice, setNewCatalogPrice] = useState("");
+
 
   // Inline forms state
   const [newMaterialInput, setNewMaterialInput] = useState("");
@@ -347,6 +359,7 @@ function App() {
   const [hasLoadedProjectsFromCloud, setHasLoadedProjectsFromCloud] = useState(false);
   const [hasLoadedScheduleFromCloud, setHasLoadedScheduleFromCloud] = useState(false);
   const [hasLoadedTodosFromCloud, setHasLoadedTodosFromCloud] = useState(false);
+  const [hasLoadedCatalogFromCloud, setHasLoadedCatalogFromCloud] = useState(false);
 
   // EmailJS & Email Automation States
   const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem("ipm_emailjs_service_id") || "");
@@ -366,6 +379,15 @@ function App() {
   useEffect(() => {
     localStorage.setItem("ipm_backup_recipients", JSON.stringify(backupRecipients));
   }, [backupRecipients]);
+
+  useEffect(() => {
+    localStorage.setItem("ipm_material_catalog", JSON.stringify(materialCatalog));
+    if (!cloudSyncEnabled || hasLoadedCatalogFromCloud) {
+      if (!isRemoteChange.current) {
+        syncCatalogToCloud(materialCatalog);
+      }
+    }
+  }, [materialCatalog, hasLoadedCatalogFromCloud, cloudSyncEnabled]);
 
   useEffect(() => {
     localStorage.setItem("ipm_emailjs_service_id", emailJsServiceId);
@@ -397,6 +419,8 @@ function App() {
     const backButtonListener = CapApp.addListener("backButton", () => {
       if (reportPreview) {
         setReportPreview(null);
+      } else if (isCatalogScreenOpen) {
+        setIsCatalogScreenOpen(false);
       } else if (isTodoScreenOpen) {
         setIsTodoScreenOpen(false);
       } else if (isNewProjModalOpen) {
@@ -422,6 +446,7 @@ function App() {
     };
   }, [
     reportPreview,
+    isCatalogScreenOpen,
     isTodoScreenOpen,
     isNewProjModalOpen,
     isNewMeetingModalOpen,
@@ -541,6 +566,21 @@ function App() {
     }
   };
 
+  // Sync material catalog to user-specific private document in cloud
+  const syncCatalogToCloud = async (newCatalog) => {
+    if (!isConfigured || !db || !cloudSyncEnabled || !isAuthorized || !userEmail) return;
+    try {
+      const cleanEmail = userEmail.toLowerCase().trim();
+      const dataDocRef = doc(db, "users", cleanEmail, "private", "catalog");
+      await setDoc(dataDocRef, {
+        catalog: newCatalog,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Failed to sync private catalog to cloud:", err);
+    }
+  };
+
   // Sync projects state to localStorage and cloud incrementally
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -624,6 +664,7 @@ function App() {
     let unsubscribeDeleted = () => { };
     let unsubscribeSchedule = () => { };
     let unsubscribeTodos = () => { };
+    let unsubscribeCatalog = () => { };
 
     try {
       // 1. Listen to authorized users list & check access role
@@ -864,6 +905,32 @@ function App() {
         console.error("Error listening to private todos updates:", error);
       });
 
+      // 6. Listen to real-time private catalog sync edits (private per user)
+      const catalogDocRef = doc(db, "users", cleanEmail, "private", "catalog");
+      unsubscribeCatalog = onSnapshot(catalogDocRef, (docSnap) => {
+        try {
+          if (docSnap.exists()) {
+            const cloudData = docSnap.data();
+
+            isRemoteChange.current = true;
+
+            if (cloudData.catalog) {
+              setMaterialCatalog(cloudData.catalog);
+              localStorage.setItem("ipm_material_catalog", JSON.stringify(cloudData.catalog));
+            }
+
+            setTimeout(() => {
+              isRemoteChange.current = false;
+            }, 100);
+          }
+          setHasLoadedCatalogFromCloud(true);
+        } catch (err) {
+          console.error("Error processing private catalog snapshot:", err);
+        }
+      }, (error) => {
+        console.error("Error listening to private catalog updates:", error);
+      });
+
     } catch (err) {
       console.error("Failed to initialize Firestore snapshot listeners:", err);
     }
@@ -874,6 +941,7 @@ function App() {
       unsubscribeDeleted();
       unsubscribeSchedule();
       unsubscribeTodos();
+      unsubscribeCatalog();
     };
   }, [cloudSyncEnabled, userEmail]);
 
@@ -1329,6 +1397,30 @@ function App() {
     );
   };
 
+  const handleAddCatalogItem = (e) => {
+    if (e) e.preventDefault();
+    if (!newCatalogName.trim()) return;
+    const newItem = {
+      id: "cat_" + Date.now(),
+      name: newCatalogName.trim(),
+      price: newCatalogPrice.trim(),
+    };
+    setMaterialCatalog([newItem, ...materialCatalog]);
+    setNewCatalogName("");
+    setNewCatalogPrice("");
+  };
+
+  const handleDeleteCatalogItem = (e, itemId) => {
+    if (e) e.stopPropagation();
+    setCustomConfirm({
+      title: "Delete Catalog Item",
+      message: "Are you sure you want to delete this material price reference? This action cannot be undone.",
+      onConfirm: () => {
+        setMaterialCatalog(materialCatalog.filter(item => item.id !== itemId));
+      }
+    });
+  };
+
   // Add Material inline
   const handleAddMaterial = (e) => {
     e.preventDefault();
@@ -1708,6 +1800,13 @@ function App() {
           }
           return s;
         })
+      );
+    } else if (type === "catalog_material") {
+      const { price } = editItemModal;
+      setMaterialCatalog(
+        materialCatalog.map((item) =>
+          item.id === itemId ? { ...item, name: name.trim(), price: price.trim() } : item
+        )
       );
     }
 
@@ -2921,7 +3020,136 @@ function App() {
               {/* TAB 1: PROJECTS */}
               {currentTab === "projects" && (
                 <>
-                  {activeProjectId === null ? (
+                  {isCatalogScreenOpen && userRole === "admin" ? (
+                    // Catalog Screen View
+                    <>
+                      <div className="app-header fade-in">
+                        <div className="header-left">
+                          <button
+                            className="icon-btn"
+                            onClick={() => setIsCatalogScreenOpen(false)}
+                            aria-label="Back"
+                          >
+                            <ArrowLeft size={20} />
+                          </button>
+                          <div className="header-title-container">
+                            <span className="header-subtitle">Reference Book</span>
+                            <h1 style={{ marginBottom: "2px" }}>Material Catalog</h1>
+                          </div>
+                        </div>
+                        <div className="header-right">
+                          <span className="catalog-count-badge" style={{ fontSize: "12px", padding: "4px 10px" }}>
+                            {materialCatalog.length} Items
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="screen-content fade-in" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                        {/* Quick Add Section */}
+                        <div className="catalog-card" style={{ borderLeft: "4px solid var(--accent-gold)", flexShrink: 0 }}>
+                          <h3 style={{ fontSize: "14px", fontWeight: "700", marginBottom: "12px", color: "var(--text-title)", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <Plus size={15} style={{ color: "var(--accent-gold)" }} />
+                            Add Price Reference
+                          </h3>
+                          <form onSubmit={handleAddCatalogItem} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            <input
+                              type="text"
+                              className="catalog-input"
+                              placeholder="Material Name (e.g. Granite slab)"
+                              value={newCatalogName}
+                              onChange={(e) => setNewCatalogName(e.target.value)}
+                              style={{ padding: "8px 12px", borderRadius: "10px" }}
+                              required
+                            />
+                            <div style={{ display: "flex", gap: "8px" }}>
+                              <input
+                                type="text"
+                                className="catalog-input"
+                                placeholder="Price Tag (e.g. ₹ 3,500 / bag)"
+                                value={newCatalogPrice}
+                                onChange={(e) => setNewCatalogPrice(e.target.value)}
+                                style={{ padding: "8px 12px", borderRadius: "10px", flex: 1 }}
+                                required
+                              />
+                              <button type="submit" className="catalog-add-btn" style={{ padding: "8px 16px", borderRadius: "10px", height: "36px", flexShrink: 0 }}>
+                                <Plus size={14} />
+                                <span>Add</span>
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+
+                        {/* Search and List */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                          <div className="catalog-search-wrapper" style={{ flexShrink: 0 }}>
+                            <Search className="catalog-search-icon" size={15} />
+                            <input
+                              type="text"
+                              className="catalog-search-input"
+                              placeholder="Search reference list..."
+                              value={catalogSearch}
+                              onChange={(e) => setCatalogSearch(e.target.value)}
+                              style={{ padding: "10px 12px 10px 36px", fontSize: "14px" }}
+                            />
+                          </div>
+
+                          <div className="catalog-list" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            {materialCatalog.length === 0 ? (
+                              <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
+                                <Briefcase size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
+                                <p style={{ fontSize: "14px" }}>No price references added yet.</p>
+                              </div>
+                            ) : (
+                              materialCatalog
+                                .filter((item) =>
+                                  item.name
+                                    .toLowerCase()
+                                    .includes(catalogSearch.toLowerCase())
+                                )
+                                .map((item) => (
+                                  <div key={item.id} className="catalog-item-row" style={{ padding: "12px 14px" }}>
+                                    <div className="catalog-item-info">
+                                      <span className="catalog-item-name" style={{ fontSize: "14px", fontWeight: "600" }}>{item.name}</span>
+                                      <span className="catalog-item-price-tag" style={{ fontSize: "12px", marginTop: "2px" }}>
+                                        {item.price}
+                                      </span>
+                                    </div>
+                                    <div className="catalog-item-actions">
+                                      <button
+                                        type="button"
+                                        className="catalog-action-btn"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditItemModal({
+                                            type: "catalog_material",
+                                            itemId: item.id,
+                                            name: item.name,
+                                            price: item.price,
+                                          });
+                                        }}
+                                        title="Edit reference"
+                                        style={{ padding: "6px" }}
+                                      >
+                                        <Edit2 size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="catalog-action-btn delete"
+                                        onClick={(e) => handleDeleteCatalogItem(e, item.id)}
+                                        title="Delete reference"
+                                        style={{ padding: "6px" }}
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : activeProjectId === null ? (
                     // Dashboard view
                     <>
                       <div className="app-header fade-in">
@@ -3003,6 +3231,18 @@ function App() {
                             </span>
                           </div>
                         </div>
+                        {userRole === "admin" && (
+                          <div className="header-right">
+                            <button
+                              className="icon-btn"
+                              onClick={() => setIsCatalogScreenOpen(true)}
+                              title="Open Material Price Catalog"
+                              style={{ color: "var(--accent-gold-dark)" }}
+                            >
+                              <BookOpen size={18} />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       <div className="screen-content fade-in">
@@ -5224,6 +5464,7 @@ function App() {
                     onClick={() => {
                       setCurrentTab("projects");
                       setActiveProjectId(null); // Return to project dashboard list
+                      setIsCatalogScreenOpen(false); // Close catalog screen on tab click
                     }}
                   >
                     <div className="nav-icon-wrapper">
@@ -6014,6 +6255,8 @@ function App() {
                       <h3>
                         {editItemModal.type === "new_room"
                           ? "Add New Room"
+                          : editItemModal.type === "catalog_material"
+                          ? "Edit Reference Material"
                           : `Edit ${editItemModal.type === "room" ? "Room" : editItemModal.type}`}
                       </h3>
                       <button
@@ -6034,6 +6277,8 @@ function App() {
                             ? "Meeting Title"
                             : (editItemModal.type === "room" || editItemModal.type === "new_room")
                             ? "Room Name"
+                            : editItemModal.type === "catalog_material"
+                            ? "Material Name"
                             : "Name"}
                         </label>
                         <input
@@ -6049,6 +6294,25 @@ function App() {
                           required
                         />
                       </div>
+
+                      {editItemModal.type === "catalog_material" && (
+                        <div className="form-group">
+                          <label>Price Tag</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={editItemModal.price || ""}
+                            onChange={(e) =>
+                              setEditItemModal({
+                                ...editItemModal,
+                                price: e.target.value,
+                              })
+                            }
+                            placeholder="e.g. ₹ 2,500 / bag"
+                            required
+                          />
+                        </div>
+                      )}
 
                       {editItemModal.type === "project" && (
                         <>
