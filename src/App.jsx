@@ -336,6 +336,11 @@ function App() {
   const [newWorkInput, setNewWorkInput] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("medium"); // high | medium | low
 
+  // Swipe-to-delete tracking
+  const [swipedCardId, setSwipedCardId] = useState(null);
+  const swipeStartX = useRef(0);
+  const swipeCurrentX = useRef(0);
+  const swipeCardRef = useRef(null);
 
   // Cloud Sync and Admin Access states
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(() => {
@@ -1207,10 +1212,10 @@ function App() {
   // Add Project
   const getDaysLeftTextAndColor = (project) => {
     if (project.status === "completed") {
-      return { text: "Completed", color: "#10b981" };
+      return { text: "Completed", color: "#22c55e", urgencyClass: "urgency-done" };
     }
     if (!project.completionDate) {
-      return { text: "No target date set", color: "var(--text-muted)" };
+      return { text: "No target date set", color: "var(--text-muted)", urgencyClass: "" };
     }
 
     const targetDate = new Date(project.completionDate);
@@ -1222,17 +1227,18 @@ function App() {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) {
-      return { text: `${Math.abs(diffDays)} days overdue`, color: "#ef4444" };
+      return { text: `${Math.abs(diffDays)} days overdue`, color: "#e74c3c", urgencyClass: "urgency-red" };
     } else if (diffDays === 0) {
-      return { text: "Due today!", color: "#ef4444" };
-    } else if (diffDays <= 3) {
-      return { text: `${diffDays} days left`, color: "#ef4444" };
-    } else if (diffDays <= 7) {
-      return { text: `${diffDays} days left`, color: "#f97316" };
+      return { text: "Due today!", color: "#e74c3c", urgencyClass: "urgency-red" };
+    } else if (diffDays <= 15) {
+      return { text: `${diffDays} days left`, color: "#e74c3c", urgencyClass: "urgency-red" };
+    } else if (diffDays <= 30) {
+      return { text: `${diffDays} days left`, color: "#f5a623", urgencyClass: "urgency-gold" };
     } else {
       return {
         text: `${diffDays} days left`,
-        color: "var(--accent-gold-dark)",
+        color: "#22c55e",
+        urgencyClass: "urgency-green",
       };
     }
   };
@@ -2835,77 +2841,63 @@ function App() {
                                 textTransform: "uppercase",
                                 letterSpacing: "3.5px",
                                 marginTop: "2px",
-                                display: "block",
+                                display: "inline-flex",
+                                alignItems: "center",
                               }}
                             >
                               Interior Studio
+                              {/* Online pill inline beside subtitle */}
+                              {(() => {
+                                const getStatus = () => {
+                                  if (!isNetworkOnline) {
+                                    return {
+                                      text: "Offline",
+                                      dotColor: "#e74c3c",
+                                      bg: "rgba(231, 76, 60, 0.1)",
+                                    };
+                                  }
+                                  if (!cloudSyncEnabled) {
+                                    return {
+                                      text: "Sync Off",
+                                      dotColor: "#f5a623",
+                                      bg: "rgba(245, 166, 35, 0.1)",
+                                    };
+                                  }
+                                  return {
+                                    text: "Online",
+                                    dotColor: "#22c55e",
+                                    bg: "rgba(34, 197, 94, 0.1)",
+                                  };
+                                };
+                                const status = getStatus();
+                                return (
+                                  <span
+                                    className="online-pill-inline"
+                                    style={{
+                                      backgroundColor: status.bg,
+                                      color: status.dotColor,
+                                    }}
+                                  >
+                                    <span
+                                      className="status-dot"
+                                      style={{
+                                        backgroundColor: status.dotColor,
+                                        boxShadow: `0 0 6px ${status.dotColor}`,
+                                      }}
+                                    />
+                                    {status.text}
+                                  </span>
+                                );
+                              })()}
                             </span>
                           </div>
-                        </div>
-                        <div className="header-right" style={{ display: "flex", alignItems: "center" }}>
-                          {(() => {
-                            const getStatus = () => {
-                              if (!isNetworkOnline) {
-                                return {
-                                  text: "Offline",
-                                  dotColor: "#ef4444", // Red
-                                  bg: "rgba(239, 68, 68, 0.1)",
-                                  border: "rgba(239, 68, 68, 0.2)"
-                                };
-                              }
-                              if (!cloudSyncEnabled) {
-                                return {
-                                  text: "Sync Off",
-                                  dotColor: "#f59e0b", // Amber
-                                  bg: "rgba(245, 158, 11, 0.1)",
-                                  border: "rgba(245, 158, 11, 0.2)"
-                                };
-                              }
-                              return {
-                                text: "Online",
-                                dotColor: "#10b981", // Emerald Green
-                                bg: "rgba(16, 185, 129, 0.1)",
-                                border: "rgba(16, 185, 129, 0.2)"
-                              };
-                            };
-                            const status = getStatus();
-                            return (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "6px",
-                                  padding: "4px 10px",
-                                  borderRadius: "12px",
-                                  backgroundColor: status.bg,
-                                  border: `1px solid ${status.border}`,
-                                  fontSize: "11px",
-                                  fontWeight: "700",
-                                  color: status.dotColor,
-                                  transition: "all 0.3s ease"
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    width: "6px",
-                                    height: "6px",
-                                    borderRadius: "50%",
-                                    backgroundColor: status.dotColor,
-                                    boxShadow: `0 0 8px ${status.dotColor}`,
-                                    display: "inline-block"
-                                  }}
-                                />
-                                {status.text}
-                              </div>
-                            );
-                          })()}
                         </div>
                       </div>
 
                       <div className="screen-content fade-in">
-                        {/* Search */}
+                        {/* Slim Search with filter icon */}
                         <div className="search-container">
-                          <Search className="search-icon" size={18} />
+                          <Search className="search-icon" size={16} />
                           <input
                             type="text"
                             className="search-input"
@@ -2913,128 +2905,78 @@ function App() {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                           />
+                          <Sliders className="search-filter-icon" size={15} />
                         </div>
 
                         {/* Project List */}
                         <div className="project-list">
                           {filteredProjects.length > 0 ? (
-                            filteredProjects.map((project) => (
-                              <div
-                                key={project.id}
-                                className="project-card"
-                                onClick={() => {
-                                  setActiveProjectId(project.id);
-                                  setProjectSubTab("materials"); // default subtab
-                                }}
-                              >
-                                <div className="project-info">
-                                  <span className="project-name">
-                                    {project.name}
-                                  </span>
-                                  <div
-                                    className="project-pending-stats"
-                                    style={{
-                                      display: "flex",
-                                      gap: "16px",
-                                      marginTop: "6px",
-                                      fontSize: "12px",
-                                      color: "var(--text-muted)",
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "4px",
-                                      }}
-                                    >
-                                      <Briefcase
-                                        size={13}
-                                        style={{ color: "var(--accent)" }}
-                                      />
-                                      <span>
-                                        Pending Materials:{" "}
-                                        <strong>
-                                          {project.materials?.filter(
-                                            (m) => !m.completed
-                                          ).length || 0}
-                                        </strong>
-                                      </span>
-                                    </span>
-                                    <span
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "4px",
-                                      }}
-                                    >
-                                      <CheckSquare
-                                        size={13}
-                                        style={{ color: "var(--accent)" }}
-                                      />
-                                      <span>
-                                        Pending Works:{" "}
-                                        <strong>
-                                          {project.tasks?.filter(
-                                            (t) => !t.completed
-                                          ).length || 0}
-                                        </strong>
-                                      </span>
-                                    </span>
-                                  </div>
-                                  {project.completionDate && (
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "4px",
-                                        marginTop: "6px",
-                                        fontSize: "11px",
-                                        fontWeight: 700,
-                                        color:
-                                          getDaysLeftTextAndColor(project).color,
-                                      }}
-                                    >
-                                      <Clock size={12} />
-                                      <span>
-                                        Target:{" "}
-                                        {formatDisplayDateStr(
-                                          project.completionDate
-                                        )}{" "}
-                                        ({getDaysLeftTextAndColor(project).text})
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
+                            filteredProjects.map((project) => {
+                              const urgency = getDaysLeftTextAndColor(project);
+                              const totalMaterials = project.materials?.length || 0;
+                              const completedMaterials = project.materials?.filter(m => m.completed).length || 0;
+                              const pendingMaterials = totalMaterials - completedMaterials;
+
+                              const totalTasks = project.tasks?.length || 0;
+                              const completedTasks = project.tasks?.filter(t => t.completed).length || 0;
+                              const pendingTasks = totalTasks - completedTasks;
+
+                              return (
                                 <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    width: "100%",
-                                    marginTop: "12px",
+                                  key={project.id}
+                                  className={`project-card ${urgency.urgencyClass}`}
+                                  style={{ position: 'relative' }}
+                                  onClick={() => {
+                                    setActiveProjectId(project.id);
+                                    setProjectSubTab("materials");
                                   }}
                                 >
-                                  <span
-                                    className={`status-pill ${project.status === "not-started"
-                                        ? "not-started"
-                                        : project.status
-                                      }`}
-                                  >
-                                    {project.status.replace("-", " ")}
-                                  </span>
                                   <button
                                     className="action-icon-btn delete"
-                                    onClick={(e) =>
-                                      handleDeleteProject(project.id, e)
-                                    }
+                                    style={{ position: 'absolute', top: '16px', right: '16px' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteProject(project.id, e);
+                                    }}
                                     aria-label="Delete Project"
                                   >
                                     <Trash2 size={14} />
                                   </button>
+
+                                  <div className="project-info">
+                                    <span className="project-name" style={{ paddingRight: '28px', display: 'block' }}>
+                                      {project.name}
+                                    </span>
+
+                                    {/* Stats */}
+                                    <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--text-muted)", display: "flex", gap: "16px", fontWeight: "600" }}>
+                                      <span>Materials: <strong style={{ color: "var(--text-title)" }}>{pendingMaterials}/{totalMaterials}</strong></span>
+                                      <span>Works: <strong style={{ color: "var(--text-title)" }}>{pendingTasks}/{totalTasks}</strong></span>
+                                    </div>
+
+                                    {/* Target Date Pill & Status Pill */}
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+                                      {project.completionDate && (
+                                        <div className={`target-date-pill ${urgency.urgencyClass}`} style={{ marginTop: 0 }}>
+                                          <Clock size={11} />
+                                          <span>
+                                            {formatDisplayDateStr(project.completionDate)} · {urgency.text}
+                                          </span>
+                                        </div>
+                                      )}
+                                      <span
+                                        className={`status-pill ${project.status === "not-started"
+                                            ? "not-started"
+                                            : project.status
+                                          }`}
+                                      >
+                                        {project.status.replace("-", " ")}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            ))
+                              );
+                            })
                           ) : (
                             <div
                               style={{
