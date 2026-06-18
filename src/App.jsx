@@ -147,6 +147,18 @@ function App() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Handle click outside room menu to close it
+  useEffect(() => {
+    if (openRoomMenuId === null) return;
+    const handleDocumentClick = () => {
+      setOpenRoomMenuId(null);
+    };
+    document.addEventListener("click", handleDocumentClick);
+    return () => {
+      document.removeEventListener("click", handleDocumentClick);
+    };
+  }, [openRoomMenuId]);
+
   // 2. Check for updates from Firestore
   const checkUpdate = async (isManual = false) => {
     try {
@@ -301,6 +313,8 @@ function App() {
   const [editItemModal, setEditItemModal] = useState(null); // { type: 'project'|'material'|'task'|'meeting'|'todo', projectId?, itemId, name, description?, time?, day? }
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [reportPreview, setReportPreview] = useState(null);
+  const [customConfirm, setCustomConfirm] = useState(null); // { title, message, onConfirm }
+
 
   // Inline forms state
   const [newMaterialInput, setNewMaterialInput] = useState("");
@@ -1241,67 +1255,65 @@ function App() {
   };
 
   const handleAddRoomToExistingProject = () => {
-    const roomName = window.prompt("Enter new room name:");
-    if (roomName && roomName.trim()) {
-      setProjects(projects.map(p => {
-        if (p.id === activeProjectId) {
-          const newRoom = { id: "room_" + Date.now(), name: roomName.trim() };
-          return { ...p, rooms: [...(p.rooms || []), newRoom] };
-        }
-        return p;
-      }));
-    }
+    setEditItemModal({
+      type: "new_room",
+      projectId: activeProjectId,
+      name: ""
+    });
   };
 
   const handleEditRoom = (e, roomId, currentName) => {
     e.stopPropagation();
-    const newName = window.prompt("Edit room name:", currentName);
-    if (newName && newName.trim() && newName.trim() !== currentName) {
-      setProjects(projects.map(p => {
-        if (p.id === activeProjectId) {
-          return {
-            ...p,
-            rooms: (p.rooms || []).map(r => r.id === roomId ? { ...r, name: newName.trim() } : r)
-          };
-        }
-        return p;
-      }));
-    }
+    setEditItemModal({
+      type: "room",
+      projectId: activeProjectId,
+      itemId: roomId,
+      name: currentName
+    });
   };
 
   const handleDeleteRoom = (e, roomId) => {
     e.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this room? Materials and Tasks assigned to this room will become unassigned.")) {
-      setProjects(projects.map(p => {
-        if (p.id === activeProjectId) {
-          return {
-            ...p,
-            rooms: (p.rooms || []).filter(r => r.id !== roomId),
-            materials: (p.materials || []).map(m => m.roomId === roomId ? { ...m, roomId: null } : m),
-            tasks: (p.tasks || []).map(t => t.roomId === roomId ? { ...t, roomId: null } : t),
-          };
-        }
-        return p;
-      }));
-    }
+    setCustomConfirm({
+      title: "Delete Room",
+      message: "Are you sure you want to delete this room? Materials and Tasks assigned to this room will become unassigned.",
+      onConfirm: () => {
+        setProjects(projects.map(p => {
+          if (p.id === activeProjectId) {
+            return {
+              ...p,
+              rooms: (p.rooms || []).filter(r => r.id !== roomId),
+              materials: (p.materials || []).map(m => m.roomId === roomId ? { ...m, roomId: null } : m),
+              tasks: (p.tasks || []).map(t => t.roomId === roomId ? { ...t, roomId: null } : t),
+            };
+          }
+          return p;
+        }));
+      }
+    });
   };
+
 
   // Delete Project (Move to Recycle Bin)
   const handleDeleteProject = (projId, e) => {
-    e.stopPropagation(); // Stop navigation click
-    if (window.confirm("Are you sure you want to move this project to the Recycle Bin (Trash)?")) {
-      setProjects(
-        projects.map((p) => {
-          if (p.id === projId) {
-            return { ...p, isTrashed: true, trashedAt: new Date().toISOString() };
-          }
-          return p;
-        })
-      );
-      if (activeProjectId === projId) {
-        setActiveProjectId(null);
+    if (e) e.stopPropagation(); // Stop navigation click
+    setCustomConfirm({
+      title: "Move Project to Trash",
+      message: "Are you sure you want to move this project to the Recycle Bin (Trash)?",
+      onConfirm: () => {
+        setProjects(
+          projects.map((p) => {
+            if (p.id === projId) {
+              return { ...p, isTrashed: true, trashedAt: new Date().toISOString() };
+            }
+            return p;
+          })
+        );
+        if (activeProjectId === projId) {
+          setActiveProjectId(null);
+        }
       }
-    }
+    });
   };
 
   // Update Project Status from details screen
@@ -1462,37 +1474,73 @@ function App() {
   // Clear Completed Materials
   const handleClearCompletedMaterials = () => {
     if (!activeProjectId) return;
-    const confirmClear = window.confirm("Are you sure you want to clear all completed materials?");
-    if (!confirmClear) return;
-    setProjects(
-      projects.map((p) => {
-        if (p.id === activeProjectId) {
-          return {
-            ...p,
-            materials: (p.materials || []).filter((m) => !m.completed),
-          };
-        }
-        return p;
-      })
-    );
+    
+    let roomName = "this room";
+    if (activeRoomId === "general") {
+      roomName = "General / Unassigned";
+    } else if (activeRoomId) {
+      const room = activeProject?.rooms?.find(r => r.id === activeRoomId);
+      if (room) roomName = room.name;
+    }
+    
+    setCustomConfirm({
+      title: "Clear Completed Materials",
+      message: `Are you sure you want to clear all completed materials in ${roomName}?`,
+      onConfirm: () => {
+        setProjects(
+          projects.map((p) => {
+            if (p.id === activeProjectId) {
+              return {
+                ...p,
+                materials: (p.materials || []).filter((m) => {
+                  const belongsToActiveRoom = activeRoomId === "general"
+                    ? (!m.roomId || m.roomId === "general")
+                    : m.roomId === activeRoomId;
+                  return !m.completed || !belongsToActiveRoom;
+                }),
+              };
+            }
+            return p;
+          })
+        );
+      }
+    });
   };
 
   // Clear Completed Tasks
   const handleClearCompletedTasks = () => {
     if (!activeProjectId) return;
-    const confirmClear = window.confirm("Are you sure you want to clear all completed tasks?");
-    if (!confirmClear) return;
-    setProjects(
-      projects.map((p) => {
-        if (p.id === activeProjectId) {
-          return {
-            ...p,
-            tasks: (p.tasks || []).filter((t) => !t.completed),
-          };
-        }
-        return p;
-      })
-    );
+    
+    let roomName = "this room";
+    if (activeRoomId === "general") {
+      roomName = "General / Unassigned";
+    } else if (activeRoomId) {
+      const room = activeProject?.rooms?.find(r => r.id === activeRoomId);
+      if (room) roomName = room.name;
+    }
+    
+    setCustomConfirm({
+      title: "Clear Completed Tasks",
+      message: `Are you sure you want to clear all completed tasks in ${roomName}?`,
+      onConfirm: () => {
+        setProjects(
+          projects.map((p) => {
+            if (p.id === activeProjectId) {
+              return {
+                ...p,
+                tasks: (p.tasks || []).filter((t) => {
+                  const belongsToActiveRoom = activeRoomId === "general"
+                    ? (!t.roomId || t.roomId === "general")
+                    : t.roomId === activeRoomId;
+                  return !t.completed || !belongsToActiveRoom;
+                }),
+              };
+            }
+            return p;
+          })
+        );
+      }
+    });
   };
 
   // Drag and drop handlers for tasks
@@ -1580,6 +1628,32 @@ function App() {
           return p;
         })
       );
+    } else if (type === "room") {
+      setProjects(
+        projects.map((p) => {
+          if (p.id === projectId) {
+            return {
+              ...p,
+              rooms: (p.rooms || []).map((r) =>
+                r.id === itemId ? { ...r, name: name.trim() } : r
+              ),
+            };
+          }
+          return p;
+        })
+      );
+    } else if (type === "new_room") {
+      if (name && name.trim()) {
+        setProjects(
+          projects.map((p) => {
+            if (p.id === projectId) {
+              const newRoom = { id: "room_" + Date.now(), name: name.trim() };
+              return { ...p, rooms: [...(p.rooms || []), newRoom] };
+            }
+            return p;
+          })
+        );
+      }
     } else if (type === "material") {
       setProjects(
         projects.map((p) => {
@@ -1650,9 +1724,9 @@ function App() {
   // WhatsApp Sharing Logic
   const handleShareMaterials = () => {
     if (!activeProject) return;
-    const pending = activeProject.materials?.filter((m) => !m.completed) || [];
-    if (pending.length === 0) {
-      alert("No pending materials to share!");
+    const materials = activeProject.materials || [];
+    if (materials.length === 0) {
+      alert("No materials to share!");
       return;
     }
 
@@ -1670,22 +1744,35 @@ function App() {
         activeProject.completionDate
       )}\n`;
     }
-    text += `\n*Pending Materials:*\n`;
-    pending.forEach((m) => {
-      text += `- ${m.name}\n`;
-    });
+
+    const pending = materials.filter(m => !m.completed);
+    const completed = materials.filter(m => m.completed);
+
+    if (pending.length > 0) {
+      text += `\n*Pending Materials:*\n`;
+      pending.forEach((m) => {
+        text += `- ${m.name}\n`;
+      });
+    }
+
+    if (completed.length > 0) {
+      text += `\n*Completed Materials:*\n`;
+      completed.forEach((m) => {
+        text += `- ${m.name} (Completed)\n`;
+      });
+    }
 
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(
-      text
+      text.trim()
     )}`;
     window.open(url, "_blank");
   };
 
   const handleShareTasks = () => {
     if (!activeProject) return;
-    const pending = activeProject.tasks?.filter((t) => !t.completed) || [];
-    if (pending.length === 0) {
-      alert("No pending tasks to share!");
+    const tasks = activeProject.tasks || [];
+    if (tasks.length === 0) {
+      alert("No tasks to share!");
       return;
     }
 
@@ -1703,31 +1790,43 @@ function App() {
         activeProject.completionDate
       )}\n`;
     }
-    text += `\n*Pending Tasks (Sorted by Priority):*\n`;
 
-    const sorted = [...pending].sort(
-      (a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)
-    );
-    sorted.forEach((t) => {
-      const priorityStr = (t.priority || "medium").toUpperCase();
-      const emoji =
-        t.priority === "high" ? "🔴" : t.priority === "low" ? "🔵" : "🟠";
-      text += `${emoji} [${priorityStr}] ${t.name}\n`;
-    });
+    const pending = tasks.filter(t => !t.completed);
+    const completed = tasks.filter(t => t.completed);
+
+    if (pending.length > 0) {
+      text += `\n*Pending Tasks (Sorted by Priority):*\n`;
+      const sorted = [...pending].sort(
+        (a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)
+      );
+      sorted.forEach((t) => {
+        const priorityStr = (t.priority || "medium").toUpperCase();
+        const emoji =
+          t.priority === "high" ? "🔴" : t.priority === "low" ? "🔵" : "🟠";
+        text += `${emoji} [${priorityStr}] ${t.name}\n`;
+      });
+    }
+
+    if (completed.length > 0) {
+      text += `\n*Completed Tasks:*\n`;
+      completed.forEach((t) => {
+        text += `✅ ${t.name} (Completed)\n`;
+      });
+    }
 
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(
-      text
+      text.trim()
     )}`;
     window.open(url, "_blank");
   };
 
   const handleShareProjectOverview = () => {
     if (!activeProject) return;
-    const pendingMaterials = activeProject.materials?.filter((m) => !m.completed) || [];
-    const pendingTasks = activeProject.tasks?.filter((t) => !t.completed) || [];
+    const materials = activeProject.materials || [];
+    const tasks = activeProject.tasks || [];
 
-    if (pendingMaterials.length === 0 && pendingTasks.length === 0) {
-      alert("No pending materials or tasks to share!");
+    if (materials.length === 0 && tasks.length === 0) {
+      alert("No materials or tasks to share!");
       return;
     }
 
@@ -1737,14 +1836,14 @@ function App() {
     roomsMap.set('general', 'General / Unassigned');
 
     const materialsByRoom = {};
-    pendingMaterials.forEach(m => {
+    materials.forEach(m => {
       const roomId = m.roomId || 'general';
       if (!materialsByRoom[roomId]) materialsByRoom[roomId] = [];
       materialsByRoom[roomId].push(m);
     });
 
     const tasksByRoom = {};
-    pendingTasks.forEach(t => {
+    tasks.forEach(t => {
       const roomId = t.roomId || 'general';
       if (!tasksByRoom[roomId]) tasksByRoom[roomId] = [];
       tasksByRoom[roomId].push(t);
@@ -1770,19 +1869,35 @@ function App() {
       text += `\n--- *${roomName.toUpperCase()}* ---\n`;
 
       const rMaterials = materialsByRoom[roomId] || [];
-      if (rMaterials.length > 0) {
-        text += `*Materials:*\n`;
-        rMaterials.forEach(m => { text += `- ${m.name}\n`; });
+      const pendingM = rMaterials.filter(m => !m.completed);
+      const completedM = rMaterials.filter(m => m.completed);
+
+      if (pendingM.length > 0) {
+        text += `*Pending Materials:*\n`;
+        pendingM.forEach(m => { text += `- ${m.name}\n`; });
+      }
+      if (completedM.length > 0) {
+        text += `*Completed Materials:*\n`;
+        completedM.forEach(m => { text += `- ${m.name} (Completed)\n`; });
       }
 
       const rTasks = tasksByRoom[roomId] || [];
-      if (rTasks.length > 0) {
-        text += `*Work:*\n`;
-        const sorted = [...rTasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority));
+      const pendingT = rTasks.filter(t => !t.completed);
+      const completedT = rTasks.filter(t => t.completed);
+
+      if (pendingT.length > 0) {
+        text += `*Pending Work:*\n`;
+        const sorted = [...pendingT].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority));
         sorted.forEach(t => {
           const emoji = t.priority === "high" ? "🔴" : t.priority === "low" ? "🔵" : "🟠";
           const priorityStr = (t.priority || "medium").toUpperCase();
           text += `${emoji} [${priorityStr}] ${t.name}\n`;
+        });
+      }
+      if (completedT.length > 0) {
+        text += `*Completed Work:*\n`;
+        completedT.forEach(t => {
+          text += `✅ ${t.name} (Completed)\n`;
         });
       }
     });
@@ -1795,26 +1910,25 @@ function App() {
   const generatePDFReport = (type) => {
     if (!activeProject) return;
 
-    const pendingMaterials =
-      activeProject.materials?.filter((m) => !m.completed) || [];
-    const pendingTasks = activeProject.tasks?.filter((t) => !t.completed) || [];
+    const materials = activeProject.materials || [];
+    const tasks = activeProject.tasks || [];
 
-    if (type === "materials" && pendingMaterials.length === 0) {
-      alert("No pending materials to generate a PDF report.");
+    if (type === "materials" && materials.length === 0) {
+      alert("No materials to generate a PDF report.");
       return;
     }
-    if (type === "tasks" && pendingTasks.length === 0) {
-      alert("No pending tasks to generate a PDF report.");
+    if (type === "tasks" && tasks.length === 0) {
+      alert("No tasks to generate a PDF report.");
       return;
     }
-    if (type === "both" && pendingMaterials.length === 0 && pendingTasks.length === 0) {
-      alert("No pending materials or tasks to generate a PDF report.");
+    if (type === "both" && materials.length === 0 && tasks.length === 0) {
+      alert("No materials or tasks to generate a PDF report.");
       return;
     }
 
     let reportTitle;
-    if (type === "materials") reportTitle = "Pending Materials";
-    else if (type === "tasks") reportTitle = "Pending Works";
+    if (type === "materials") reportTitle = "Materials Report";
+    else if (type === "tasks") reportTitle = "Works Report";
     else reportTitle = "Project Status Report";
 
     setReportPreview({
@@ -1822,8 +1936,8 @@ function App() {
       title: reportTitle,
       projectName: activeProject.name,
       targetDate: activeProject.completionDate,
-      materials: pendingMaterials,
-      tasks: [...pendingTasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)),
+      materials: materials,
+      tasks: [...tasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)),
       rooms: activeProject.rooms || []
     });
   };
@@ -1832,21 +1946,16 @@ function App() {
     e.stopPropagation();
     if (!activeProject) return;
 
-    const pendingMaterials = activeProject.materials?.filter(m => (room.id === 'general' ? (!m.roomId || m.roomId === 'general') : m.roomId === room.id) && !m.completed) || [];
-    const pendingTasks = activeProject.tasks?.filter(t => (room.id === 'general' ? (!t.roomId || t.roomId === 'general') : t.roomId === room.id) && !t.completed) || [];
-
-    if (pendingMaterials.length === 0 && pendingTasks.length === 0) {
-      alert("No pending materials or tasks in this room to generate a PDF.");
-      return;
-    }
+    const materials = activeProject.materials?.filter(m => (room.id === 'general' ? (!m.roomId || m.roomId === 'general') : m.roomId === room.id)) || [];
+    const tasks = activeProject.tasks?.filter(t => (room.id === 'general' ? (!t.roomId || t.roomId === 'general') : t.roomId === room.id)) || [];
 
     setReportPreview({
       type: "both",
       title: `${room.name} Report`,
       projectName: activeProject.name,
       targetDate: activeProject.completionDate,
-      materials: pendingMaterials,
-      tasks: [...pendingTasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)),
+      materials: materials,
+      tasks: [...tasks].sort((a, b) => getPriorityWeight(b.priority) - getPriorityWeight(a.priority)),
       rooms: activeProject.rooms || []
     });
   };
@@ -1855,13 +1964,8 @@ function App() {
     e.stopPropagation();
     if (!activeProject) return;
 
-    const pendingMaterials = activeProject.materials?.filter(m => (room.id === 'general' ? (!m.roomId || m.roomId === 'general') : m.roomId === room.id) && !m.completed) || [];
-    const pendingTasks = activeProject.tasks?.filter(t => (room.id === 'general' ? (!t.roomId || t.roomId === 'general') : t.roomId === room.id) && !t.completed) || [];
-
-    if (pendingMaterials.length === 0 && pendingTasks.length === 0) {
-      alert("No pending materials or tasks in this room to share!");
-      return;
-    }
+    const materials = activeProject.materials?.filter(m => (room.id === 'general' ? (!m.roomId || m.roomId === 'general') : m.roomId === room.id)) || [];
+    const tasks = activeProject.tasks?.filter(t => (room.id === 'general' ? (!t.roomId || t.roomId === 'general') : t.roomId === room.id)) || [];
 
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, "0");
@@ -1874,19 +1978,44 @@ function App() {
     text += `*Project:* ${activeProject.name}\n`;
     text += `*Room:* ${room.name}\n\n`;
 
-    if (pendingMaterials.length > 0) {
-      text += `*Pending Materials:*\n`;
-      pendingMaterials.forEach((m) => {
-        text += `- ${m.name}\n`;
-      });
-      text += `\n`;
-    }
+    if (materials.length === 0 && tasks.length === 0) {
+      text += `No materials or tasks defined in this room.\n`;
+    } else {
+      const pendingMaterials = materials.filter(m => !m.completed);
+      const completedMaterials = materials.filter(m => m.completed);
+      const pendingTasks = tasks.filter(t => !t.completed);
+      const completedTasks = tasks.filter(t => t.completed);
 
-    if (pendingTasks.length > 0) {
-      text += `*Pending Work:*\n`;
-      pendingTasks.forEach((t) => {
-        text += `- ${t.name}\n`;
-      });
+      if (pendingMaterials.length > 0) {
+        text += `*Pending Materials:*\n`;
+        pendingMaterials.forEach((m) => {
+          text += `- ${m.name}\n`;
+        });
+        text += `\n`;
+      }
+
+      if (completedMaterials.length > 0) {
+        text += `*Completed Materials:*\n`;
+        completedMaterials.forEach((m) => {
+          text += `- ${m.name} (Completed)\n`;
+        });
+        text += `\n`;
+      }
+
+      if (pendingTasks.length > 0) {
+        text += `*Pending Work:*\n`;
+        pendingTasks.forEach((t) => {
+          text += `- ${t.name}\n`;
+        });
+        text += `\n`;
+      }
+
+      if (completedTasks.length > 0) {
+        text += `*Completed Work:*\n`;
+        completedTasks.forEach((t) => {
+          text += `- ${t.name} (Completed)\n`;
+        });
+      }
     }
 
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text.trim())}`;
@@ -2136,7 +2265,14 @@ function App() {
             doc.rect(20, y - 4, 170, 7, "F");
           }
           doc.text(`• ${m.name}`, 22, y + 1);
-          doc.text("Pending", 160, y + 1);
+          if (m.completed) {
+            doc.setTextColor(34, 197, 94); // Green for completed
+            doc.text("Completed", 160, y + 1);
+          } else {
+            doc.setTextColor(100, 116, 139); // Gray/muted for pending
+            doc.text("Pending", 160, y + 1);
+          }
+          doc.setTextColor(51, 65, 85); // reset
           y += 8;
         });
         y += 4; // gap
@@ -2164,12 +2300,16 @@ function App() {
           }
           doc.text(`• ${t.name}`, 22, y + 1);
 
-          const pStr = (t.priority || "medium").toUpperCase();
-          if (t.priority === "high") doc.setTextColor(239, 68, 68);
-          else if (t.priority === "low") doc.setTextColor(59, 130, 246);
-          else doc.setTextColor(249, 115, 22);
-
-          doc.text(pStr, 160, y + 1);
+          if (t.completed) {
+            doc.setTextColor(34, 197, 94); // Green for completed
+            doc.text("COMPLETED", 160, y + 1);
+          } else {
+            const pStr = (t.priority || "medium").toUpperCase();
+            if (t.priority === "high") doc.setTextColor(239, 68, 68);
+            else if (t.priority === "low") doc.setTextColor(59, 130, 246);
+            else doc.setTextColor(249, 115, 22);
+            doc.text(pStr, 160, y + 1);
+          }
           doc.setTextColor(51, 65, 85); // reset
           y += 8;
         });
@@ -3059,9 +3199,14 @@ function App() {
                                 <div
                                   key={room.id}
                                   className="room-card fade-in"
-                                  onClick={() => setActiveRoomId(room.id)}
+                                  onClick={(e) => {
+                                    if (!e.target.closest('.icon-btn') && !e.target.closest('.popover-menu')) {
+                                      setActiveRoomId(room.id);
+                                    }
+                                  }}
+                                  style={{ zIndex: openRoomMenuId === room.id ? 100 : 1 }}
                                 >
-                                  <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 10 }}>
+                                  <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 12 }}>
                                     <button
                                       className="icon-btn"
                                       onClick={(e) => {
@@ -3074,42 +3219,40 @@ function App() {
                                     </button>
 
                                     {openRoomMenuId === room.id && (
-                                      <>
-                                        <div
-                                          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 11 }}
-                                          onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); }}
-                                        />
-                                        <div className="popover-menu" style={{ flexDirection: 'row', minWidth: 'auto', gap: '8px', padding: '8px', borderRadius: '12px' }}>
-                                          <button
-                                            className="room-action-btn edit"
-                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleEditRoom(e, room.id, room.name); }}
-                                            title="Edit Room Name"
-                                          >
-                                            <Edit2 size={14} />
-                                          </button>
-                                          <button
-                                            className="room-action-btn delete"
-                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleDeleteRoom(e, room.id); }}
-                                            title="Delete Room"
-                                          >
-                                            <Trash2 size={14} />
-                                          </button>
-                                          <button
-                                            className="room-action-btn share"
-                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleShareRoom(e, room); }}
-                                            title="Share Room to WhatsApp"
-                                          >
-                                            <Share2 size={14} />
-                                          </button>
-                                          <button
-                                            className="room-action-btn pdf"
-                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleGenerateRoomPDF(e, room); }}
-                                            title="Download Room PDF"
-                                          >
-                                            <FileText size={14} />
-                                          </button>
-                                        </div>
-                                      </>
+                                      <div 
+                                        className="popover-menu" 
+                                        onClick={(e) => e.stopPropagation()} 
+                                        style={{ flexDirection: 'row', minWidth: 'auto', gap: '8px', padding: '8px', borderRadius: '12px', zIndex: 20 }}
+                                      >
+                                        <button
+                                          className="room-action-btn edit"
+                                          onClick={(e) => { e.stopPropagation(); handleEditRoom(e, room.id, room.name); setTimeout(() => setOpenRoomMenuId(null), 100); }}
+                                          title="Edit Room Name"
+                                        >
+                                          <Edit2 size={14} />
+                                        </button>
+                                        <button
+                                          className="room-action-btn delete"
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteRoom(e, room.id); setTimeout(() => setOpenRoomMenuId(null), 100); }}
+                                          title="Delete Room"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                        <button
+                                          className="room-action-btn share"
+                                          onClick={(e) => { e.stopPropagation(); handleShareRoom(e, room); setTimeout(() => setOpenRoomMenuId(null), 100); }}
+                                          title="Share Room to WhatsApp"
+                                        >
+                                          <Share2 size={14} />
+                                        </button>
+                                        <button
+                                          className="room-action-btn pdf"
+                                          onClick={(e) => { e.stopPropagation(); handleGenerateRoomPDF(e, room); setTimeout(() => setOpenRoomMenuId(null), 100); }}
+                                          title="Download Room PDF"
+                                        >
+                                          <FileText size={14} />
+                                        </button>
+                                      </div>
                                     )}
                                   </div>
 
@@ -3138,9 +3281,14 @@ function App() {
                               return (
                                 <div
                                   className="room-card general-room fade-in"
-                                  onClick={() => setActiveRoomId("general")}
+                                  onClick={(e) => {
+                                    if (!e.target.closest('.icon-btn') && !e.target.closest('.popover-menu')) {
+                                      setActiveRoomId("general");
+                                    }
+                                  }}
+                                  style={{ zIndex: openRoomMenuId === "general" ? 100 : 1 }}
                                 >
-                                  <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 10 }}>
+                                  <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 12 }}>
                                     <button
                                       className="icon-btn"
                                       onClick={(e) => {
@@ -3153,28 +3301,26 @@ function App() {
                                     </button>
 
                                     {openRoomMenuId === "general" && (
-                                      <>
-                                        <div
-                                          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 11 }}
-                                          onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); }}
-                                        />
-                                        <div className="popover-menu" style={{ flexDirection: 'row', minWidth: 'auto', gap: '8px', padding: '8px', borderRadius: '12px' }}>
-                                          <button
-                                            className="room-action-btn share"
-                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleShareRoom(e, { id: 'general', name: 'General / Unassigned' }); }}
-                                            title="Share Room to WhatsApp"
-                                          >
-                                            <Share2 size={14} />
-                                          </button>
-                                          <button
-                                            className="room-action-btn pdf"
-                                            onClick={(e) => { e.stopPropagation(); setOpenRoomMenuId(null); handleGenerateRoomPDF(e, { id: 'general', name: 'General / Unassigned' }); }}
-                                            title="Download Room PDF"
-                                          >
-                                            <FileText size={14} />
-                                          </button>
-                                        </div>
-                                      </>
+                                      <div 
+                                        className="popover-menu" 
+                                        onClick={(e) => e.stopPropagation()} 
+                                        style={{ flexDirection: 'row', minWidth: 'auto', gap: '8px', padding: '8px', borderRadius: '12px', zIndex: 20 }}
+                                      >
+                                        <button
+                                          className="room-action-btn share"
+                                          onClick={(e) => { e.stopPropagation(); handleShareRoom(e, { id: 'general', name: 'General / Unassigned' }); setTimeout(() => setOpenRoomMenuId(null), 100); }}
+                                          title="Share Room to WhatsApp"
+                                        >
+                                          <Share2 size={14} />
+                                        </button>
+                                        <button
+                                          className="room-action-btn pdf"
+                                          onClick={(e) => { e.stopPropagation(); handleGenerateRoomPDF(e, { id: 'general', name: 'General / Unassigned' }); setTimeout(() => setOpenRoomMenuId(null), 100); }}
+                                          title="Download Room PDF"
+                                        >
+                                          <FileText size={14} />
+                                        </button>
+                                      </div>
                                     )}
                                   </div>
 
@@ -3206,11 +3352,10 @@ function App() {
                               >
                                 <ArrowLeft size={20} />
                               </button>
-                              <div className="header-title-container" style={{ maxWidth: "230px" }}>
-                                <span className="header-subtitle">{activeProject?.name || "Project"}</span>
-                                <h1 style={{ marginBottom: "2px" }}>
-                                  {activeRoomId === "general" ? "General / Unassigned" : (activeProject?.rooms?.find(r => r.id === activeRoomId)?.name || "Room")}
-                                </h1>
+                              <div className="header-title-container" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-title)' }}>
+                                  {activeProject?.name || "Project"} <span style={{ color: 'var(--text-muted)', fontWeight: '400', margin: '0 4px' }}>&gt;</span> {activeRoomId === "general" ? "General / Unassigned" : (activeProject?.rooms?.find(r => r.id === activeRoomId)?.name || "Room")}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -3241,7 +3386,7 @@ function App() {
                               // MATERIALS SUB-TAB (Screen 2 details)
                               <>
                                 <div className="section-header-new">
-                                  <h2 className="section-title-new">Materials</h2>
+                                  {/* Title removed to avoid repetition */}
                                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                     <span className="section-count-new">
                                       {(activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && !m.completed).length || 0)} ITEMS
@@ -3267,8 +3412,7 @@ function App() {
 
                                 {/* Add New Material Card */}
                                 <div className="quick-add-card-new">
-                                  <h3 className="quick-add-new-title">Add New Material</h3>
-                                  {/* <p className="quick-add-new-desc">Enter a material name to add it to this project.</p> */}
+                                  {/* Title removed to save space */}
                                   <form onSubmit={handleAddMaterial} className="quick-add-new-form">
                                     <div className="quick-add-input-group-new">
                                       <input
@@ -3363,6 +3507,7 @@ function App() {
                                     {activeProject?.materials?.filter((m) => (activeRoomId === "general" ? (!m.roomId || m.roomId === "general") : m.roomId === activeRoomId) && m.completed).length > 0 && (
                                       <button
                                         onClick={(e) => {
+                                          e.preventDefault();
                                           e.stopPropagation();
                                           handleClearCompletedMaterials();
                                         }}
@@ -3374,7 +3519,9 @@ function App() {
                                           color: "#ef4444",
                                           border: "1px solid rgba(239, 68, 68, 0.2)",
                                           cursor: "pointer",
-                                          fontWeight: "600"
+                                          fontWeight: "600",
+                                          position: "relative",
+                                          zIndex: 2
                                         }}
                                       >
                                         Clear Completed
@@ -3430,7 +3577,7 @@ function App() {
                               // WORK/TASKS SUB-TAB (Screen 3 details)
                               <>
                                 <div className="section-header-new">
-                                  <h2 className="section-title-new">Work</h2>
+                                  {/* Title removed to avoid repetition */}
                                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                     <span className="section-count-new">
                                       {(activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && !t.completed).length || 0)} ITEMS
@@ -3456,8 +3603,7 @@ function App() {
 
                                 {/* Add New Work Card */}
                                 <div className="quick-add-card-new">
-                                  <h3 className="quick-add-new-title">Add New Work</h3>
-                                  {/* <p className="quick-add-new-desc">Enter a work description to add it to this project.</p> */}
+                                  {/* Title removed to save space */}
                                   <form onSubmit={handleAddTask} className="quick-add-new-form">
                                     <div className="quick-add-input-group-new">
                                       <input
@@ -3599,6 +3745,7 @@ function App() {
                                     {activeProject?.tasks?.filter((t) => (activeRoomId === "general" ? (!t.roomId || t.roomId === "general") : t.roomId === activeRoomId) && t.completed).length > 0 && (
                                       <button
                                         onClick={(e) => {
+                                          e.preventDefault();
                                           e.stopPropagation();
                                           handleClearCompletedTasks();
                                         }}
@@ -3610,7 +3757,9 @@ function App() {
                                           color: "#ef4444",
                                           border: "1px solid rgba(239, 68, 68, 0.2)",
                                           cursor: "pointer",
-                                          fontWeight: "600"
+                                          fontWeight: "600",
+                                          position: "relative",
+                                          zIndex: 2
                                         }}
                                       >
                                         Clear Completed
@@ -5096,7 +5245,12 @@ function App() {
                   {/* Center Hump with + Button */}
                   <div
                     className="nav-hump-container"
-                    style={{ visibility: currentTab === "profile" ? "hidden" : "visible" }}
+                    style={{ 
+                      visibility: (
+                        currentTab === "profile" || 
+                        (currentTab === "projects" && activeProjectId !== null && activeRoomId !== null)
+                      ) ? "hidden" : "visible" 
+                    }}
                   >
                     <div className="nav-hump"></div>
                     <button
@@ -5443,11 +5597,15 @@ function App() {
                             {userRole === "admin" && (
                               <button
                                 onClick={() => {
-                                  if (window.confirm("Are you sure you want to permanently delete all projects in the trash? This cannot be undone!")) {
-                                    const trashedIds = projects.filter(p => p.isTrashed).map(p => p.id);
-                                    setProjects(projects.filter(p => !p.isTrashed));
-                                    setDeletedProjectIds(prev => [...new Set([...prev, ...trashedIds])]);
-                                  }
+                                  setCustomConfirm({
+                                    title: "Empty Trash",
+                                    message: "Are you sure you want to permanently delete all projects in the trash? This cannot be undone!",
+                                    onConfirm: () => {
+                                      const trashedIds = projects.filter(p => p.isTrashed).map(p => p.id);
+                                      setProjects(projects.filter(p => !p.isTrashed));
+                                      setDeletedProjectIds(prev => [...new Set([...prev, ...trashedIds])]);
+                                    }
+                                  });
                                 }}
                                 style={{
                                   padding: "8px 12px",
@@ -5492,10 +5650,13 @@ function App() {
                                 {/* Restore Button */}
                                 <button
                                   onClick={() => {
-                                    if (window.confirm(`Are you sure you want to restore the project "${p.name}"?`)) {
-                                      setProjects(projects.map(proj => proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null } : proj));
-                                      alert(`Successfully restored "${p.name}"!`);
-                                    }
+                                    setCustomConfirm({
+                                      title: "Restore Project",
+                                      message: `Are you sure you want to restore the project "${p.name}"?`,
+                                      onConfirm: () => {
+                                        setProjects(projects.map(proj => proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null } : proj));
+                                      }
+                                    });
                                   }}
                                   style={{
                                     padding: "6px 12px",
@@ -5519,10 +5680,14 @@ function App() {
                                 {userRole === "admin" && (
                                   <button
                                     onClick={() => {
-                                      if (window.confirm(`Are you sure you want to permanently delete "${p.name}"? This cannot be undone!`)) {
-                                        setProjects(projects.filter(proj => proj.id !== p.id));
-                                        setDeletedProjectIds(prev => [...new Set([...prev, p.id])]);
-                                      }
+                                      setCustomConfirm({
+                                        title: "Permanently Delete Project",
+                                        message: `Are you sure you want to permanently delete "${p.name}"? This cannot be undone!`,
+                                        onConfirm: () => {
+                                          setProjects(projects.filter(proj => proj.id !== p.id));
+                                          setDeletedProjectIds(prev => [...new Set([...prev, p.id])]);
+                                        }
+                                      });
                                     }}
                                     style={{
                                       padding: "6px 10px",
@@ -5834,18 +5999,23 @@ function App() {
                 </div>
               )}
 
-              {/* General Edit Modal */}
               {editItemModal && (
                 <div
                   className="modal-overlay"
                   onClick={() => setEditItemModal(null)}
+                  style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}
                 >
                   <div
                     className="modal-content"
                     onClick={(e) => e.stopPropagation()}
+                    style={{ width: "100%", maxWidth: "360px", borderRadius: "16px", padding: "24px 20px", margin: "auto", maxHeight: "85vh", overflowY: "auto" }}
                   >
                     <div className="modal-header">
-                      <h3>Edit {editItemModal.type}</h3>
+                      <h3>
+                        {editItemModal.type === "new_room"
+                          ? "Add New Room"
+                          : `Edit ${editItemModal.type === "room" ? "Room" : editItemModal.type}`}
+                      </h3>
                       <button
                         className="icon-btn"
                         onClick={() => setEditItemModal(null)}
@@ -5862,6 +6032,8 @@ function App() {
                         <label>
                           {editItemModal.type === "meeting"
                             ? "Meeting Title"
+                            : (editItemModal.type === "room" || editItemModal.type === "new_room")
+                            ? "Room Name"
                             : "Name"}
                         </label>
                         <input
@@ -6038,6 +6210,48 @@ function App() {
                         </button>
                       </div>
                     </form>
+                  </div>
+                </div>
+              )}
+
+              {customConfirm && (
+                <div
+                  className="modal-overlay"
+                  onClick={() => setCustomConfirm(null)}
+                  style={{ zIndex: 3000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}
+                >
+                  <div
+                    className="modal-content"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ width: "100%", maxWidth: "340px", borderRadius: "16px", padding: "24px 20px", textAlign: "center", margin: "auto" }}
+                  >
+                    <h3 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "12px", color: "var(--text-title)" }}>
+                      {customConfirm.title}
+                    </h3>
+                    <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "24px", lineHeight: "1.5" }}>
+                      {customConfirm.message}
+                    </p>
+                    <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => setCustomConfirm(null)}
+                        style={{ padding: "10px 20px", borderRadius: "8px", flex: 1 }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => {
+                          customConfirm.onConfirm();
+                          setCustomConfirm(null);
+                        }}
+                        style={{ padding: "10px 20px", borderRadius: "8px", flex: 1, backgroundColor: "#ef4444", color: "white", border: "none" }}
+                      >
+                        Confirm
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

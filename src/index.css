@@ -2557,9 +2557,9 @@ textarea.form-control {
 .quick-add-card-new {
   background-color: #fdfaf5; /* Warm off-white beige */
   border: 1px solid #f3dec9; /* Soft orange-gold border */
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 24px;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 16px;
   box-shadow: 0 4px 12px rgba(212, 175, 55, 0.04);
 }
 
@@ -2588,7 +2588,8 @@ textarea.form-control {
 
 .quick-add-new-form {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 12px;
 }
 
@@ -2597,6 +2598,7 @@ textarea.form-control {
   flex-direction: row;
   gap: 12px;
   align-items: center;
+  flex: 1;
 }
 
 .quick-add-new-input {
@@ -3035,21 +3037,7 @@ textarea.form-control {
 
 /* Mobile responsive adjustments for new premium UI elements */
 @media (max-width: 480px) {
-  .quick-add-input-group-new {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .quick-add-new-input {
-    width: 100%;
-  }
-
-  .quick-add-new-btn {
-    width: 100%;
-    text-align: center;
-    padding: 12px 16px;
-  }
+  /* Removed quick-add overrides so input and button stay on a single line */
 }
 
 /* Drag and Drop premium styled layout for tasks */
@@ -3364,36 +3352,64 @@ textarea.form-control {
   transform: scale(1.05);
 }
 
+.room-action-btn > *, .icon-btn > * {
+  pointer-events: none;
+}
+
 .room-action-btn.edit {
   color: var(--accent-blue);
-  background: rgba(59, 130, 246, 0.1);
+  background-color: #eff6ff;
 }
 .room-action-btn.edit:hover {
-  background: rgba(59, 130, 246, 0.2);
+  background-color: #dbeafe;
+}
+.dark-theme .room-action-btn.edit {
+  background-color: #1e293b;
+}
+.dark-theme .room-action-btn.edit:hover {
+  background-color: #334155;
 }
 
 .room-action-btn.delete {
   color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  background-color: #fef2f2;
 }
 .room-action-btn.delete:hover {
-  background: rgba(239, 68, 68, 0.2);
+  background-color: #fee2e2;
+}
+.dark-theme .room-action-btn.delete {
+  background-color: #2a1b1d;
+}
+.dark-theme .room-action-btn.delete:hover {
+  background-color: #3f1f23;
 }
 
 .room-action-btn.share {
   color: #25D366;
-  background: rgba(37, 211, 102, 0.1);
+  background-color: #f0fdf4;
 }
 .room-action-btn.share:hover {
-  background: rgba(37, 211, 102, 0.2);
+  background-color: #dcfce7;
+}
+.dark-theme .room-action-btn.share {
+  background-color: #142e1b;
+}
+.dark-theme .room-action-btn.share:hover {
+  background-color: #1b4728;
 }
 
 .room-action-btn.pdf {
   color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  background-color: #fef2f2;
 }
 .room-action-btn.pdf:hover {
-  background: rgba(239, 68, 68, 0.2);
+  background-color: #fee2e2;
+}
+.dark-theme .room-action-btn.pdf {
+  background-color: #2a1b1d;
+}
+.dark-theme .room-action-btn.pdf:hover {
+  background-color: #3f1f23;
 }
 
 .dot-separator {
