@@ -66,7 +66,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.1.3";
+const WEB_APP_VERSION = "1.1.4";
 
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
