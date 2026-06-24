@@ -60,7 +60,7 @@ export default function ReportPreviewModal({
                     >
                       <div style={{ borderBottom: "2px solid var(--accent-gold)", paddingBottom: "12px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                         <div>
-                          <div style={{ fontFamily: "var(--font-title)", fontSize: "20px", fontWeight: "800", color: "var(--text-title)" }}>WeaverBird</div>
+                          <div style={{ fontFamily: "var(--font-title)", fontSize: "20px", fontWeight: "800", color: "var(--text-title)" }}>{companyName || "WeaverBird"}</div>
                           <div style={{ fontFamily: "var(--font-title)", fontSize: "10px", fontWeight: "600", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "2px" }}>Interior Studio</div>
                         </div>
                         <div style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "right" }}>

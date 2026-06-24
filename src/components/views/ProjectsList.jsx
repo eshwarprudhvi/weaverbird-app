@@ -3,7 +3,7 @@ import { BookOpen, Search, Sliders, Plus, CheckSquare, Clock, MapPin, X, Trash2,
 import { getDaysLeftTextAndColor, formatDisplayDateStr } from "../../utils/helpers";
 
 const ProjectsList = (props) => {
-  const { isNetworkOnline, cloudSyncEnabled, userRole, setIsCatalogScreenOpen, searchQuery, setSearchQuery, filteredProjects, setActiveProjectId, setProjectSubTab, handleDeleteProject } = props;
+  const { companyName, companySubtitle, isNetworkOnline, cloudSyncEnabled, userRole, setIsCatalogScreenOpen, searchQuery, setSearchQuery, filteredProjects, setActiveProjectId, setProjectSubTab, handleDeleteProject } = props;
   return (
     <>
 
@@ -23,9 +23,7 @@ const ProjectsList = (props) => {
                                 lineHeight: "1.1",
                                 letterSpacing: "-0.5px",
                               }}
-                            >
-                              WeaverBird
-                            </span>
+                            >{companyName || "WeaverBird"}</span>
                             <span
                               className="header-subtitle"
                               style={{
@@ -33,7 +31,7 @@ const ProjectsList = (props) => {
                                 fontWeight: "600",
                                 color: "var(--accent-gold-dark)",
                                 textTransform: "uppercase",
-                                letterSpacing: "3.5px",
+                                letterSpacing: "1px",
                                 marginTop: "2px",
                                 display: "inline-flex",
                                 alignItems: "center",

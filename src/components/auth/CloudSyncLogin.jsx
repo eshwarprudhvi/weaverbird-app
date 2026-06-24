@@ -23,22 +23,26 @@ const CloudSyncLogin = ({
         width: "90px",
         height: "90px",
         borderRadius: "45px",
-        backgroundColor: "var(--accent-gold-dark)",
-        color: "white",
+        backgroundColor: "rgba(212, 175, 55, 0.04)",
+        border: "2px solid rgba(212, 175, 55, 0.7)",
+        boxShadow: "0 4px 15px rgba(212, 175, 55, 0.15), inset 0 2px 10px rgba(212, 175, 55, 0.1)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         fontSize: "36px",
         fontWeight: "700",
-        fontFamily: "var(--font-title)",
-        boxShadow: "0 8px 20px rgba(212, 175, 55, 0.2)"
+        fontFamily: "'Playfair Display', 'Cinzel', 'Times New Roman', serif",
+        fontStyle: "italic",
+        background: "linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark))",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
       }}>
-        WB
+        {companyName ? companyName.trim().split(" ").map(n=>n[0]).join("").substring(0,2).toUpperCase() : "WB"}
       </div>
 
       <div>
         <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--accent-gold)", letterSpacing: "2px", textTransform: "uppercase" }}>
-          WeaverBird
+          {companyName || "WeaverBird"}
         </span>
         <h2 style={{ fontSize: "22px", fontWeight: "700", color: "var(--text-title)", margin: "4px 0 0 0" }}>
           Cloud Sync Portal
@@ -52,7 +56,7 @@ const CloudSyncLogin = ({
         <input
           id="login-email-input"
           type="email"
-          placeholder="your.name@weaverbird.com"
+          placeholder="your.name@example.com"
           style={{
             width: "100%",
             padding: "12px 16px",

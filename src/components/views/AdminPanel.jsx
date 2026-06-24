@@ -3,6 +3,10 @@ import { Sun, Moon, ChevronUp, ChevronDown, Mail, Trash2, LogOut, CheckCircle2, 
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 
 const AdminPanel = ({
+  companyName,
+  setCompanyName,
+  companySubtitle,
+  setCompanySubtitle,
   userEmail,
   setUserEmail,
   userRole,
@@ -75,7 +79,7 @@ const AdminPanel = ({
                           fontWeight: "600",
                           color: "var(--accent-gold-dark)",
                           textTransform: "uppercase",
-                          letterSpacing: "3.5px",
+                          letterSpacing: "1px",
                           marginTop: "2px",
                           display: "block",
                         }}
@@ -101,19 +105,29 @@ const AdminPanel = ({
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
-                        padding: "24px 0",
-                        gap: "10px",
+                        padding: "20px 0",
+                        gap: "8px",
                       }}
                     >
                       <div
-                        className="profile-avatar-large"
                         style={{
-                          width: "80px",
-                          height: "80px",
-                          borderRadius: "40px",
-                          fontSize: "32px",
-                          backgroundColor: "var(--accent-gold-dark)",
-                          color: "white",
+                          width: "70px",
+                          height: "70px",
+                          borderRadius: "35px",
+                          fontSize: "26px",
+                          fontWeight: "800",
+                          backgroundColor: "rgba(212, 175, 55, 0.04)",
+                          border: "2px solid rgba(212, 175, 55, 0.7)",
+                          boxShadow: "0 4px 15px rgba(212, 175, 55, 0.15), inset 0 2px 10px rgba(212, 175, 55, 0.1)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark))",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          letterSpacing: "2px",
+                          fontFamily: "'Playfair Display', 'Cinzel', 'Times New Roman', serif",
+                          fontStyle: "italic",
                         }}
                       >
                         WB
@@ -123,7 +137,9 @@ const AdminPanel = ({
                           fontFamily: "var(--font-title)",
                           fontSize: "22px",
                           color: "var(--text-title)",
-                          fontWeight: 700,
+                          fontWeight: 800,
+                          margin: "2px 0 0 0",
+                          letterSpacing: "0.5px"
                         }}
                       >
                         WeaverBird
@@ -132,7 +148,10 @@ const AdminPanel = ({
                         style={{
                           fontSize: "13px",
                           color: "var(--text-muted)",
-                          marginTop: "-4px",
+                          margin: 0,
+                          letterSpacing: "0.5px",
+                          textTransform: "uppercase",
+                          fontWeight: 600
                         }}
                       >
                         Interior Studio
@@ -142,10 +161,10 @@ const AdminPanel = ({
                           fontSize: "11px",
                           color: "var(--text-muted)",
                           backgroundColor: "var(--bg-main)",
-                          padding: "4px 8px",
+                          padding: "2px 8px",
                           borderRadius: "12px",
                           border: "1px solid var(--border)",
-                          marginTop: "4px",
+                          marginTop: "2px",
                           fontWeight: 600,
                         }}
                       >
@@ -246,6 +265,9 @@ const AdminPanel = ({
                                   setHasLoadedScheduleFromCloud(false);
                                 } else {
                                   setIsAuthorized(true);
+                                  setUserEmail("");
+                                  localStorage.removeItem("weaverbird_user_email");
+                                  localStorage.removeItem("weaverbird_user_role");
                                 }
                               }}
                             />
@@ -356,7 +378,12 @@ const AdminPanel = ({
                             onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
                             style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", width: "100%" }}
                           >
-                            <span style={{ fontWeight: 600, color: "var(--accent-gold-dark)", fontSize: "13px", letterSpacing: "1px", textTransform: "uppercase" }}>Admin Access Panel</span>
+                            <span style={{ fontWeight: 600, color: "var(--accent-gold-dark)", fontSize: "13px", letterSpacing: "1px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "8px" }}>
+                              Admin Access Panel
+                              <span style={{ backgroundColor: "rgba(212, 175, 55, 0.15)", color: "var(--accent-gold-dark)", padding: "2px 8px", borderRadius: "10px", fontSize: "10px", fontWeight: "800", border: "1px solid var(--accent-gold-dark)" }}>
+                                {authorizedUsers?.length || 0} Users
+                              </span>
+                            </span>
                             {isAdminPanelOpen ? <ChevronUp size={16} style={{ color: "var(--accent-gold-dark)" }} /> : <ChevronDown size={16} style={{ color: "var(--accent-gold-dark)" }} />}
                           </div>
 
@@ -835,6 +862,7 @@ const AdminPanel = ({
                                       {(() => {
                                         const lastSent = new Date(lastEmailBackupDate).getTime();
                                         const nextBackupTime = lastSent + (3 * 24 * 60 * 60 * 1000);
+                                        // eslint-disable-next-line react-hooks/purity
                                         const diffMs = nextBackupTime - Date.now();
                                         const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
                                         if (diffDays <= 0) return "Next: Due today";

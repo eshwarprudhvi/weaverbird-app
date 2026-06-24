@@ -68,6 +68,8 @@ import {
 
 const WEB_APP_VERSION = "1.1.5";
 
+
+
 // Default initial data to populate localStorage if empty
 const INITIAL_PROJECTS = []
 
@@ -141,6 +143,8 @@ function App() {
       return d;
     });
   };
+
+
 
   // --- STATE ---
 
@@ -371,7 +375,7 @@ function App() {
   const [isAuthorized, setIsAuthorized] = useState(() => {
     return localStorage.getItem("weaverbird_user_authorized") !== "false";
   });
-  const [authorizedUsers] = useState([]);
+  const [authorizedUsers, setAuthorizedUsers] = useState([]);
   const isRemoteChange = useRef(false);
   const prevProjectsRef = useRef([]);
   const [isConnectingCloud, setIsConnectingCloud] = useState(false);
@@ -392,6 +396,8 @@ function App() {
     cloudSyncEnabled,
     isAuthorized,
     userEmail,
+    setUserRole,
+    setAuthorizedUsers,
     projects,
     setProjects,
     schedule,
@@ -490,7 +496,7 @@ function App() {
   ]);
 
   // Schedule Local Notifications for all upcoming incomplete meetings
-  
+
 
   // --- LOCAL NOTIFICATIONS SYSTEM ---
   useEffect(() => {
@@ -899,61 +905,61 @@ function App() {
 
 
   // Add Material inline
-  
+
 
   // Toggle Material Complete
-  
+
 
   // Delete Material
-  
+
 
   // Add Task inline
-  
+
 
   // Toggle Task Complete
-  
+
 
   // Delete Task
-  
+
 
   // Clear Completed Materials
-  
+
 
   // Clear Completed Tasks
-  
+
 
   // Drag and drop handlers for tasks
-  
 
-  
 
-  
+
+
+
 
   // Add Meeting
-  
+
 
 
   // WhatsApp Sharing Logic
-  
 
-  
 
-  
+
+
+
 
   // PDF Report Generator Function (opens inside an in-app sheet modal to prevent mobile freezes)
-  
 
-  
 
-  
+
+
+
 
   // --- EMAIL UTILITIES AND AUTOMATED REPORT SYNC ---
 
   // Helper to generate a PDF of ALL active projects (used for automatic backup emails)
-  
+
 
   // Shared helper to generate a PDF for a single project report
-  
+
 
   // Main Email sender helper (Supports Google Apps Script or EmailJS fallback)
   const sendEmailWithAttachment = async (recipient, subject, bodyMessage, pdfDoc, attachmentName = "weaverbird_report.pdf") => {
@@ -1038,10 +1044,10 @@ function App() {
   };
 
   // Helper to send a project report manually
-  
+
 
   // Trigger manual full studio backup report
-  
+
 
   // Auto-backup scheduler checks and triggers the 3-day backup email
   const checkAndTriggerAutoEmail = async (currentProjects, cleanEmail) => {
@@ -1090,10 +1096,10 @@ function App() {
   };
 
   // Local PDF File Download/Write handler for phones and web browsers
-  
+
 
   // Natively share the generated PDF file directly without downloading/saving it first
-  
+
 
   // Center Navbar Add Click Handler
   const handleNavbarAddClick = () => {
@@ -1130,11 +1136,11 @@ function App() {
             />
           ) : !isAuthorized ? (
             <UnauthorizedScreen
-               userEmail={userEmail}
-               setUserEmail={setUserEmail}
-               setCloudSyncEnabled={setCloudSyncEnabled}
-               setIsAuthorized={setIsAuthorized}
-             />
+              userEmail={userEmail}
+              setUserEmail={setUserEmail}
+              setCloudSyncEnabled={setCloudSyncEnabled}
+              setIsAuthorized={setIsAuthorized}
+            />
           ) : (
             <>
               {/* Simulated Status Bar (standard iOS/Android mockup) */}
@@ -1170,15 +1176,15 @@ function App() {
                 <>
                   {isCatalogScreenOpen && userRole === "admin" ? (
                     <MaterialsCatalog
-                       setIsCatalogScreenOpen={setIsCatalogScreenOpen}
-                       materialCatalog={materialCatalog}
-                       handleAddCatalogItem={handleAddCatalogItem}
-                       setEditItemModal={setEditItemModal}
-                       handleDeleteCatalogItem={handleDeleteCatalogItem}
-                     />
+                      setIsCatalogScreenOpen={setIsCatalogScreenOpen}
+                      materialCatalog={materialCatalog}
+                      handleAddCatalogItem={handleAddCatalogItem}
+                      setEditItemModal={setEditItemModal}
+                      handleDeleteCatalogItem={handleDeleteCatalogItem}
+                    />
                   ) : activeProjectId === null ? (
                     <>
-                      <ProjectsList 
+                      <ProjectsList
                         isNetworkOnline={isNetworkOnline}
                         cloudSyncEnabled={cloudSyncEnabled}
                         userRole={userRole}
@@ -1193,7 +1199,7 @@ function App() {
                     </>
                   ) : (
                     <>
-                      <ProjectDetail 
+                      <ProjectDetail
                         setActiveProjectId={setActiveProjectId}
                         activeProject={activeProject}
                         getDaysLeftTextAndColor={getDaysLeftTextAndColor}
@@ -1271,18 +1277,18 @@ function App() {
 
                   {/* ===== TODO FULL SCREEN OVERLAY ===== */}
                   {isTodoScreenOpen && (
-                <TodoView
-                  setIsTodoScreenOpen={setIsTodoScreenOpen}
-                  todos={todos}
-                  setTodos={setTodos}
-                  newTodoInput={newTodoInput}
-                  setNewTodoInput={setNewTodoInput}
-                  editTodoId={editTodoId}
-                  setEditTodoId={setEditTodoId}
-                  editTodoText={editTodoText}
-                  setEditTodoText={setEditTodoText}
-                />
-              )}
+                    <TodoView
+                      setIsTodoScreenOpen={setIsTodoScreenOpen}
+                      todos={todos}
+                      setTodos={setTodos}
+                      newTodoInput={newTodoInput}
+                      setNewTodoInput={setNewTodoInput}
+                      editTodoId={editTodoId}
+                      setEditTodoId={setEditTodoId}
+                      editTodoText={editTodoText}
+                      setEditTodoText={setEditTodoText}
+                    />
+                  )}
 
                   {/* Unified meetings list */}
 
@@ -1552,7 +1558,7 @@ function App() {
 
               {/* TAB 4: PROFILE & SETTINGS */}
               {currentTab === "profile" && (
-                <AdminPanel 
+                <AdminPanel
                   userEmail={userEmail}
                   setUserEmail={setUserEmail}
                   userRole={userRole}
@@ -1631,11 +1637,11 @@ function App() {
                   {/* Center Hump with + Button */}
                   <div
                     className="nav-hump-container"
-                    style={{ 
+                    style={{
                       visibility: (
-                        currentTab === "profile" || 
+                        currentTab === "profile" ||
                         (currentTab === "projects" && activeProjectId !== null && activeRoomId !== null)
-                      ) ? "hidden" : "visible" 
+                      ) ? "hidden" : "visible"
                     }}
                   >
                     <div className="nav-hump"></div>
@@ -1662,7 +1668,7 @@ function App() {
               )}
 
               {/* --- MODALS --- */}
-              <CommonModals 
+              <CommonModals
                 reportPreview={reportPreview}
                 setReportPreview={setReportPreview}
                 formatDisplayDateStr={formatDisplayDateStr}

@@ -7,6 +7,8 @@ export const useCloudSync = ({
   cloudSyncEnabled,
   isAuthorized,
   userEmail,
+  setUserRole,
+  setAuthorizedUsers,
   projects,
   setProjects,
   schedule,
@@ -198,14 +200,22 @@ export const useCloudSync = ({
 
       // 1. Listen for user role changes
       unsubscribeUsers = onSnapshot(usersCol, async (snapshot) => {
+        const usersList = [];
         snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          usersList.push({ email: docSnap.id, role: data.role || "editor" });
+
           if (docSnap.id.toLowerCase() === cleanEmail) {
-            const data = docSnap.data();
-            if (data.role === "super_admin" || data.role === "admin") {
-              // Admin role verified
+            const fetchedRole = data.role || "editor";
+            if (setUserRole) {
+              setUserRole(fetchedRole);
             }
+            localStorage.setItem("weaverbird_user_role", fetchedRole);
           }
         });
+        if (setAuthorizedUsers) {
+          setAuthorizedUsers(usersList);
+        }
       });
 
       // 2. Listen to deleted projects collection

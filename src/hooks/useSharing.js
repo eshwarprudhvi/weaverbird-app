@@ -17,7 +17,7 @@ export const useSharing = (props) => {
     const yy = String(today.getFullYear()).slice(-2);
     const dateStr = `${dd}/${mm}/${yy}`;
 
-    let text = `*WeaverBird Interior Studio*\n`;
+    let text = `*${companyName || "WeaverBird"} ${companySubtitle || "Interior Studio"}*\n`;
     text += `*Date:* ${dateStr}\n`;
     text += `*Project:* ${activeProject.name}\n`;
     if (activeProject.completionDate) {
@@ -63,7 +63,7 @@ export const useSharing = (props) => {
     const yy = String(today.getFullYear()).slice(-2);
     const dateStr = `${dd}/${mm}/${yy}`;
 
-    let text = `*WeaverBird Interior Studio*\n`;
+    let text = `*${companyName || "WeaverBird"} ${companySubtitle || "Interior Studio"}*\n`;
     text += `*Date:* ${dateStr}\n`;
     text += `*Project:* ${activeProject.name}\n`;
     if (activeProject.completionDate) {
@@ -138,7 +138,7 @@ export const useSharing = (props) => {
     const yy = String(today.getFullYear()).slice(-2);
     const dateStr = `${dd}/${mm}/${yy}`;
 
-    let text = `*WeaverBird Interior Studio*\n`;
+    let text = `*${companyName || "WeaverBird"} ${companySubtitle || "Interior Studio"}*\n`;
     text += `*Date:* ${dateStr}\n`;
     text += `*Project:* ${activeProject.name}\n`;
     if (activeProject.completionDate) {
@@ -200,7 +200,7 @@ export const useSharing = (props) => {
     const yy = String(today.getFullYear()).slice(-2);
     const dateStr = `${dd}/${mm}/${yy}`;
 
-    let text = `*WeaverBird Interior Studio*\n`;
+    let text = `*${companyName || "WeaverBird"} ${companySubtitle || "Interior Studio"}*\n`;
     text += `*Date:* ${dateStr}\n`;
     text += `*Project:* ${activeProject.name}\n`;
     text += `*Room:* ${room.name}\n\n`;

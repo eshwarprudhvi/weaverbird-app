@@ -6,7 +6,7 @@ export const generateAllProjectsPDF = (allProjects) => {
     // Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text("WeaverBird", 20, 25);
+    doc.text(companyName || "WeaverBird", 20, 25);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
@@ -106,7 +106,7 @@ export const generateSingleProjectPDF = (report) => {
     // WeaverBird Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text("WeaverBird", 20, 25);
+    doc.text(companyName || "WeaverBird", 20, 25);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);

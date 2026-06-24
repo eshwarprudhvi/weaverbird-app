@@ -2,7 +2,7 @@ import React from "react";
 import { Plus, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download, ArrowLeft, MoreHorizontal, MessageSquare, Phone, Image, Camera, User, Filter, Share2, Grid , MoreVertical, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 
 const ProjectDetail = (props) => {
-  const { setActiveProjectId, activeProject, getDaysLeftTextAndColor, formatDisplayDateStr, handleShareProjectOverview, generatePDFReport, setEditItemModal, activeRoomId, setActiveRoomId, openRoomMenuId, setOpenRoomMenuId, handleEditRoom, handleDeleteRoom, handleShareRoom, handleGenerateRoomPDF, projectSubTab, setProjectSubTab, handleShareMaterials, handleAddMaterial, newMaterialInput, setNewMaterialInput, handleToggleMaterial, handleDeleteMaterial, setMaterialsCollapsed, materialsCollapsed, handleClearCompletedMaterials, handleShareTasks, handleAddTask, newWorkInput, setNewWorkInput, newTaskPriority, setNewTaskPriority, getPriorityWeight, draggedTaskId, handleTaskDragStart, handleTaskDragOver, handleTaskDrop, handleToggleTask, handleDeleteTask, setTasksCollapsed, tasksCollapsed, handleClearCompletedTasks } = props;
+  const { companyName, setActiveProjectId, activeProject, getDaysLeftTextAndColor, formatDisplayDateStr, handleShareProjectOverview, generatePDFReport, setEditItemModal, activeRoomId, setActiveRoomId, openRoomMenuId, setOpenRoomMenuId, handleEditRoom, handleDeleteRoom, handleShareRoom, handleGenerateRoomPDF, projectSubTab, setProjectSubTab, handleShareMaterials, handleAddMaterial, newMaterialInput, setNewMaterialInput, handleToggleMaterial, handleDeleteMaterial, setMaterialsCollapsed, materialsCollapsed, handleClearCompletedMaterials, handleShareTasks, handleAddTask, newWorkInput, setNewWorkInput, newTaskPriority, setNewTaskPriority, getPriorityWeight, draggedTaskId, handleTaskDragStart, handleTaskDragOver, handleTaskDrop, handleToggleTask, handleDeleteTask, setTasksCollapsed, tasksCollapsed, handleClearCompletedTasks } = props;
   return (
 <>
                       <div className="app-header fade-in">
@@ -18,7 +18,7 @@ const ProjectDetail = (props) => {
                             className="header-title-container"
                             style={{ maxWidth: "230px" }}
                           >
-                            <span className="header-subtitle">WeaverBird</span>
+                            <span className="header-subtitle">{companyName || "WeaverBird"}</span>
                             <h1 style={{ marginBottom: "2px" }}>
                               {activeProject?.name}
                             </h1>
