@@ -2050,6 +2050,24 @@ textarea.form-control {
   cursor: default;
 }
 
+.calendar-day.today {
+  border: 2px solid var(--accent-gold-dark);
+  background-color: rgba(212, 175, 55, 0.08);
+}
+
+.calendar-day.today .day-number {
+  color: var(--accent-gold-dark);
+  font-weight: 800;
+}
+
+.calendar-day.today.selected {
+  border-color: transparent;
+}
+
+.calendar-day.today.selected .day-number {
+  color: white !important;
+}
+
 .day-number {
   font-size: 12px;
   font-weight: 600;

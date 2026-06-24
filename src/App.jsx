@@ -1447,12 +1447,13 @@ function App() {
                                 (s) => s.date === dayStr && !s.completed
                               );
                               const isSelected = selectedCalendarDate === dayStr;
+                              const isToday = dayStr === todayStr;
 
                               return (
                                 <div
                                   key={dayStr}
                                   className={`calendar-day ${hasMeetings ? "has-meetings" : ""
-                                    } ${isSelected ? "selected" : ""}`}
+                                    } ${isSelected ? "selected" : ""} ${isToday ? "today" : ""}`}
                                   onClick={() => {
                                     if (isSelected) {
                                       setSelectedCalendarDate(null);

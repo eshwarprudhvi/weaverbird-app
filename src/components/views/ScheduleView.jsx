@@ -1,28 +1,34 @@
-import React from "react";
-import { Plus, Search, Calendar, ChevronDown, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download } from "lucide-react";
+import { Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckSquare, Trash2, Edit2 } from "lucide-react";
+import TodoView from "./TodoView";
 
 const ScheduleView = (props) => {
   const {
-    scheduleSearch,
-    setScheduleSearch,
-    statusFilter,
-    setStatusFilter,
-    scheduleSubTab,
-    setScheduleSubTab,
-    setIsNewMeetingModalOpen,
-    highPriorityCollapsed,
-    setHighPriorityCollapsed,
     setIsTodoScreenOpen,
+    isTodoScreenOpen,
     todos,
+    setTodos,
+    newTodoInput,
+    setNewTodoInput,
+    editTodoId,
+    setEditTodoId,
+    editTodoText,
+    setEditTodoText,
     todayMeetingsCount,
-    weekMeetingsCount,
+    tomorrowMeetingsCount,
     setEditItemModal,
     handleDeleteMeeting,
-    sortedSchedule,
-    formatDisplayDateStr,
-    formatTimeLine,
-    getUserColor,
-    userEmail
+    handleToggleMeeting,
+    calendarCollapsed,
+    setCalendarCollapsed,
+    selectedCalendarDate,
+    setSelectedCalendarDate,
+    formatDate,
+    currentCalendarDate,
+    handlePrevMonth,
+    handleNextMonth,
+    getDaysInMonth,
+    schedule,
+    sortedAndFilteredMeetings
   } = props;
 
   return (
@@ -224,12 +230,13 @@ const ScheduleView = (props) => {
                                 (s) => s.date === dayStr && !s.completed
                               );
                               const isSelected = selectedCalendarDate === dayStr;
+                              const isToday = dayStr === new Date().toISOString().split("T")[0];
 
                               return (
                                 <div
                                   key={dayStr}
                                   className={`calendar-day ${hasMeetings ? "has-meetings" : ""
-                                    } ${isSelected ? "selected" : ""}`}
+                                    } ${isSelected ? "selected" : ""} ${isToday ? "today" : ""}`}
                                   onClick={() => {
                                     if (isSelected) {
                                       setSelectedCalendarDate(null);
@@ -331,7 +338,6 @@ const ScheduleView = (props) => {
 
                   {/* No FAB here, handled in bottom-nav */}
                 </>
-              )}
 
   );
 };
