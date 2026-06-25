@@ -689,7 +689,18 @@ const CommonModals = (props) => {
                       </button>
                     </div>
 
-                    <form onSubmit={handleAddMeeting}>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!newMeetTitle.trim() || !newMeetDate) return;
+                      handleAddMeeting({
+                        id: Date.now().toString(),
+                        title: newMeetTitle.trim(),
+                        date: newMeetDate,
+                        completed: false
+                      });
+                      setNewMeetTitle("");
+                      setNewMeetDate("");
+                    }}>
                       <div className="form-group">
                         <label>Meeting Title</label>
                         <input

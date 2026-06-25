@@ -1,6 +1,6 @@
 
 export const useSharing = (props) => {
-  const { activeProject, formatDisplayDateStr, getPriorityWeight } = props;
+  const { activeProject, formatDisplayDateStr, getPriorityWeight, companyName = "WeaverBird", companySubtitle = "Interior Studio" } = props;
   // Auto-destructure will be injected here
 
   const handleShareMaterials = () => {

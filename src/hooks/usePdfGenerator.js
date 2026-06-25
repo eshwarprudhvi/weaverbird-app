@@ -1,10 +1,11 @@
 import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { jsPDF } from "jspdf";
 
 export const usePdfGenerator = (props) => {
-  const { activeProject, setReportPreview, getPriorityWeight, reportPreview, recipientEmail, customRecipientEmail, googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey, setIsSendingEmail, sendEmailWithAttachment, projects, Capacitor } = props;
+  const { activeProject, setReportPreview, getPriorityWeight, reportPreview, recipientEmail, customRecipientEmail, googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey, setIsSendingEmail, sendEmailWithAttachment, projects, companyName = "WeaverBird", companySubtitle = "Interior Studio" } = props;
   // Auto-destructure will be injected here
 
   const generatePDFReport = (type) => {

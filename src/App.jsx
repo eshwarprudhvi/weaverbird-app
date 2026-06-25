@@ -874,7 +874,7 @@ function App() {
     handleShareTasks,
     handleShareProjectOverview,
     handleShareRoom
-  } = useSharing({ activeProject, formatDisplayDateStr, getDaysLeftTextAndColor });
+  } = useSharing({ activeProject, formatDisplayDateStr, getDaysLeftTextAndColor, getPriorityWeight });
 
   const {
     scheduleAllUpcomingMeetings,
