@@ -1,8 +1,10 @@
 import React from 'react';
 import { ChevronLeft, Shield } from 'lucide-react';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { inviteMember, updateMemberRole, removeMember } from '../../../api/workspace.api';
+import WorkspaceOverviewCard from '../WorkspaceOverviewCard';
 
-const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db }) => {
+const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, projectsCount = 0, storageUsed = "0 B", lastSyncText = "Just now", connectionState, onRetry }) => {
   return (
     <div className="screen-content fade-in" style={{ padding: '0 0 80px 0', backgroundColor: 'var(--bg-app)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
@@ -22,10 +24,19 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db }) => 
         >
           <ChevronLeft size={24} />
         </button>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-title)' }}>Team & Access</h2>
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-title)' }}>Manage Workspace</h2>
       </div>
 
       <div style={{ padding: '20px' }}>
+        <WorkspaceOverviewCard
+          projectsCount={projectsCount}
+          membersCount={authorizedUsers.length || 1}
+          storageUsed={storageUsed}
+          lastSyncText={lastSyncText}
+          connectionState={connectionState}
+          onRetry={onRetry}
+        />
+
         {/* Invite Section */}
         <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border)', marginBottom: '24px' }}>
           <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -55,7 +66,7 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db }) => 
                   const roleVal = roleEl?.value;
                   if (!emailVal || !emailVal.includes("@")) { alert("Please enter a valid email to invite."); return; }
                   try {
-                    await setDoc(doc(db, "users", emailVal), { role: roleVal });
+                    await inviteMember(localStorage.getItem('wb_active_workspace_id'), emailVal, roleVal);
                     alert(`Successfully granted ${roleVal} access to ${emailVal}!`);
                     if (emailEl) emailEl.value = "";
                   } catch (err) { alert(`Failed to add user: ${err.message}`); }
@@ -85,8 +96,11 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db }) => 
                     <select
                       value={u.role}
                       onChange={async (e) => {
-                        try { await setDoc(doc(db, "users", u.email), { role: e.target.value }); } 
-                        catch (err) { alert(`Failed to update role: ${err.message}`); }
+                        try { 
+                          await updateMemberRole(localStorage.getItem('wb_active_workspace_id'), u.email, e.target.value);
+                        } catch (err) {
+                          alert(`Failed to update role: ${err.message}`); 
+                        }
                       }}
                       style={{ padding: "4px 8px", borderRadius: "6px", border: "1px solid var(--border)", backgroundColor: "var(--bg-app)", color: "var(--text-main)", fontSize: "12px" }}
                     >
@@ -96,8 +110,11 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db }) => 
                     <button
                       onClick={async () => {
                         if (confirm(`Are you sure you want to revoke access for ${u.email}?`)) {
-                          try { await deleteDoc(doc(db, "users", u.email)); } 
-                          catch (err) { alert(`Failed to revoke access: ${err.message}`); }
+                          try { 
+                            await removeMember(localStorage.getItem('wb_active_workspace_id'), u.email); 
+                          } catch(err) {
+                            alert(`Failed to revoke access: ${err.message}`); 
+                          }
                         }
                       }}
                       style={{ padding: "4px 12px", borderRadius: "6px", backgroundColor: "rgba(239, 68, 68, 0.1)", color: "#ef4444", border: "none", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}

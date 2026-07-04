@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useOptimisticSync } from './useOptimisticSync';
 
 export const useProjects = (activeProjectId, setActiveProjectId, setCustomConfirm, setIsNewProjModalOpen, setEditItemModal) => {
   const [projects, setProjects] = useState(() => {
@@ -11,10 +12,43 @@ export const useProjects = (activeProjectId, setActiveProjectId, setCustomConfir
     return saved ? JSON.parse(saved) : [];
   });
 
+  const { optimisticProjects, setOptimisticProjects, retrySync } = useOptimisticSync();
+
+  // Merge Firestore projects with Optimistic projects for the UI
+  const mergedProjects = useMemo(() => {
+    // Start with all Firestore projects
+    const merged = [...projects];
+
+    // For each optimistic project, either add it or overlay it on the existing one
+    optimisticProjects.forEach(optProj => {
+      const existingIndex = merged.findIndex(p => p.id === optProj.id);
+      if (existingIndex >= 0) {
+        // Overlay properties (optProj takes precedence)
+        merged[existingIndex] = { ...merged[existingIndex], ...optProj };
+      } else {
+        // Add new optimistic project
+        merged.unshift(optProj); // Put new ones at the top
+      }
+    });
+
+    return merged;
+  }, [projects, optimisticProjects]);
 
   const handleAddProject = (newProject) => {
-    setProjects([newProject, ...projects]);
+    // Generate a temporary ID if one isn't provided (usually it will be in the project payload)
+    const projectWithTempId = {
+      ...newProject,
+      id: newProject.id || `temp_${Date.now()}`,
+      syncStatus: 'pending', // Optimistically mark as pending
+      syncState: newProject.syncState || 'LOCAL'
+    };
+
+    // We can add it directly to optimistic overlay, 
+    // though the offlineQueue will also dispatch it if it queues.
+    // Doing it here ensures instant UI feedback even before the API wrapper is called.
+    setOptimisticProjects(prev => [projectWithTempId, ...prev]);
     setIsNewProjModalOpen(false);
+    return projectWithTempId; // Return so the caller can send it to the API
   };
 
   const handleAddRoomToExistingProject = () => {
@@ -94,8 +128,8 @@ export const useProjects = (activeProjectId, setActiveProjectId, setCustomConfir
 
 
   return {
-    projects,
-    setProjects,
+    projects: mergedProjects, // Expose the merged list to the UI
+    setProjects, // used by onSnapshot to update the base firestore data
     deletedProjectIds,
     setDeletedProjectIds,
     handleAddProject,
@@ -103,6 +137,7 @@ export const useProjects = (activeProjectId, setActiveProjectId, setCustomConfir
     handleEditRoom,
     handleDeleteRoom,
     handleDeleteProject,
-    handleProjectStatusChange
+    handleProjectStatusChange,
+    retrySync
   };
 };

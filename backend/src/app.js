@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
@@ -13,12 +14,36 @@ const errorCodes = require('./core/errors/errorCodes');
 const healthRoutes = require('./modules/health/health.routes');
 const authRoutes = require('./modules/auth/auth.routes');
 const workspaceRoutes = require('./modules/workspace/workspace.routes');
+const projectRoutes = require('./modules/project/project.routes');
+const taskRoutes = require('./modules/task/task.routes');
+const meetingRoutes = require('./modules/meeting/meeting.routes');
+const reportRoutes = require('./modules/report/report.routes');
+const assetRoutes = require('./modules/asset/asset.routes');
+const integrationRoutes = require('./modules/integration/integration.routes');
+
+// Initialize Event Subscribers
+require('./shared/subscribers');
 
 const app = express();
 
-// Middlewares
+// Security Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.CORS_ORIGIN 
+    : ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true
+}));
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+app.use('/api/', limiter);
+
+// Built-in middleware for json and urlencoded payloads
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
@@ -63,6 +88,12 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 app.use('/api/v1/health', healthRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/workspace', workspaceRoutes);
+app.use('/api/v1/projects', projectRoutes);
+app.use('/api/v1/tasks', taskRoutes);
+app.use('/api/v1/meetings', meetingRoutes);
+app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/assets', assetRoutes);
+app.use('/api/v1/integrations', integrationRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {

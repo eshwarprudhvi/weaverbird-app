@@ -19,7 +19,7 @@ const AppHeader = ({
     return (
       <div style={{
         backgroundColor: 'var(--bg-nav-solid)',
-        padding: '24px 20px',
+        padding: '16px 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -28,13 +28,13 @@ const AppHeader = ({
         zIndex: 10,
         borderBottom: '1px solid var(--border)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Avatar initials={initials} size={64} style={{ backgroundColor: 'var(--accent-gold)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <Avatar initials={initials} size={52} style={{ backgroundColor: 'var(--accent-gold)', fontSize: '18px', fontWeight: 800 }} />
           
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <h2 style={{
               fontFamily: 'var(--font-title)',
-              fontSize: '20px',
+              fontSize: '18px',
               color: 'var(--accent-gold)',
               fontWeight: 800,
               margin: '0',
@@ -43,7 +43,7 @@ const AppHeader = ({
               {compName}
             </h2>
             <p style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: 'var(--text-muted)',
               margin: '2px 0 0 0',
               letterSpacing: '0.5px',
@@ -52,6 +52,11 @@ const AppHeader = ({
             }}>
               {studName}
             </p>
+            {subtitleNode && (
+              <div style={{ marginTop: '2px', fontSize: '11px', fontWeight: 700 }}>
+                {subtitleNode}
+              </div>
+            )}
           </div>
         </div>
         {rightActions}

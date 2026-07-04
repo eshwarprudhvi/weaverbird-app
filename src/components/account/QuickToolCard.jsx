@@ -1,5 +1,4 @@
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
 
 const QuickToolCard = ({ icon: Icon, title, subtitle, onClick, iconColor = "var(--text-main)", bgColor = "var(--bg-card)" }) => {
   return (
@@ -7,31 +6,41 @@ const QuickToolCard = ({ icon: Icon, title, subtitle, onClick, iconColor = "var(
       onClick={onClick}
       style={{
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
+        justifyContent: 'center',
         backgroundColor: bgColor,
-        padding: '12px',
-        borderRadius: '12px',
+        padding: '14px 8px',
+        borderRadius: '16px',
         border: '1px solid var(--border)',
         cursor: 'pointer',
-        gap: '12px'
+        gap: '8px',
+        textAlign: 'center',
+        minHeight: '88px',
+        transition: 'all 0.2s ease'
       }}
     >
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        width: '36px',
+        height: '36px',
+        borderRadius: '12px',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        border: '1px solid var(--border)'
       }}>
-        {Icon && <Icon size={20} color={iconColor} />}
+        {Icon && <Icon size={18} color={iconColor} />}
       </div>
       
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', overflow: 'hidden' }}>
         <span style={{ 
           fontWeight: 600, 
           color: 'var(--text-title)',
-          fontSize: '13px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
+          fontSize: '12px',
+          lineHeight: '1.3',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word'
         }}>
           {title}
         </span>
@@ -42,15 +51,11 @@ const QuickToolCard = ({ icon: Icon, title, subtitle, onClick, iconColor = "var(
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            marginTop: '2px'
+            marginTop: '3px'
           }}>
             {subtitle}
           </span>
         )}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', opacity: 0.5 }}>
-        <ChevronRight size={14} color="var(--text-muted)" />
       </div>
     </div>
   );

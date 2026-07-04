@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default Rule: Deny all reads/writes
+    match /{document=**} {
+      allow read: if request.auth != null;
+      
+      // PHASE 8 LOCKDOWN:
+      // Client-side writes are strictly prohibited.
+      // All writes MUST flow through the Node.js Backend REST API, 
+      // which uses the Firebase Admin SDK (bypassing these rules).
+      allow write: if false; 
+    }
+  }
+}

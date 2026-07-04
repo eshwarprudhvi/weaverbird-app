@@ -9,8 +9,11 @@ import { useSchedule } from "../hooks/useSchedule";
 import { useTodos } from "../hooks/useTodos";
 import { useCatalog } from "../hooks/useCatalog";
 import { useCloudSync } from "../hooks/useCloudSync";
-import CloudSyncLogin from "../components/auth/CloudSyncLogin";
 import UnauthorizedScreen from "../components/auth/UnauthorizedScreen";
+import { useAuth } from "../hooks/useAuth";
+import AuthRouter from "../components/auth/AuthRouter";
+import { WorkspaceProvider } from "../contexts/WorkspaceContext";
+import { APPLICATION } from "../config/application";
 import MaterialsCatalog from "../components/views/MaterialsCatalog";
 import AccountPage from "../pages/Account/AccountPage";
 import TodoView from "../components/views/TodoView";
@@ -18,6 +21,7 @@ import ProjectsList from "../components/views/ProjectsList";
 import ProjectDetail from "../components/views/ProjectDetail";
 import CommonModals from "../components/views/CommonModals";
 import AppHeader from "../components/common/AppHeader";
+import LocalSyncDecisionModal from "../components/account/modals/LocalSyncDecisionModal";
 
 
 import { LocalNotifications } from "@capacitor/local-notifications";
@@ -33,7 +37,8 @@ import AddProjectModal from "../components/modals/AddProjectModal";
 import AddMeetingModal from "../components/modals/AddMeetingModal";
 import ReportPreviewModal from "../components/modals/ReportPreviewModal";
 import BottomNav from "../components/navigation/BottomNav";
-import { collection, doc, setDoc, onSnapshot, deleteDoc, getDocs, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, getDoc, doc } from "firebase/firestore";
+import { createProject } from "../api/project.api";
 import {
   Folder,
   Calendar,
@@ -77,9 +82,11 @@ const INITIAL_PROJECTS = []
 
 const INITIAL_SCHEDULE = [];
 
-function App() {
+function AuthenticatedApp() {
+  const { user, isLocalMode } = useAuth();
   const { workspace } = useWorkspace();
   const companyName = workspace?.companyName || "My Workspace";
+  const companySubtitle = workspace?.companySubtitle || "Interior Studio";
 
   const [currentTab, setCurrentTab] = useState("projects"); // projects | work | schedule | profile
   const [activeProjectId, setActiveProjectId] = useState(null); // null means dashboard, otherwise project detail
@@ -163,7 +170,8 @@ function App() {
     handleEditRoom,
     handleDeleteRoom,
     handleDeleteProject,
-    handleProjectStatusChange
+    handleProjectStatusChange,
+    retrySync
   } = useProjects(activeProjectId, setActiveProjectId, setCustomConfirm, setIsNewProjModalOpen, setEditItemModal);
 
   const {
@@ -239,26 +247,32 @@ function App() {
           status: "Fetched database info"
         }));
 
-        if (latestVersion && latestVersion !== WEB_APP_VERSION && zipUrl) {
+        if (latestVersion && latestVersion !== WEB_APP_VERSION) {
           setUpdateDebugInfo(prev => ({ ...prev, status: `Downloading v${latestVersion}...` }));
           console.log(`OTA Update available: local v${WEB_APP_VERSION} -> latest v${latestVersion}`);
 
-          // Notify user
-          alert(`Installing ${companyName} update v${latestVersion}. The app will restart automatically.`);
-
-          const downloadResult = await CapacitorUpdater.download({
-            url: zipUrl,
-            version: latestVersion
-          });
-          setUpdateDebugInfo(prev => ({ ...prev, status: "Applying update..." }));
-          await CapacitorUpdater.set(downloadResult);
+          if (!Capacitor.isNativePlatform()) {
+            if (isManual || window.confirm(`A new version (v${latestVersion}) is available! Refresh the web app to update now?`)) {
+              window.location.reload();
+            }
+          } else if (zipUrl) {
+            alert(`Installing ${companyName} update v${latestVersion}. The app will restart automatically.`);
+            const downloadResult = await CapacitorUpdater.download({
+              url: zipUrl,
+              version: latestVersion
+            });
+            setUpdateDebugInfo(prev => ({ ...prev, status: "Applying update..." }));
+            await CapacitorUpdater.set(downloadResult);
+          } else if (isManual) {
+            alert(`New version v${latestVersion} is available, but OTA bundle URL is missing.`);
+          }
         } else {
           setUpdateDebugInfo(prev => ({ ...prev, status: "Already up to date" }));
-          if (isManual) alert("App is already up to date!");
+          if (isManual) alert(`App is already up to date! (v${WEB_APP_VERSION})`);
         }
       } else {
-        setUpdateDebugInfo(prev => ({ ...prev, status: "Firestore config document 'system/update' not found" }));
-        if (isManual) alert("Update config document not found in database.");
+        setUpdateDebugInfo(prev => ({ ...prev, status: "Already up to date" }));
+        if (isManual) alert(`App is up to date! (v${WEB_APP_VERSION})`);
       }
     } catch (err) {
       console.error("Auto-update check failed:", err);
@@ -369,17 +383,26 @@ function App() {
   // Swipe-to-delete tracking
   // Cloud Sync and Admin Access states
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(() => {
-    return localStorage.getItem("weaverbird_cloud_sync") === "true";
+    return localStorage.getItem(APPLICATION.storageKeys.cloudSync) === "true";
   });
   const [userEmail, setUserEmail] = useState(() => {
-    return localStorage.getItem("weaverbird_user_email") || "";
+    return user?.email || localStorage.getItem(APPLICATION.storageKeys.userEmail) || "";
   });
   const [userRole, setUserRole] = useState(() => {
-    return localStorage.getItem("weaverbird_user_role") || "editor";
+    return user?.role || localStorage.getItem(APPLICATION.storageKeys.userRole) || "editor";
   });
   const [isAuthorized, setIsAuthorized] = useState(() => {
     return localStorage.getItem("weaverbird_user_authorized") !== "false";
   });
+
+  useEffect(() => {
+    if (user?.email) {
+      setUserEmail(user.email);
+      setCloudSyncEnabled(true);
+    } else if (isLocalMode) {
+      setCloudSyncEnabled(false);
+    }
+  }, [user, isLocalMode]);
   const [authorizedUsers, setAuthorizedUsers] = useState([]);
   const isRemoteChange = useRef(false);
   const prevProjectsRef = useRef([]);
@@ -413,6 +436,56 @@ function App() {
     setMaterialCatalog,
     prevProjectsRef
   });
+
+  // --- Structured Authentication Success & Local Sync Flow ---
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [hasCheckedLocalSync, setHasCheckedLocalSync] = useState(false);
+
+  useEffect(() => {
+    // Sequence: Authentication Successful -> Workspace Loading -> Workspace Ready -> Local Projects Found? -> YES -> LocalSyncDecisionModal
+    if (!isLocalMode && user && !hasCheckedLocalSync && projects && projects.length > 0) {
+      const localProjs = projects.filter(p => p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING"));
+      if (localProjs.length > 0) {
+        setIsSyncModalOpen(true);
+        setHasCheckedLocalSync(true);
+      }
+    }
+  }, [isLocalMode, user, hasCheckedLocalSync, projects]);
+
+  const handleLocalSyncDecision = async (strategy, selectedIds = []) => {
+    setIsSyncModalOpen(false);
+    if (strategy === "UPLOAD_ALL") {
+      const updated = projects.map(p => {
+        if (p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING")) {
+          const updatedProj = { ...p, syncState: "PENDING" };
+          setTimeout(() => syncProjectToCloud(updatedProj), 100);
+          return updatedProj;
+        }
+        return p;
+      });
+      setProjects(updated);
+    } else if (strategy === "CHOOSE") {
+      const updated = projects.map(p => {
+        if (selectedIds.includes(p.id)) {
+          const updatedProj = { ...p, syncState: "PENDING" };
+          setTimeout(() => syncProjectToCloud(updatedProj), 100);
+          return updatedProj;
+        } else if (p.syncState !== "SYNCED") {
+          return { ...p, syncState: "LOCAL" };
+        }
+        return p;
+      });
+      setProjects(updated);
+    } else if (strategy === "KEEP_LOCAL") {
+      const updated = projects.map(p => {
+        if (p.syncState !== "SYNCED") {
+          return { ...p, syncState: "LOCAL" };
+        }
+        return p;
+      });
+      setProjects(updated);
+    }
+  };
 
   // EmailJS & Email Automation States
   const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem("ipm_emailjs_service_id") || "");
@@ -683,36 +756,7 @@ function App() {
       localStorage.setItem("ipm_projects_backups_daily", JSON.stringify(updatedDaily));
 
       // --- 3. CLOUD BACKUPS SYNC & RETENTION (Saves to cloud, retains last 30 days) ---
-      if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
-        const cleanEmail = userEmail.toLowerCase().trim();
-        const backupDocRef = doc(db, "users", cleanEmail, "backups", todayDateStr);
-
-        setDoc(backupDocRef, {
-          date: todayDateStr,
-          timestamp: now.toISOString(),
-          projects: currentProjects
-        }, { merge: true }).then(() => {
-          // Fetch backups list to enforce 30-day retention
-          const backupsColRef = collection(db, "users", cleanEmail, "backups");
-          getDocs(backupsColRef).then((querySnapshot) => {
-            const backupsList = [];
-            querySnapshot.forEach((docSnap) => {
-              backupsList.push({ id: docSnap.id, ...docSnap.data() });
-            });
-            // Sort lexicographically by date descending (latest first)
-            backupsList.sort((a, b) => b.date.localeCompare(a.date));
-
-            // Delete backups beyond the 30th latest daily snapshot
-            if (backupsList.length > 30) {
-              const oldBackups = backupsList.slice(30);
-              oldBackups.forEach((old) => {
-                deleteDoc(doc(db, "users", cleanEmail, "backups", old.id))
-                  .catch((e) => console.error("Error deleting old backup:", e));
-              });
-            }
-          }).catch((err) => console.error("Error retrieving backups list for retention check:", err));
-        }).catch((err) => console.error("Error uploading daily backup to Firestore:", err));
-      }
+      // This has been deprecated. The backend Report domain now handles Workspace backups automatically via the REST API.
     } catch (err) {
       console.error("Failed to save project backup:", err);
     }
@@ -872,14 +916,14 @@ function App() {
     handleSendManualBackup,
     handleDownloadPDF,
     handleSharePDF
-  } = usePdfGenerator({ activeProject, reportPreview, setReportPreview, db, isAuthorized, userEmail, emailJsServiceId: import.meta.env.VITE_EMAILJS_SERVICE_ID, projects, formatDisplayDateStr, getDaysLeftTextAndColor, getPriorityWeight });
+  } = usePdfGenerator({ activeProject, reportPreview, setReportPreview, db, isAuthorized, userEmail, recipientEmail, customRecipientEmail, googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey, setIsSendingEmail, projects, companyName, companySubtitle, formatDisplayDateStr, getDaysLeftTextAndColor, getPriorityWeight });
 
   const {
     handleShareMaterials,
     handleShareTasks,
     handleShareProjectOverview,
     handleShareRoom
-  } = useSharing({ activeProject, formatDisplayDateStr, getDaysLeftTextAndColor, getPriorityWeight });
+  } = useSharing({ activeProject, companyName, companySubtitle, formatDisplayDateStr, getDaysLeftTextAndColor, getPriorityWeight });
 
   const {
     scheduleAllUpcomingMeetings,
@@ -998,15 +1042,7 @@ function App() {
           id="app-root"
           className={`app-container ${theme === "dark" ? "dark-theme" : ""}`}
         >
-          {cloudSyncEnabled && !userEmail ? (
-            <CloudSyncLogin
-              setUserEmail={setUserEmail}
-              isConnectingCloud={isConnectingCloud}
-              setIsConnectingCloud={setIsConnectingCloud}
-              setCloudSyncEnabled={setCloudSyncEnabled}
-              setIsAuthorized={setIsAuthorized}
-            />
-          ) : !isAuthorized ? (
+          {!isAuthorized ? (
             <UnauthorizedScreen
               userEmail={userEmail}
               setUserEmail={setUserEmail}
@@ -1057,6 +1093,8 @@ function App() {
                   ) : activeProjectId === null ? (
                     <>
                       <ProjectsList
+                        companyName={companyName}
+                        companySubtitle={companySubtitle}
                         isNetworkOnline={isNetworkOnline}
                         cloudSyncEnabled={cloudSyncEnabled}
                         userRole={userRole}
@@ -1067,11 +1105,15 @@ function App() {
                         setActiveProjectId={setActiveProjectId}
                         setProjectSubTab={setProjectSubTab}
                         handleDeleteProject={handleDeleteProject}
+                        retrySync={retrySync}
+                        createProject={createProject}
                       />
                     </>
                   ) : (
                     <>
                       <ProjectDetail
+                        companyName={companyName}
+                        companySubtitle={companySubtitle}
                         setActiveProjectId={setActiveProjectId}
                         activeProject={activeProject}
                         getDaysLeftTextAndColor={getDaysLeftTextAndColor}
@@ -1428,6 +1470,8 @@ function App() {
               {/* TAB 4: ACCOUNT */}
               {currentTab === "account" && (
                 <AccountPage
+                  companyName={companyName}
+                  companySubtitle={companySubtitle}
                   userEmail={userEmail}
                   setUserEmail={setUserEmail}
                   userRole={userRole}
@@ -1538,6 +1582,8 @@ function App() {
 
               {/* --- MODALS --- */}
               <CommonModals
+                companyName={companyName}
+                companySubtitle={companySubtitle}
                 reportPreview={reportPreview}
                 setReportPreview={setReportPreview}
                 formatDisplayDateStr={formatDisplayDateStr}
@@ -1569,8 +1615,7 @@ function App() {
                 db={db}
                 cloudSyncEnabled={cloudSyncEnabled}
                 isAuthorized={isAuthorized}
-                deleteDoc={deleteDoc}
-                doc={doc}
+
                 deleteProjectFromCloud={deleteProjectFromCloud}
                 isNewProjModalOpen={isNewProjModalOpen}
                 setIsNewProjModalOpen={setIsNewProjModalOpen}
@@ -1588,11 +1633,48 @@ function App() {
                 customConfirm={customConfirm}
               />
 
+              <LocalSyncDecisionModal
+                isOpen={isSyncModalOpen}
+                localProjects={projects.filter(p => p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING"))}
+                onDecision={handleLocalSyncDecision}
+              />
             </>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function App() {
+  const { isAuthenticated, isLocalMode, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        backgroundColor: "var(--bg-app)",
+        color: "var(--accent-gold)",
+        fontFamily: "var(--font-title)",
+        fontSize: "18px",
+        fontWeight: "700"
+      }}>
+        Loading {APPLICATION.name}...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated && !isLocalMode) {
+    return <AuthRouter />;
+  }
+
+  return (
+    <WorkspaceProvider>
+      <AuthenticatedApp />
+    </WorkspaceProvider>
   );
 }
 

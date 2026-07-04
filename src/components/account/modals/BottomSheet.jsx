@@ -1,13 +1,17 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 const BottomSheet = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
-  return (
+  const target = typeof document !== 'undefined' ? (document.getElementById('app-root') || document.body) : null;
+  if (!target) return null;
+
+  return createPortal(
     <>
       <div 
         style={{
-          position: 'fixed',
+          position: 'absolute',
           top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'rgba(0, 0, 0, 0.4)',
           zIndex: 9999,
@@ -17,7 +21,7 @@ const BottomSheet = ({ isOpen, onClose, title, children }) => {
       />
       <div 
         style={{
-          position: 'fixed',
+          position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
@@ -26,7 +30,9 @@ const BottomSheet = ({ isOpen, onClose, title, children }) => {
           borderTopRightRadius: '24px',
           zIndex: 10000,
           boxShadow: 'var(--shadow-phone)',
-          padding: '24px',
+          padding: '24px 24px calc(24px + env(safe-area-inset-bottom, 0px)) 24px',
+          maxHeight: '85%',
+          overflowY: 'auto',
           transform: 'translateY(0)',
           animation: 'slideUp 0.3s ease-out'
         }}
@@ -43,7 +49,8 @@ const BottomSheet = ({ isOpen, onClose, title, children }) => {
           to { transform: translateY(0); }
         }
       `}</style>
-    </>
+    </>,
+    target
   );
 };
 

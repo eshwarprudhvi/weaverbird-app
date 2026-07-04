@@ -1,5 +1,7 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Cloud, CheckCircle, LogOut } from 'lucide-react';
+import { APPLICATION } from '../../../config/application';
 
 const CloudSyncModal = ({ 
   isOpen, 
@@ -10,11 +12,14 @@ const CloudSyncModal = ({
 }) => {
   if (!isOpen) return null;
 
-  return (
+  const target = typeof document !== 'undefined' ? (document.getElementById('app-root') || document.body) : null;
+  if (!target) return null;
+
+  return createPortal(
     <>
       <div 
         style={{
-          position: 'fixed',
+          position: 'absolute',
           top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'rgba(0, 0, 0, 0.6)',
           zIndex: 9999,
@@ -25,7 +30,7 @@ const CloudSyncModal = ({
       <div 
         className="fade-in"
         style={{
-          position: 'fixed',
+          position: 'absolute',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
@@ -58,7 +63,7 @@ const CloudSyncModal = ({
                 checked={cloudSyncEnabled}
                 onChange={(e) => {
                   setCloudSyncEnabled(e.target.checked);
-                  localStorage.setItem("weaverbird_cloud_sync", e.target.checked.toString());
+                  localStorage.setItem(APPLICATION.storageKeys.cloudSync, e.target.checked.toString());
                   if (!e.target.checked && !userEmail) {
                     setIsAuthorized(true);
                   }
@@ -96,7 +101,7 @@ const CloudSyncModal = ({
                           return;
                         }
                         setUserEmail(emailVal);
-                        localStorage.setItem("weaverbird_user_email", emailVal);
+                        localStorage.setItem(APPLICATION.storageKeys.userEmail, emailVal);
                       }}
                       style={{
                         padding: "8px 16px",
@@ -138,8 +143,8 @@ const CloudSyncModal = ({
               onClick={() => {
                 if (confirm("Are you sure you want to logout and disconnect from cloud sync?")) {
                   setUserEmail("");
-                  localStorage.removeItem("weaverbird_user_email");
-                  localStorage.removeItem("weaverbird_user_role");
+                  localStorage.removeItem(APPLICATION.storageKeys.userEmail);
+                  localStorage.removeItem(APPLICATION.storageKeys.userRole);
                   setIsAuthorized(true);
                 }
               }}
@@ -179,7 +184,8 @@ const CloudSyncModal = ({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    target
   );
 };
 

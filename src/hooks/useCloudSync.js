@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { collection, doc, setDoc, onSnapshot, deleteDoc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, doc } from "firebase/firestore";
+import { createProject, updateProject, deleteProject } from "../api/project.api";
+import { APPLICATION } from "../config/application";
 
 export const useCloudSync = ({
   db,
@@ -30,11 +32,20 @@ export const useCloudSync = ({
   const syncProjectToCloud = async (project) => {
     if (!isConfigured || !db || !cloudSyncEnabled || !isAuthorized || !userEmail) return;
     try {
-      const projDocRef = doc(db, "projects", project.id);
-      await setDoc(projDocRef, {
-        ...project,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      // If it has an ID and it's NOT a temporary ID, it's an update
+      if (project.id && !String(project.id).startsWith('temp_')) {
+        await updateProject(project.id, {
+          name: project.name,
+          updatedAt: new Date().toISOString()
+        });
+      } else {
+        await createProject({
+          tempId: project.id, // Pass tempId so offlineQueue and backend (if needed) can track it
+          name: project.name,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
     } catch (err) {
       console.error(`Failed to sync project ${project.id} to cloud:`, err);
     }
@@ -44,10 +55,7 @@ export const useCloudSync = ({
   const deleteProjectFromCloud = async (projectId) => {
     if (!isConfigured || !db || !cloudSyncEnabled || !isAuthorized || !userEmail) return;
     try {
-      await deleteDoc(doc(db, "projects", projectId));
-      await setDoc(doc(db, "deleted_projects", projectId), {
-        deletedAt: new Date().toISOString()
-      });
+      await deleteProject(projectId);
     } catch (err) {
       console.error(`Failed to delete project ${projectId} from cloud:`, err);
     }
@@ -210,7 +218,7 @@ export const useCloudSync = ({
             if (setUserRole) {
               setUserRole(fetchedRole);
             }
-            localStorage.setItem("weaverbird_user_role", fetchedRole);
+            localStorage.setItem(APPLICATION.storageKeys.userRole, fetchedRole);
           }
         });
         if (setAuthorizedUsers) {
@@ -264,7 +272,7 @@ export const useCloudSync = ({
 
               const localProj = allProjectsMap.get(cloudProj.id);
               if (!localProj) {
-                allProjectsMap.set(cloudProj.id, cloudProj);
+                allProjectsMap.set(cloudProj.id, { ...cloudProj, syncState: "SYNCED" });
               } else {
                 const localTime = localProj.updatedAt ? new Date(localProj.updatedAt).getTime() : 0;
                 const cloudTime = cloudProj.updatedAt ? new Date(cloudProj.updatedAt).getTime() : 0;
@@ -294,7 +302,8 @@ export const useCloudSync = ({
                 allProjectsMap.set(cloudProj.id, {
                   ...baseProj,
                   materials: mergedMaterials,
-                  tasks: mergedTasks
+                  tasks: mergedTasks,
+                  syncState: "SYNCED"
                 });
               }
             });
@@ -304,7 +313,7 @@ export const useCloudSync = ({
 
             mergedList.forEach((p) => {
               const inCloud = cloudProjects.some((cp) => cp.id === p.id);
-              if (!inCloud) {
+              if (!inCloud && (p.syncState === "PENDING" || p.syncState === "SYNCED")) {
                 setTimeout(() => {
                   syncProjectToCloud(p);
                 }, 200);

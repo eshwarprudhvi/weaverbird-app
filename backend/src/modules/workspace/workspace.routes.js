@@ -1,6 +1,6 @@
 const express = require('express');
-const { getProfile, updateProfile, getMembers } = require('./workspace.controller');
-const { updateWorkspaceSchema } = require('./workspace.validators');
+const { getProfile, updateProfile, getMembers, inviteMember, updateMemberRole, removeMember } = require('./workspace.controller');
+const { updateWorkspaceSchema, inviteMemberSchema, updateMemberRoleSchema } = require('./workspace.validators');
 const validateRequest = require('../../core/middlewares/validateRequest');
 const requireAuth = require('../../core/middlewares/requireAuth');
 const requireWorkspace = require('../../core/middlewares/requireWorkspace');
@@ -96,6 +96,116 @@ router.get(
   requireWorkspace,
   requirePermission(PERMISSIONS.MEMBER_VIEW),
   getMembers
+);
+
+/**
+ * @swagger
+ * /workspace/members/invite:
+ *   post:
+ *     summary: Invite a new member
+ *     tags: [Workspace]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-workspace-id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Successfully invited
+ */
+router.post(
+  '/members/invite',
+  requireAuth,
+  requireWorkspace,
+  requirePermission(PERMISSIONS.MEMBER_INVITE),
+  validateRequest(inviteMemberSchema),
+  inviteMember
+);
+
+/**
+ * @swagger
+ * /workspace/members/{userId}/role:
+ *   patch:
+ *     summary: Update a member's role
+ *     tags: [Workspace]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-workspace-id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               role:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Successfully updated role
+ */
+router.patch(
+  '/members/:userId/role',
+  requireAuth,
+  requireWorkspace,
+  requirePermission(PERMISSIONS.MEMBER_UPDATE_ROLE),
+  validateRequest(updateMemberRoleSchema),
+  updateMemberRole
+);
+
+/**
+ * @swagger
+ * /workspace/members/{userId}:
+ *   delete:
+ *     summary: Remove a member
+ *     tags: [Workspace]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-workspace-id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Successfully removed
+ */
+router.delete(
+  '/members/:userId',
+  requireAuth,
+  requireWorkspace,
+  requirePermission(PERMISSIONS.MEMBER_REMOVE),
+  removeMember
 );
 
 /**

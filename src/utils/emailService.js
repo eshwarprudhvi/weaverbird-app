@@ -1,6 +1,4 @@
 import { generateAllProjectsPDF } from "./pdfGenerator";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../firebase";
 
 export const sendEmailWithAttachment = async (recipient, subject, bodyMessage, pdfDoc, attachmentName = "report.pdf", credentials = {}, companyName = "My Workspace", studioName = "Interior Studio") => {
     const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || credentials.googleScriptUrl;
@@ -83,48 +81,6 @@ export const sendEmailWithAttachment = async (recipient, subject, bodyMessage, p
     }
   };
 
-export const checkAndTriggerAutoEmail = async (currentProjects, cleanEmail, credentials = {}, setLastEmailBackupDate, companyName = "My Workspace", studioName = "Interior Studio") => {
-    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || credentials.emailJsServiceId;
-    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || credentials.emailJsTemplateId;
-    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || credentials.emailJsPublicKey;
-
-    if (!serviceId || !templateId || !publicKey || !cleanEmail) return;
-
-    try {
-      const userDocRef = doc(db, "users", cleanEmail);
-      const userSnap = await getDoc(userDocRef);
-
-      let lastSent = 0;
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        if (data.lastEmailBackupAt) {
-          lastSent = new Date(data.lastEmailBackupAt).getTime();
-          setLastEmailBackupDate(data.lastEmailBackupAt);
-        }
-      }
-
-      const nowTime = Date.now();
-      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-
-      if (nowTime - lastSent >= threeDaysMs) {
-        console.log("Triggering 3-day automated email backup...");
-        const backupPdf = generateAllProjectsPDF(currentProjects, companyName, studioName);
-        const emailSubject = `Automated 3-Day Backup: ${companyName} ${studioName}`;
-        const emailMessage = `Hello,\n\nThis is your automated 3-day backup report containing a summary of all active projects in your ${companyName} ${studioName} dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
-
-        const safeName = (companyName).toLowerCase().replace(/[^a-z0-9]/g, "_");
-        const success = await sendEmailWithAttachment(cleanEmail, emailSubject, emailMessage, backupPdf, `${safeName}_backup_${new Date().toISOString().split("T")[0]}.pdf`, credentials, companyName, studioName);
-
-        if (success) {
-          const timestamp = new Date().toISOString();
-          await setDoc(userDocRef, { lastEmailBackupAt: timestamp }, { merge: true });
-          setLastEmailBackupDate(timestamp);
-          console.log("Automated 3-day backup email sent successfully!");
-        } else {
-          console.warn("Automated backup email failed to send.");
-        }
-      }
-    } catch (err) {
-      console.error("Error processing automated backup email:", err);
-    }
-  };
+export const checkAndTriggerAutoEmail = async () => {
+    // Deprecated: Automated emails are now handled by backend schedulers and the Report API.
+};

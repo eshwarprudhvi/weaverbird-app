@@ -3,9 +3,10 @@ import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { jsPDF } from "jspdf";
+import { sendEmailWithAttachment as defaultSendEmail } from "../utils/emailService";
 
-export const usePdfGenerator = (props) => {
-  const { activeProject, setReportPreview, getPriorityWeight, reportPreview, recipientEmail, customRecipientEmail, googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey, setIsSendingEmail, sendEmailWithAttachment, projects, companyName = "My Workspace", companySubtitle = "Interior Studio" } = props;
+export const usePdfGenerator = (props = {}) => {
+  const { activeProject, setReportPreview, getPriorityWeight, reportPreview, recipientEmail, customRecipientEmail, googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey, setIsSendingEmail = () => {}, sendEmailWithAttachment = defaultSendEmail, projects = [], companyName = "My Workspace", companySubtitle = "Interior Studio" } = props;
   // Auto-destructure will be injected here
 
   const generatePDFReport = (type) => {
@@ -357,10 +358,10 @@ export const usePdfGenerator = (props) => {
     return doc;
   };
 
-  const handleEmailReportManually = async () => {
+  const handleEmailReportManually = async (overrideEmail = null) => {
     if (!reportPreview) return;
 
-    const targetEmail = recipientEmail === "custom" ? customRecipientEmail : recipientEmail;
+    const targetEmail = (typeof overrideEmail === "string" && overrideEmail.trim()) ? overrideEmail : (recipientEmail === "custom" ? customRecipientEmail : recipientEmail);
     if (!targetEmail || !targetEmail.trim() || !targetEmail.includes("@")) {
       alert("Please enter or select a valid recipient email.");
       return;
@@ -385,7 +386,7 @@ export const usePdfGenerator = (props) => {
       const emailSubject = `${companyName} Report: ${reportPreview.projectName} - ${reportPreview.title}`;
       const emailMessage = `Hello,\n\nPlease find attached the ${reportPreview.title} PDF for project "${reportPreview.projectName}" generated from the ${companyName} ${companySubtitle} app.`;
 
-      const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, doc, `${reportPreview.projectName.replace(/\s+/g, '_')}_report.pdf`);
+      const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, doc, `${reportPreview.projectName.replace(/\s+/g, '_')}_report.pdf`, { googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey }, companyName, companySubtitle);
 
       if (success) {
         alert(`PDF report successfully emailed to ${targetEmail}!`);
@@ -400,8 +401,8 @@ export const usePdfGenerator = (props) => {
     }
   };
 
-  const handleSendManualBackup = async () => {
-    const targetEmail = recipientEmail === "custom" ? customRecipientEmail : recipientEmail;
+  const handleSendManualBackup = async (overrideEmail = null) => {
+    const targetEmail = (typeof overrideEmail === "string" && overrideEmail.trim()) ? overrideEmail : (recipientEmail === "custom" ? customRecipientEmail : recipientEmail);
     if (!targetEmail || !targetEmail.trim() || !targetEmail.includes("@")) {
       alert("Please select or enter a valid recipient email.");
       return;

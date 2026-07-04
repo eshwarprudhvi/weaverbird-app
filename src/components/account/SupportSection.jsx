@@ -1,6 +1,7 @@
 import React from 'react';
 import { HelpCircle, MessageSquare, Shield, FileText, Info, Smartphone } from 'lucide-react';
 import SettingsSection, { SettingsRow } from './SettingsSection';
+import { APPLICATION } from '../../config/application';
 
 const SupportSection = ({ version, onCheckUpdate }) => {
   return (
@@ -9,7 +10,7 @@ const SupportSection = ({ version, onCheckUpdate }) => {
       <SettingsRow icon={MessageSquare} title="Contact Support" />
       <SettingsRow icon={Shield} title="Privacy Policy" />
       <SettingsRow icon={FileText} title="Terms & Conditions" />
-      <SettingsRow icon={Info} title="About Weaver Bird" />
+      <SettingsRow icon={Info} title="About This App" />
       
       {/* Version and Update Check */}
       <div 

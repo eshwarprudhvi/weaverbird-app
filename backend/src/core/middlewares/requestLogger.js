@@ -1,11 +1,11 @@
 const pinoHttp = require('pino-http');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const logger = require('../../config/logger');
 
 const requestLogger = pinoHttp({
   logger,
   genReqId: function (req, res) {
-    const id = req.id || req.headers['x-request-id'] || uuidv4();
+    const id = req.id || req.headers['x-request-id'] || crypto.randomUUID();
     return id;
   },
   customProps: function (req, res) {

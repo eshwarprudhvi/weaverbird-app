@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronLeft, Mail, Send } from 'lucide-react';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { updateWorkspaceSettings } from '../../../api/workspace.api';
 
 const EmailReportsPage = ({ 
   onBack, 
@@ -115,7 +115,9 @@ const EmailReportsPage = ({
                 setBackupRecipients(newList);
                 setNewRecipientInput("");
                 try {
-                  await setDoc(doc(db, "settings", "backup_recipients"), { emails: newList });
+                  await updateWorkspaceSettings(localStorage.getItem('wb_active_workspace_id'), { 
+                    backup_recipients: newList 
+                  });
                 } catch (err) { alert("Failed to save recipient to cloud"); }
               }}
               style={{ padding: "10px 16px", borderRadius: "8px", backgroundColor: "var(--text-title)", color: "var(--bg-app)", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
@@ -137,7 +139,9 @@ const EmailReportsPage = ({
                     setBackupRecipients(newList);
                     if (recipientEmail === email) setRecipientEmail("");
                     try {
-                      await setDoc(doc(db, "settings", "backup_recipients"), { emails: newList });
+                      await updateWorkspaceSettings(localStorage.getItem('wb_active_workspace_id'), { 
+                        backup_recipients: newList 
+                      });
                     } catch (err) { alert("Failed to remove recipient from cloud"); }
                   }}
                   style={{ padding: "4px 8px", borderRadius: "6px", backgroundColor: "rgba(239, 68, 68, 0.1)", color: "#ef4444", border: "none", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}

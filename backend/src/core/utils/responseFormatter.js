@@ -12,6 +12,15 @@ exports.successResponse = (res, statusCode, message, data = {}, meta = {}) => {
   });
 };
 
+exports.paginatedResponse = (res, message, data, page, pageSize, total, hasNext) => {
+  return exports.successResponse(res, 200, message, data, {
+    page,
+    pageSize,
+    total,
+    hasNext,
+  });
+};
+
 exports.errorResponse = (res, statusCode, message, errors = []) => {
   return res.status(statusCode).json({
     success: false,

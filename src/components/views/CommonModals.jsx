@@ -5,7 +5,7 @@ import { Plus, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download,
 import { useWorkspace } from "../../contexts/WorkspaceContext";
 
 const CommonModals = (props) => {
-  const { reportPreview, setReportPreview, formatDisplayDateStr, handleDownloadPDF, handleSharePDF, recipientEmail, setRecipientEmail, userEmail, backupRecipients, authorizedUsers, handleEmailReportManually, isSendingEmail, customRecipientEmail, setCustomRecipientEmail, emailJsServiceId, isTrashBinOpen, setIsTrashBinOpen, projects, userRole, setCustomConfirm, setProjects, setDeletedProjectIds, isBackupsListOpen, setIsBackupsListOpen, isRemoteChange, deletedProjectIds, syncProjectToCloud, isConfigured, db, cloudSyncEnabled, isAuthorized, deleteDoc, doc, deleteProjectFromCloud, isNewProjModalOpen, setIsNewProjModalOpen, handleAddProject, isNewMeetingModalOpen, setIsNewMeetingModalOpen, handleAddMeeting, newMeetTitle, setNewMeetTitle, newMeetDate, setNewMeetDate, editItemModal, setEditItemModal, handleSaveEdit, customConfirm } = props;
+  const { reportPreview, setReportPreview, formatDisplayDateStr, handleDownloadPDF, handleSharePDF, recipientEmail, setRecipientEmail, userEmail, backupRecipients, authorizedUsers, handleEmailReportManually, isSendingEmail, customRecipientEmail, setCustomRecipientEmail, emailJsServiceId, isTrashBinOpen, setIsTrashBinOpen, projects, userRole, setCustomConfirm, setProjects, setDeletedProjectIds, isBackupsListOpen, setIsBackupsListOpen, isRemoteChange, deletedProjectIds, syncProjectToCloud, isConfigured, db, cloudSyncEnabled, isAuthorized, deleteProject, doc, deleteProjectFromCloud, isNewProjModalOpen, setIsNewProjModalOpen, handleAddProject, isNewMeetingModalOpen, setIsNewMeetingModalOpen, handleAddMeeting, newMeetTitle, setNewMeetTitle, newMeetDate, setNewMeetDate, editItemModal, setEditItemModal, handleSaveEdit, customConfirm } = props;
   const { workspace } = useWorkspace();
   const companyName = workspace?.companyName || "My Workspace";
   const studioName = workspace?.studioName || "Interior Studio";
@@ -536,7 +536,7 @@ const CommonModals = (props) => {
                                             b.projects.forEach((proj) => {
                                               syncProjectToCloud(proj);
                                               if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
-                                                deleteDoc(doc(db, "deleted_projects", proj.id))
+                                                deleteProject(proj.id)
                                                   .catch(err => console.error("Failed to remove from deleted_projects:", err));
                                               }
                                             });
@@ -616,7 +616,7 @@ const CommonModals = (props) => {
                                             b.projects.forEach((proj) => {
                                               syncProjectToCloud(proj);
                                               if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail) {
-                                                deleteDoc(doc(db, "deleted_projects", proj.id))
+                                                deleteProject(proj.id)
                                                   .catch(err => console.error("Failed to remove from deleted_projects:", err));
                                               }
                                             });

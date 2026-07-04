@@ -4127,3 +4127,6 @@ textarea.form-control {
 .catalog-header-icon-btn:active {
   transform: scale(0.9) !important;
 }
+
+.spin-animation { animation: spin 2s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }

@@ -28,8 +28,42 @@ const getMembers = async (req, res, next) => {
   }
 };
 
+const inviteMember = async (req, res, next) => {
+  try {
+    const { email, role } = req.body;
+    const invitation = await workspaceService.inviteMember(req.workspace.id, req.currentUser, email, role);
+    return successResponse(res, 201, 'Member invited successfully', { invitation });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateMemberRole = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { role } = req.body;
+    const member = await workspaceService.updateMemberRole(req.workspace.id, userId, role);
+    return successResponse(res, 200, 'Member role updated successfully', { member });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const removeMember = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    await workspaceService.removeMember(req.workspace.id, userId, req.currentUser.uid);
+    return successResponse(res, 200, 'Member removed successfully', null);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
   getMembers,
+  inviteMember,
+  updateMemberRole,
+  removeMember,
 };

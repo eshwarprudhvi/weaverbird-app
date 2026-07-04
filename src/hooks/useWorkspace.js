@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { updateWorkspaceSettings } from '../api/workspace.api';
 import { db } from '../firebase';
+import { APPLICATION } from '../config/application';
 
-const WORKSPACE_CACHE_KEY = 'weaverbird_workspace_cache';
+const WORKSPACE_CACHE_KEY = APPLICATION.storageKeys.workspaceCache;
 const WORKSPACE_DOC_PATH = 'app/workspace';
 
 const DEFAULT_WORKSPACE = {
@@ -86,8 +88,7 @@ export const useWorkspace = () => {
 
       if (db) {
         setStatus('syncing');
-        const docRef = doc(db, WORKSPACE_DOC_PATH);
-        await setDoc(docRef, merged, { merge: true });
+        await updateWorkspaceSettings(activeWorkspace.id, merged);
         setStatus('synced');
         setLastSynced(new Date());
       } else {

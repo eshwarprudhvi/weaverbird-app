@@ -1,6 +1,7 @@
 import React from "react";
 import { AlertTriangle } from "lucide-react";
 import { useWorkspace } from "../../contexts/WorkspaceContext";
+import { APPLICATION } from "../../config/application";
 
 const UnauthorizedScreen = ({
   userEmail,
@@ -49,7 +50,7 @@ const UnauthorizedScreen = ({
         <button
           onClick={() => {
             setCloudSyncEnabled(false);
-            localStorage.setItem("weaverbird_cloud_sync", "false");
+            localStorage.setItem(APPLICATION.storageKeys.cloudSync, "false");
             setIsAuthorized(true);
           }}
           style={{
@@ -70,7 +71,7 @@ const UnauthorizedScreen = ({
         <button
           onClick={() => {
             setUserEmail("");
-            localStorage.removeItem("weaverbird_user_email");
+            localStorage.removeItem(APPLICATION.storageKeys.userEmail);
             setIsAuthorized(true);
           }}
           style={{

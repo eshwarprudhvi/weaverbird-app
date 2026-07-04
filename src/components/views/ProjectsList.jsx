@@ -1,10 +1,10 @@
 import React from "react";
-import { BookOpen, Search, Sliders, Plus, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download } from "lucide-react";
+import { BookOpen, Search, Sliders, Plus, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download, RefreshCw, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { getDaysLeftTextAndColor, formatDisplayDateStr } from "../../utils/helpers";
 import AppHeader from "../common/AppHeader";
 
 const ProjectsList = (props) => {
-  const { companyName, companySubtitle, isNetworkOnline, cloudSyncEnabled, userRole, setIsCatalogScreenOpen, searchQuery, setSearchQuery, filteredProjects, setActiveProjectId, setProjectSubTab, handleDeleteProject } = props;
+  const { companyName, companySubtitle, isNetworkOnline, cloudSyncEnabled, userRole, setIsCatalogScreenOpen, searchQuery, setSearchQuery, filteredProjects, setActiveProjectId, setProjectSubTab, handleDeleteProject, retrySync, createProject } = props;
   return (
     <>
 
@@ -98,6 +98,33 @@ const ProjectsList = (props) => {
                                   >
                                     <Trash2 size={14} />
                                   </button>
+
+                                  {/* Sync Status Indicator */}
+                                  {project.syncStatus && (
+                                    <div style={{ position: 'absolute', top: '16px', right: '46px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                      {project.syncStatus === 'pending' && <RefreshCw size={14} className="spin-animation" style={{ color: '#fbbf24' }} />}
+                                      {project.syncStatus === 'failed' && (
+                                        <>
+                                          <AlertCircle size={14} style={{ color: '#ef4444' }} />
+                                          <button 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              retrySync(project.id, createProject, { 
+                                                tempId: project.id, 
+                                                name: project.name,
+                                                createdAt: new Date().toISOString(),
+                                                updatedAt: new Date().toISOString()
+                                              });
+                                            }}
+                                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', padding: '0', textDecoration: 'underline' }}
+                                          >
+                                            Retry
+                                          </button>
+                                        </>
+                                      )}
+                                      {/* Synced is usually invisible or shown briefly, but we can just skip it to keep UI clean, or show a checkmark */}
+                                    </div>
+                                  )}
 
                                   <div className="project-info">
                                     <span className="project-name" style={{ paddingRight: '28px', display: 'block' }}>

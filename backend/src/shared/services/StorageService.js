@@ -30,6 +30,25 @@ class StorageService {
     }
   }
 
+  async uploadBuffer(buffer, destination, options = {}) {
+    try {
+      if (!this.bucket) throw new Error('Storage bucket not initialized');
+
+      const file = this.bucket.file(destination);
+      await file.save(buffer, {
+        metadata: {
+          contentType: options.contentType || 'application/octet-stream',
+          ...options.metadata
+        }
+      });
+      
+      return file.publicUrl();
+    } catch (error) {
+      logger.error('Failed to upload buffer:', error);
+      throw error;
+    }
+  }
+
   async generateSignedUrl(filePath, expiresInHours = 1) {
     try {
       if (!this.bucket) throw new Error('Storage bucket not initialized');

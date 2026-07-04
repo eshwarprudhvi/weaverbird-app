@@ -23,7 +23,14 @@ const inviteMemberSchema = z.object({
   })
 });
 
+const updateMemberRoleSchema = z.object({
+  body: z.object({
+    role: z.enum(['Admin', 'Manager', 'Editor', 'Viewer']),
+  })
+});
+
 module.exports = {
   updateWorkspaceSchema,
   inviteMemberSchema,
+  updateMemberRoleSchema,
 };
