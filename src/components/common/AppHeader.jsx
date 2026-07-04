@@ -18,12 +18,14 @@ const AppHeader = ({
   if (variant === 'branding') {
     return (
       <div style={{
-        backgroundColor: 'var(--bg-card)',
+        backgroundColor: 'var(--bg-nav-solid)',
         padding: '24px 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        position: 'relative',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
         borderBottom: '1px solid var(--border)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -33,7 +35,7 @@ const AppHeader = ({
             <h2 style={{
               fontFamily: 'var(--font-title)',
               fontSize: '20px',
-              color: 'var(--text-title)',
+              color: 'var(--accent-gold)',
               fontWeight: 800,
               margin: '0',
               letterSpacing: '0.3px'
@@ -79,7 +81,7 @@ const AppHeader = ({
           <span style={{
             fontSize: title ? '16px' : '20px',
             fontWeight: "800",
-            color: "var(--text-title)",
+            color: title ? "var(--text-title)" : "var(--accent-gold)",
             fontFamily: "var(--font-title)",
             lineHeight: "1.1",
             letterSpacing: "-0.3px",

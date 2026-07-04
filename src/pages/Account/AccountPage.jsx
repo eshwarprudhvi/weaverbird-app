@@ -166,9 +166,24 @@ const AccountPage = (props) => {
 
         {/* VERSION */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
-            Weaver Bird v{WEB_APP_VERSION}
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>
+            {companyName || 'My Workspace'} v{WEB_APP_VERSION}
           </p>
+          <button 
+            onClick={() => checkUpdate(true)}
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: 'var(--accent-gold)', 
+              fontSize: '12px', 
+              fontWeight: 700, 
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}
+          >
+            Check for Updates
+          </button>
         </div>
 
       </div>
