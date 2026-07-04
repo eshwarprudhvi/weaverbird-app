@@ -1,5 +1,6 @@
 import React from "react";
 import { AlertTriangle } from "lucide-react";
+import { useWorkspace } from "../../contexts/WorkspaceContext";
 
 const UnauthorizedScreen = ({
   userEmail,
@@ -7,6 +8,10 @@ const UnauthorizedScreen = ({
   setIsAuthorized,
   setUserEmail
 }) => {
+  const { workspace } = useWorkspace();
+  const companyName = workspace?.companyName || "My Workspace";
+  const studioName = workspace?.studioName || "Interior Studio";
+
   return (
     <div className="screen-content fade-in" style={{
       display: "flex",
@@ -35,7 +40,7 @@ const UnauthorizedScreen = ({
       </div>
       <h2 style={{ fontSize: "20px", fontWeight: "700", color: "var(--text-title)", margin: 0 }}>Access Restricted</h2>
       <p style={{ fontSize: "14px", color: "var(--text-muted)", margin: 0, lineHeight: "1.5" }}>
-        Your email <strong>{userEmail}</strong> is not authorized to access WeaverBird Interior Studio's cloud database.
+        Your email <strong>{userEmail}</strong> is not authorized to access {companyName} {studioName}'s cloud database.
       </p>
       <p style={{ fontSize: "12px", color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>
         Please ask your administrator to grant access to your email from their settings panel.

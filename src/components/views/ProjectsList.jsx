@@ -1,91 +1,43 @@
 import React from "react";
 import { BookOpen, Search, Sliders, Plus, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download } from "lucide-react";
 import { getDaysLeftTextAndColor, formatDisplayDateStr } from "../../utils/helpers";
+import AppHeader from "../common/AppHeader";
 
 const ProjectsList = (props) => {
   const { companyName, companySubtitle, isNetworkOnline, cloudSyncEnabled, userRole, setIsCatalogScreenOpen, searchQuery, setSearchQuery, filteredProjects, setActiveProjectId, setProjectSubTab, handleDeleteProject } = props;
   return (
     <>
 
-                      <div className="app-header fade-in">
-                        <div className="header-left">
-                          <div
-                            className="header-title-container"
-                            style={{ display: "flex", flexDirection: "column" }}
-                          >
-                            <span
-                              className="header-brand"
-                              style={{
-                                fontSize: "22px",
-                                fontWeight: "800",
-                                color: "var(--text-title)",
-                                fontFamily: "var(--font-title)",
-                                lineHeight: "1.1",
-                                letterSpacing: "-0.5px",
-                              }}
-                            >{companyName || "WeaverBird"}</span>
-                            <span
-                              className="header-subtitle"
-                              style={{
-                                fontSize: "10px",
-                                fontWeight: "600",
-                                color: "var(--accent-gold-dark)",
-                                textTransform: "uppercase",
-                                letterSpacing: "1px",
-                                marginTop: "2px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                              }}
-                            >
-                              Interior Studio
-                              {/* Online pill inline beside subtitle */}
-                              {(() => {
-                                const getStatus = () => {
-                                  if (!isNetworkOnline) {
-                                    return {
-                                      text: "Offline",
-                                      dotColor: "#e74c3c",
-                                      bg: "rgba(231, 76, 60, 0.1)",
-                                    };
-                                  }
-                                  if (!cloudSyncEnabled) {
-                                    return {
-                                      text: "Sync Off",
-                                      dotColor: "#f5a623",
-                                      bg: "rgba(245, 166, 35, 0.1)",
-                                    };
-                                  }
-                                  return {
-                                    text: "Online",
-                                    dotColor: "#22c55e",
-                                    bg: "rgba(34, 197, 94, 0.1)",
-                                  };
-                                };
-                                const status = getStatus();
-                                return (
-                                  <span
-                                    className="online-pill-inline"
-                                    style={{
-                                      backgroundColor: status.bg,
-                                      color: status.dotColor,
-                                    }}
-                                  >
-                                    <span
-                                      className="status-dot"
-                                      style={{
-                                        backgroundColor: status.dotColor,
-                                        boxShadow: `0 0 6px ${status.dotColor}`,
-                                      }}
-                                    />
-                                    {status.text}
-                                  </span>
-                                );
-                              })()}
-                            </span>
-                          </div>
-                        </div>
-                        {userRole === "admin" && (
-                          <div className="header-right">
+                      <AppHeader 
+                        variant="page"
+                        subtitleNode={
+                          (() => {
+                            const getStatus = () => {
+                              if (!isNetworkOnline) {
+                                return { text: "Offline", dotColor: "#e74c3c", bg: "rgba(231, 76, 60, 0.1)" };
+                              }
+                              if (!cloudSyncEnabled) {
+                                return { text: "Sync Off", dotColor: "#f5a623", bg: "rgba(245, 166, 35, 0.1)" };
+                              }
+                              return { text: "Online", dotColor: "#22c55e", bg: "rgba(34, 197, 94, 0.1)" };
+                            };
+                            const status = getStatus();
+                            return (
+                              <span
+                                className="online-pill-inline"
+                                style={{ backgroundColor: status.bg, color: status.dotColor, marginLeft: '6px' }}
+                              >
+                                <span
+                                  className="status-dot"
+                                  style={{ backgroundColor: status.dotColor, boxShadow: `0 0 6px ${status.dotColor}` }}
+                                />
+                                {status.text}
+                              </span>
+                            );
+                          })()
+                        }
+                        rightActions={
+                          userRole === "admin" && (
                             <button
                               className="icon-btn"
                               onClick={() => setIsCatalogScreenOpen(true)}
@@ -94,9 +46,9 @@ const ProjectsList = (props) => {
                             >
                               <BookOpen size={18} />
                             </button>
-                          </div>
-                        )}
-                      </div>
+                          )
+                        }
+                      />
 
                       <div className="screen-content fade-in">
                         {/* Slim Search with filter icon */}

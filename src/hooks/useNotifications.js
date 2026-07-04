@@ -1,6 +1,6 @@
 import { LocalNotifications } from "@capacitor/local-notifications";
 
-export const useNotifications = () => {
+export const useNotifications = (companyName = "My Workspace") => {
   const scheduleAllUpcomingMeetings = async (meetingsList) => {
     try {
       const perm = await LocalNotifications.checkPermissions();
@@ -41,7 +41,7 @@ export const useNotifications = () => {
           notifications: [
             {
               id: numericId,
-              title: "WeaverBird Meeting Today",
+              title: `${companyName} Meeting Today`,
               body: `Reminder: "${meeting.title}" is scheduled for today!`,
               schedule: { at: scheduleTime },
               extra: { tab: "schedule" }

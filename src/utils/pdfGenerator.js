@@ -1,17 +1,17 @@
 import { jsPDF } from "jspdf";
 
-export const generateAllProjectsPDF = (allProjects) => {
+export const generateAllProjectsPDF = (allProjects, companyName, studioName) => {
     const doc = new jsPDF();
 
     // Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text(companyName || "WeaverBird", 20, 25);
+    doc.text(companyName || "My Workspace", 20, 25);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(180, 150, 100); // gold
-    doc.text("INTERIOR STUDIO - ALL PROJECTS BACKUP SUMMARY", 20, 31);
+    doc.text(`${(studioName || "Interior Studio").toUpperCase()} - ALL PROJECTS BACKUP SUMMARY`, 20, 31);
 
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
@@ -100,18 +100,18 @@ export const generateAllProjectsPDF = (allProjects) => {
     return doc;
   };
 
-export const generateSingleProjectPDF = (report) => {
+export const generateSingleProjectPDF = (report, companyName, studioName) => {
     const doc = new jsPDF();
 
-    // WeaverBird Header
+    // Workspace Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text(companyName || "WeaverBird", 20, 25);
+    doc.text(companyName || "My Workspace", 20, 25);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(180, 150, 100); // gold
-    doc.text("INTERIOR STUDIO", 20, 31);
+    doc.text((studioName || "Interior Studio").toUpperCase(), 20, 31);
 
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);

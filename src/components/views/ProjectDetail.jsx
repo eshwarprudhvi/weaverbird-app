@@ -1,12 +1,15 @@
 import React from "react";
 import { Plus, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download, ArrowLeft, MoreHorizontal, MessageSquare, Phone, Image, Camera, User, Filter, Share2, Grid , MoreVertical, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
+import AppHeader from "../common/AppHeader";
 
 const ProjectDetail = (props) => {
   const { companyName, setActiveProjectId, activeProject, getDaysLeftTextAndColor, formatDisplayDateStr, handleShareProjectOverview, generatePDFReport, setEditItemModal, activeRoomId, setActiveRoomId, openRoomMenuId, setOpenRoomMenuId, handleEditRoom, handleDeleteRoom, handleShareRoom, handleGenerateRoomPDF, projectSubTab, setProjectSubTab, handleShareMaterials, handleAddMaterial, newMaterialInput, setNewMaterialInput, handleToggleMaterial, handleDeleteMaterial, setMaterialsCollapsed, materialsCollapsed, handleClearCompletedMaterials, handleShareTasks, handleAddTask, newWorkInput, setNewWorkInput, newTaskPriority, setNewTaskPriority, getPriorityWeight, draggedTaskId, handleTaskDragStart, handleTaskDragOver, handleTaskDrop, handleToggleTask, handleDeleteTask, setTasksCollapsed, tasksCollapsed, handleClearCompletedTasks } = props;
   return (
 <>
-                      <div className="app-header fade-in">
-                        <div className="header-left">
+                      <AppHeader
+                        variant="page"
+                        title={activeProject?.name}
+                        leftActions={
                           <button
                             className="icon-btn"
                             onClick={() => setActiveProjectId(null)}
@@ -14,73 +17,61 @@ const ProjectDetail = (props) => {
                           >
                             <ArrowLeft size={20} />
                           </button>
-                          <div
-                            className="header-title-container"
-                            style={{ maxWidth: "230px" }}
-                          >
-                            <span className="header-subtitle">{companyName || "WeaverBird"}</span>
-                            <h1 style={{ marginBottom: "2px" }}>
-                              {activeProject?.name}
-                            </h1>
-                            {activeProject?.completionDate && (
-                              <span
-                                style={{
-                                  fontSize: "10px",
-                                  fontWeight: "700",
-                                  color:
-                                    getDaysLeftTextAndColor(activeProject).color,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                }}
-                              >
-                                <Clock size={10} />
-                                Target:{" "}
-                                {formatDisplayDateStr(
-                                  activeProject.completionDate
-                                )}{" "}
-                                ({getDaysLeftTextAndColor(activeProject).text})
-                              </span>
-                            )}
+                        }
+                        subtitleNode={
+                          activeProject?.completionDate && (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: "700",
+                                color: getDaysLeftTextAndColor(activeProject).color,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                marginLeft: '8px'
+                              }}
+                            >
+                              <Clock size={10} />
+                              Target: {formatDisplayDateStr(activeProject.completionDate)} ({getDaysLeftTextAndColor(activeProject).text})
+                            </span>
+                          )
+                        }
+                        rightActions={
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <button
+                              className="icon-btn"
+                              onClick={handleShareProjectOverview}
+                              style={{ color: "#25D366" }}
+                              aria-label="Share project overview to WhatsApp"
+                            >
+                              <Share2 size={16} />
+                            </button>
+                            <button
+                              className="icon-btn"
+                              onClick={() => generatePDFReport("both")}
+                              style={{ color: "#ef4444" }}
+                              aria-label="Export project report to PDF"
+                            >
+                              <FileText size={16} />
+                            </button>
+                            <button
+                              className="icon-btn"
+                              onClick={() =>
+                                setEditItemModal({
+                                  type: "project",
+                                  itemId: activeProject.id,
+                                  name: activeProject.name,
+                                  status: activeProject.status,
+                                  completionDate: activeProject.completionDate || "",
+                                })
+                              }
+                              aria-label="Edit project metadata"
+                            >
+                              <Edit2 size={16} />
+                            </button>
                           </div>
-                        </div>
-                        <div
-                          className="header-right"
-                          style={{ display: "flex", gap: "8px" }}
-                        >
-                          <button
-                            className="icon-btn"
-                            onClick={handleShareProjectOverview}
-                            style={{ color: "#25D366" }}
-                            aria-label="Share project overview to WhatsApp"
-                          >
-                            <Share2 size={16} />
-                          </button>
-                          <button
-                            className="icon-btn"
-                            onClick={() => generatePDFReport("both")}
-                            style={{ color: "#ef4444" }}
-                            aria-label="Export project report to PDF"
-                          >
-                            <FileText size={16} />
-                          </button>
-                          <button
-                            className="icon-btn"
-                            onClick={() =>
-                              setEditItemModal({
-                                type: "project",
-                                itemId: activeProject.id,
-                                name: activeProject.name,
-                                status: activeProject.status,
-                                completionDate: activeProject.completionDate || "",
-                              })
-                            }
-                            aria-label="Edit project metadata"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                        </div>
-                      </div>
+                        }
+                      />
 
                       {/* Target Completion Banner removed to reduce vertical spacing as target is already displayed in header */}
 

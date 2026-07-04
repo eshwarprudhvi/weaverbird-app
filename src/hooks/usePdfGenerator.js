@@ -5,7 +5,7 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import { jsPDF } from "jspdf";
 
 export const usePdfGenerator = (props) => {
-  const { activeProject, setReportPreview, getPriorityWeight, reportPreview, recipientEmail, customRecipientEmail, googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey, setIsSendingEmail, sendEmailWithAttachment, projects, companyName = "WeaverBird", companySubtitle = "Interior Studio" } = props;
+  const { activeProject, setReportPreview, getPriorityWeight, reportPreview, recipientEmail, customRecipientEmail, googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey, setIsSendingEmail, sendEmailWithAttachment, projects, companyName = "My Workspace", companySubtitle = "Interior Studio" } = props;
   // Auto-destructure will be injected here
 
   const generatePDFReport = (type) => {
@@ -67,7 +67,7 @@ export const usePdfGenerator = (props) => {
     // Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text(companyName || "WeaverBird", 20, 25);
+    doc.text(companyName, 20, 25);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
@@ -164,10 +164,10 @@ export const usePdfGenerator = (props) => {
   const generateSingleProjectPDF = (report) => {
     const doc = new jsPDF();
 
-    // WeaverBird Header
+    // Workspace Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text(companyName || "WeaverBird", 20, 25);
+    doc.text(companyName, 20, 25);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
@@ -382,8 +382,8 @@ export const usePdfGenerator = (props) => {
       // Create the single project PDF using the shared generator function
       const doc = generateSingleProjectPDF(reportPreview);
 
-      const emailSubject = `${companyName || "Weaverbird"} Report: ${reportPreview.projectName} - ${reportPreview.title}`;
-      const emailMessage = `Hello,\n\nPlease find attached the ${reportPreview.title} PDF for project "${reportPreview.projectName}" generated from the ${companyName || "WeaverBird"} ${companySubtitle || "Interior Studio"} app.`;
+      const emailSubject = `${companyName} Report: ${reportPreview.projectName} - ${reportPreview.title}`;
+      const emailMessage = `Hello,\n\nPlease find attached the ${reportPreview.title} PDF for project "${reportPreview.projectName}" generated from the ${companyName} ${companySubtitle} app.`;
 
       const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, doc, `${reportPreview.projectName.replace(/\s+/g, '_')}_report.pdf`);
 
@@ -420,10 +420,10 @@ export const usePdfGenerator = (props) => {
     setIsSendingEmail(true);
     try {
       const backupPdf = generateAllProjectsPDF(projects);
-      const emailSubject = `Manual Backup: ${companyName || "Weaverbird"} ${companySubtitle || "Studio"}`;
-      const emailMessage = `Hello,\n\nHere is a manual backup report containing a summary of all active projects in the ${companyName || "WeaverBird"} ${companySubtitle || "Interior Studio"} dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
+      const emailSubject = `Manual Backup: ${companyName} ${companySubtitle}`;
+      const emailMessage = `Hello,\n\nHere is a manual backup report containing a summary of all active projects in the ${companyName} ${companySubtitle} dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
 
-      const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, backupPdf, `${(companyName || "Weaverbird").toLowerCase().replace(/[^a-z0-9]/g, "_")}_backup_${new Date().toISOString().split("T")[0]}.pdf`);
+      const success = await sendEmailWithAttachment(targetEmail, emailSubject, emailMessage, backupPdf, `${(companyName).toLowerCase().replace(/[^a-z0-9]/g, "_")}_backup_${new Date().toISOString().split("T")[0]}.pdf`, { googleScriptUrl, emailJsServiceId, emailJsTemplateId, emailJsPublicKey }, companyName, companySubtitle);
 
       if (success) {
         alert(`Backup PDF successfully emailed to ${targetEmail}!`);
@@ -445,7 +445,7 @@ export const usePdfGenerator = (props) => {
       // Create the single project PDF using the shared generator function
       const doc = generateSingleProjectPDF(reportPreview);
 
-      const fileName = `${(companyName || "WeaverBird").replace(/[^a-zA-Z0-9]/g, "_")}_${reportPreview.projectName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
+      const fileName = `${(companyName).replace(/[^a-zA-Z0-9]/g, "_")}_${reportPreview.projectName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
 
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
@@ -494,7 +494,7 @@ export const usePdfGenerator = (props) => {
       // Create the single project PDF using the shared generator function
       const doc = generateSingleProjectPDF(reportPreview);
 
-      const fileName = `${(companyName || "WeaverBird").replace(/[^a-zA-Z0-9]/g, "_")}_${reportPreview.projectName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
+      const fileName = `${(companyName).replace(/[^a-zA-Z0-9]/g, "_")}_${reportPreview.projectName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
 
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
@@ -508,7 +508,7 @@ export const usePdfGenerator = (props) => {
 
         // Share the actual cached PDF file natively
         await Share.share({
-          title: `${companyName || "WeaverBird"} Report - ${reportPreview.projectName}`,
+          title: `${companyName} Report - ${reportPreview.projectName}`,
           text: `Here is the pending report for project: ${reportPreview.projectName}.`,
           url: fileResult.uri,
           dialogTitle: 'Share PDF Report'
@@ -531,12 +531,12 @@ export const usePdfGenerator = (props) => {
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
-            title: `${companyName || "WeaverBird"} Report - ${reportPreview.projectName}`,
+            title: `${companyName} Report - ${reportPreview.projectName}`,
             text: `Here is the pending report for project: ${reportPreview.projectName}.`
           });
         } else {
           // Fallback text share or clipboard
-          let shareText = `*${companyName || "WeaverBird"} ${companySubtitle || "Interior Studio"}*\n*Project:* ${reportPreview.projectName}\n*Report:* ${reportPreview.title}\n\n`;
+          let shareText = `*${companyName} ${companySubtitle}*\n*Project:* ${reportPreview.projectName}\n*Report:* ${reportPreview.title}\n\n`;
           if (reportPreview.type === "materials" || reportPreview.type === "both") {
             shareText += `*Pending Materials:*\n`;
             reportPreview.materials.forEach((m, idx) => { shareText += `${idx + 1}. ${m.name}\n`; });
@@ -548,7 +548,7 @@ export const usePdfGenerator = (props) => {
           }
           if (navigator.share) {
             await navigator.share({
-              title: `${companyName || "WeaverBird"} Report - ${reportPreview.projectName}`,
+              title: `${companyName} Report - ${reportPreview.projectName}`,
               text: shareText
             });
           } else {

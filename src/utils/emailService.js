@@ -2,7 +2,7 @@ import { generateAllProjectsPDF } from "./pdfGenerator";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
-export const sendEmailWithAttachment = async (recipient, subject, bodyMessage, pdfDoc, attachmentName = "weaverbird_report.pdf", credentials = {}, companyName = "WeaverBird") => {
+export const sendEmailWithAttachment = async (recipient, subject, bodyMessage, pdfDoc, attachmentName = "report.pdf", credentials = {}, companyName = "My Workspace", studioName = "Interior Studio") => {
     const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || credentials.googleScriptUrl;
 
     // Get the Base64 representation of the PDF from jsPDF
@@ -57,7 +57,7 @@ export const sendEmailWithAttachment = async (recipient, subject, bodyMessage, p
           to_email: recipient,
           subject: subject,
           message: bodyMessage,
-          from_name: "${companyName || "Weaverbird"} App",
+          from_name: `${companyName} App`,
           attachment: base64pdf
         }
       };
@@ -83,7 +83,7 @@ export const sendEmailWithAttachment = async (recipient, subject, bodyMessage, p
     }
   };
 
-export const checkAndTriggerAutoEmail = async (currentProjects, cleanEmail, credentials = {}, setLastEmailBackupDate) => {
+export const checkAndTriggerAutoEmail = async (currentProjects, cleanEmail, credentials = {}, setLastEmailBackupDate, companyName = "My Workspace", studioName = "Interior Studio") => {
     const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || credentials.emailJsServiceId;
     const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || credentials.emailJsTemplateId;
     const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || credentials.emailJsPublicKey;
@@ -108,11 +108,12 @@ export const checkAndTriggerAutoEmail = async (currentProjects, cleanEmail, cred
 
       if (nowTime - lastSent >= threeDaysMs) {
         console.log("Triggering 3-day automated email backup...");
-        const backupPdf = generateAllProjectsPDF(currentProjects);
-        const emailSubject = `Automated 3-Day Backup: ${companyName || "Weaverbird"} Studio`;
-        const emailMessage = `Hello,\n\nThis is your automated 3-day backup report containing a summary of all active projects in your Weaverbird Interior Studio dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
+        const backupPdf = generateAllProjectsPDF(currentProjects, companyName, studioName);
+        const emailSubject = `Automated 3-Day Backup: ${companyName} ${studioName}`;
+        const emailMessage = `Hello,\n\nThis is your automated 3-day backup report containing a summary of all active projects in your ${companyName} ${studioName} dashboard.\n\nDate: ${new Date().toLocaleDateString()}`;
 
-        const success = await sendEmailWithAttachment(cleanEmail, emailSubject, emailMessage, backupPdf, `${(companyName || "Weaverbird").toLowerCase().replace(/[^a-z0-9]/g, "_")}_backup_${new Date().toISOString().split("T")[0]}.pdf`);
+        const safeName = (companyName).toLowerCase().replace(/[^a-z0-9]/g, "_");
+        const success = await sendEmailWithAttachment(cleanEmail, emailSubject, emailMessage, backupPdf, `${safeName}_backup_${new Date().toISOString().split("T")[0]}.pdf`, credentials, companyName, studioName);
 
         if (success) {
           const timestamp = new Date().toISOString();

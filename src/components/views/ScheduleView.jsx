@@ -1,5 +1,6 @@
 import { Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckSquare, Trash2, Edit2 } from "lucide-react";
 import TodoView from "./TodoView";
+import AppHeader from "../common/AppHeader";
 
 const ScheduleView = (props) => {
   const {
@@ -34,14 +35,10 @@ const ScheduleView = (props) => {
   return (
 
                 <>
-                  <div className="app-header fade-in">
-                    <div className="header-left">
-                      <div className="header-title-container">
-                        <span className="header-subtitle">WeaverBird</span>
-                        <h1>Meetings</h1>
-                      </div>
-                    </div>
-                    <div className="header-right">
+                  <AppHeader 
+                    variant="page"
+                    title="Meetings"
+                    rightActions={
                       <button
                         className="icon-btn todo-header-btn"
                         onClick={() => setIsTodoScreenOpen(true)}
@@ -55,9 +52,8 @@ const ScheduleView = (props) => {
                           </span>
                         )}
                       </button>
-                    </div>
-                  </div>
-
+                    }
+                  />
                   {/* ===== TODO FULL SCREEN OVERLAY ===== */}
                   {isTodoScreenOpen && (
                 <TodoView

@@ -2,9 +2,14 @@ import React from "react";
 import AddProjectModal from "../modals/AddProjectModal";
 import AddMeetingModal from "../modals/AddMeetingModal";
 import { Plus, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download, User, ArrowLeft, MoreHorizontal, Image, Camera, AlertCircle, Save, FolderPlus, Folder, MoreVertical, RefreshCw , Mail, Undo, RotateCcw } from "lucide-react";
+import { useWorkspace } from "../../contexts/WorkspaceContext";
 
 const CommonModals = (props) => {
-  const { companyName, companySubtitle, reportPreview, setReportPreview, formatDisplayDateStr, handleDownloadPDF, handleSharePDF, recipientEmail, setRecipientEmail, userEmail, backupRecipients, authorizedUsers, handleEmailReportManually, isSendingEmail, customRecipientEmail, setCustomRecipientEmail, emailJsServiceId, isTrashBinOpen, setIsTrashBinOpen, projects, userRole, setCustomConfirm, setProjects, setDeletedProjectIds, isBackupsListOpen, setIsBackupsListOpen, isRemoteChange, deletedProjectIds, syncProjectToCloud, isConfigured, db, cloudSyncEnabled, isAuthorized, deleteDoc, doc, deleteProjectFromCloud, isNewProjModalOpen, setIsNewProjModalOpen, handleAddProject, isNewMeetingModalOpen, setIsNewMeetingModalOpen, handleAddMeeting, newMeetTitle, setNewMeetTitle, newMeetDate, setNewMeetDate, editItemModal, setEditItemModal, handleSaveEdit, customConfirm } = props;
+  const { reportPreview, setReportPreview, formatDisplayDateStr, handleDownloadPDF, handleSharePDF, recipientEmail, setRecipientEmail, userEmail, backupRecipients, authorizedUsers, handleEmailReportManually, isSendingEmail, customRecipientEmail, setCustomRecipientEmail, emailJsServiceId, isTrashBinOpen, setIsTrashBinOpen, projects, userRole, setCustomConfirm, setProjects, setDeletedProjectIds, isBackupsListOpen, setIsBackupsListOpen, isRemoteChange, deletedProjectIds, syncProjectToCloud, isConfigured, db, cloudSyncEnabled, isAuthorized, deleteDoc, doc, deleteProjectFromCloud, isNewProjModalOpen, setIsNewProjModalOpen, handleAddProject, isNewMeetingModalOpen, setIsNewMeetingModalOpen, handleAddMeeting, newMeetTitle, setNewMeetTitle, newMeetDate, setNewMeetDate, editItemModal, setEditItemModal, handleSaveEdit, customConfirm } = props;
+  const { workspace } = useWorkspace();
+  const companyName = workspace?.companyName || "My Workspace";
+  const studioName = workspace?.studioName || "Interior Studio";
+  
   return (
     <>
 {/* --- MODALS --- */}
@@ -50,8 +55,8 @@ const CommonModals = (props) => {
                     >
                       <div style={{ borderBottom: "2px solid var(--accent-gold)", paddingBottom: "12px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                         <div>
-                          <div style={{ fontFamily: "var(--font-title)", fontSize: "20px", fontWeight: "800", color: "var(--text-title)" }}>{companyName || "WeaverBird"}</div>
-                          <div style={{ fontFamily: "var(--font-title)", fontSize: "10px", fontWeight: "600", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "2px" }}>Interior Studio</div>
+                          <div style={{ fontFamily: "var(--font-title)", fontSize: "20px", fontWeight: "800", color: "var(--text-title)" }}>{companyName}</div>
+                          <div style={{ fontFamily: "var(--font-title)", fontSize: "10px", fontWeight: "600", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "2px" }}>{studioName}</div>
                         </div>
                         <div style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "right" }}>
                           <strong>Date:</strong> {new Date().toLocaleDateString("en-GB")}

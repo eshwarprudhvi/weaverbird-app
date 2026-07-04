@@ -1,4 +1,5 @@
 import React from "react";
+import { useWorkspace } from "../../contexts/WorkspaceContext";
 
 const CloudSyncLogin = ({
   setUserEmail,
@@ -7,6 +8,9 @@ const CloudSyncLogin = ({
   setCloudSyncEnabled,
   setIsAuthorized
 }) => {
+  const { workspace } = useWorkspace();
+  const companyName = workspace?.companyName || "My Workspace";
+
   return (
     <div className="screen-content fade-in" style={{
       display: "flex",
@@ -37,12 +41,12 @@ const CloudSyncLogin = ({
         WebkitBackgroundClip: "text",
         WebkitTextFillColor: "transparent",
       }}>
-        {companyName ? companyName.trim().split(" ").map(n=>n[0]).join("").substring(0,2).toUpperCase() : "WB"}
+        {companyName.trim().split(" ").map(n=>n[0]).join("").substring(0,2).toUpperCase()}
       </div>
 
       <div>
         <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--accent-gold)", letterSpacing: "2px", textTransform: "uppercase" }}>
-          {companyName || "WeaverBird"}
+          {companyName}
         </span>
         <h2 style={{ fontSize: "22px", fontWeight: "700", color: "var(--text-title)", margin: "4px 0 0 0" }}>
           Cloud Sync Portal

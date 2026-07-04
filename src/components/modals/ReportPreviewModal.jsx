@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Mail } from 'lucide-react';
+import { useWorkspace } from '../../contexts/WorkspaceContext';
 
 export default function ReportPreviewModal({
   reportPreview,
@@ -18,6 +19,10 @@ export default function ReportPreviewModal({
   emailJsServiceId,
   handleEmailReportManually
 }) {
+  const { workspace } = useWorkspace();
+  const companyName = workspace?.companyName || "My Workspace";
+  const studioName = workspace?.studioName || "Interior Studio";
+
   if (!reportPreview) return null;
 
   return (
@@ -60,8 +65,8 @@ export default function ReportPreviewModal({
                     >
                       <div style={{ borderBottom: "2px solid var(--accent-gold)", paddingBottom: "12px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                         <div>
-                          <div style={{ fontFamily: "var(--font-title)", fontSize: "20px", fontWeight: "800", color: "var(--text-title)" }}>{companyName || "WeaverBird"}</div>
-                          <div style={{ fontFamily: "var(--font-title)", fontSize: "10px", fontWeight: "600", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "2px" }}>Interior Studio</div>
+                          <div style={{ fontFamily: "var(--font-title)", fontSize: "20px", fontWeight: "800", color: "var(--text-title)" }}>{companyName}</div>
+                          <div style={{ fontFamily: "var(--font-title)", fontSize: "10px", fontWeight: "600", color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "2px" }}>{studioName}</div>
                         </div>
                         <div style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "right" }}>
                           <strong>Date:</strong> {new Date().toLocaleDateString("en-GB")}
