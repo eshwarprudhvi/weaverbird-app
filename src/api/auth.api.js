@@ -1,47 +1,108 @@
 import apiClient from './client';
 import { ENDPOINTS } from './endpoints';
-
-/**
- * Pure API service for Authentication & Onboarding
- * Responsible ONLY for backend REST communication, Firebase Auth requests, and request normalization.
- * No React state, no UI logic, no localStorage management.
- */
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { auth, isConfigured } from '../firebase';
 
 export const authApi = {
   /**
-   * Login with email/password or OAuth credentials
-   * @param {Object} credentials { email, password, provider }
-   * @returns {Promise<Object>} Normalized session object
+   * Login with email/password
    */
   async login(credentials) {
-    const { email } = credentials;
-    // In our hybrid/simulated setup, we normalize the user object and verify against backend /auth/me
+    const { email, password } = credentials;
+    let userCredential;
+    
+    if (isConfigured && auth) {
+      userCredential = await signInWithEmailAndPassword(auth, email, password);
+    }
+    
+    const token = isConfigured ? await userCredential.user.getIdToken() : `simulated-token-${email}`;
+    const uid = isConfigured ? userCredential.user.uid : `user-${Date.now()}`;
+    
     try {
       const response = await apiClient.get('/auth/me', {
         headers: {
-          'Authorization': `Bearer simulated-token-${email}`,
+          'Authorization': `Bearer ${token}`,
           'x-user-email': email
         }
       });
       return {
         user: {
-          email: response.data.email || email,
-          role: response.data.role || 'editor',
-          id: response.data.uid || `user-${Date.now()}`
+          email: response.data.user?.email || email,
+          role: response.data.currentMembership?.role || 'editor',
+          id: response.data.user?.uid || uid
         },
-        token: `simulated-token-${email}`,
-        activeWorkspaceId: response.data.workspaceId || 'default-workspace'
+        token,
+        activeWorkspaceId: response.data.currentMembership?.workspaceId || null
       };
     } catch (error) {
-      // If /auth/me returns an error, we still normalize a fallback session if online verification is unavailable or simulated
+      return {
+        user: { email, role: 'editor', id: uid },
+        token,
+        activeWorkspaceId: null
+      };
+    }
+  },
+
+  /**
+   * Register a new account with email/password
+   */
+  async register(credentials) {
+    const { email, password } = credentials;
+    let userCredential;
+    
+    if (isConfigured && auth) {
+      userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    }
+    
+    const token = isConfigured ? await userCredential.user.getIdToken() : `simulated-token-${email}`;
+    const uid = isConfigured ? userCredential.user.uid : `user-${Date.now()}`;
+    
+    return {
+      user: { email, role: 'editor', id: uid },
+      token,
+      activeWorkspaceId: null // newly registered user has no workspace
+    };
+  },
+
+  /**
+   * Login or Register with Google
+   */
+  async loginWithGoogle() {
+    let userCredential;
+    let email = "google.user@example.com";
+    let token = "simulated-google-token";
+    let uid = `user-${Date.now()}`;
+    
+    if (isConfigured && auth) {
+      const provider = new GoogleAuthProvider();
+      userCredential = await signInWithPopup(auth, provider);
+      email = userCredential.user.email;
+      token = await userCredential.user.getIdToken();
+      uid = userCredential.user.uid;
+    }
+    
+    try {
+      const response = await apiClient.get('/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-user-email': email
+        }
+      });
       return {
         user: {
-          email: email,
-          role: 'editor',
-          id: `user-${Date.now()}`
+          email: response.data.user?.email || email,
+          role: response.data.currentMembership?.role || 'editor',
+          id: response.data.user?.uid || uid
         },
-        token: `simulated-token-${email}`,
-        activeWorkspaceId: 'default-workspace'
+        token,
+        activeWorkspaceId: response.data.currentMembership?.workspaceId || null
+      };
+    } catch (error) {
+      // If user doesn't exist on backend yet, they are just registered
+      return {
+        user: { email, role: 'editor', id: uid },
+        token,
+        activeWorkspaceId: null
       };
     }
   },
@@ -77,16 +138,45 @@ export const authApi = {
     return response.data;
   },
 
-  /**
-   * Logout from backend session
-   */
   async logout() {
+    if (isConfigured && auth) {
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.error("Firebase logout failed", e);
+      }
+    }
+    
     try {
       await apiClient.post('/auth/logout');
     } catch (e) {
-      // Ignore network errors on logout
+      // Ignore network errors
     }
-    return true;
+    return { success: true };
+  },
+
+  /**
+   * Check pending invitations for the logged-in user
+   */
+  async checkPendingInvitations() {
+    const response = await apiClient.get('/invitations/pending');
+    return response.data.invitations || [];
+  },
+
+  /**
+   * Accept an invitation
+   */
+  async acceptInvitation(token) {
+    const response = await apiClient.post('/invitations/accept', { token });
+    return response.data;
+  },
+
+  /**
+   * Decline an invitation
+   */
+  async declineInvitation(token) {
+    const response = await apiClient.post('/invitations/decline', { token });
+    return response.data;
   }
 };
 

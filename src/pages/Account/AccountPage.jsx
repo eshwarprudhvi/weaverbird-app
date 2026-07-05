@@ -376,7 +376,7 @@ const AccountPage = (props) => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: '13px' }}>
               <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>License</span>
-              <span style={{ fontWeight: 700, color: 'var(--accent-gold)' }}>Proprietary Enterprise / MIT</span>
+              <span style={{ fontWeight: 700, color: 'var(--accent-gold)' }}>Prudhvishwar</span>
             </div>
             <div style={{ padding: '14px 16px', fontSize: '13px' }}>
               <span style={{ color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Credits</span>

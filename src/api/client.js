@@ -19,16 +19,31 @@ const apiClient = axios.create({
  * Injects Firebase ID Token and current Workspace ID
  */
 apiClient.interceptors.request.use(async (config) => {
-  // Since the UI uses a custom email-based auth simulation rather than true Firebase Auth,
-  // we pass a simulated token containing the email.
-  const userEmail = localStorage.getItem(APPLICATION.storageKeys.userEmail);
-  if (userEmail) {
-    config.headers.Authorization = `Bearer simulated-token-${userEmail}`;
-    config.headers['x-user-email'] = userEmail; // For convenience
+  // Try to get a real Firebase ID token from the currently signed-in user
+  try {
+    const { auth, isConfigured } = await import('../firebase');
+    if (isConfigured && auth && auth.currentUser) {
+      const idToken = await auth.currentUser.getIdToken();
+      config.headers.Authorization = `Bearer ${idToken}`;
+      config.headers['x-user-email'] = auth.currentUser.email;
+    } else {
+      // Fallback to simulated token for local/offline mode
+      const userEmail = localStorage.getItem(APPLICATION.storageKeys.userEmail);
+      if (userEmail) {
+        config.headers.Authorization = `Bearer simulated-token-${userEmail}`;
+        config.headers['x-user-email'] = userEmail;
+      }
+    }
+  } catch (e) {
+    // If Firebase import fails, fall back to simulated token
+    const userEmail = localStorage.getItem(APPLICATION.storageKeys.userEmail);
+    if (userEmail) {
+      config.headers.Authorization = `Bearer simulated-token-${userEmail}`;
+      config.headers['x-user-email'] = userEmail;
+    }
   }
 
-  // Attempt to read workspaceId from localStorage (which is where useWorkspace stores it)
-  // Or fallback to default-workspace if the app hasn't been configured for multi-tenant yet
+  // Attempt to read workspaceId from localStorage
   const storedWorkspaceId = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId) || 'default-workspace';
   config.headers['x-workspace-id'] = storedWorkspaceId;
 

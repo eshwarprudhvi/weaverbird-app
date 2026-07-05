@@ -72,6 +72,61 @@ export const useAuth = () => {
   }, [setUser, setIsLocalMode, setIsLoading, setWorkspaceConnectionState, setSyncErrorDetails]);
 
   /**
+   * Register with email/password
+   */
+  const register = useCallback(async (credentials) => {
+    setIsLoading(true);
+    setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTING);
+    try {
+      const session = await authApi.register(credentials);
+      setUser(session.user);
+      setActiveWorkspaceId(null);
+      setIsLocalMode(false);
+      setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+      setSyncErrorDetails(null);
+
+      localStorage.setItem(APPLICATION.storageKeys.userEmail, session.user.email);
+      localStorage.setItem(APPLICATION.storageKeys.userRole, session.user.role);
+      localStorage.setItem(APPLICATION.storageKeys.cloudSync, "true");
+      return session;
+    } catch (err) {
+      setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setUser, setActiveWorkspaceId, setIsLocalMode, setIsLoading, setWorkspaceConnectionState, setSyncErrorDetails]);
+
+  /**
+   * Login with Google Auth Provider
+   */
+  const loginWithGoogle = useCallback(async () => {
+    setIsLoading(true);
+    setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTING);
+    try {
+      const session = await authApi.loginWithGoogle();
+      setUser(session.user);
+      setActiveWorkspaceId(session.activeWorkspaceId || null);
+      setIsLocalMode(false);
+      setWorkspaceConnectionState(session.activeWorkspaceId ? WORKSPACE_CONNECTION_STATES.CONNECTED : WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+      setSyncErrorDetails(null);
+
+      localStorage.setItem(APPLICATION.storageKeys.userEmail, session.user.email);
+      localStorage.setItem(APPLICATION.storageKeys.userRole, session.user.role);
+      localStorage.setItem(APPLICATION.storageKeys.cloudSync, "true");
+      if (session.activeWorkspaceId) {
+        localStorage.setItem(APPLICATION.storageKeys.activeWorkspaceId, session.activeWorkspaceId);
+      }
+      return session;
+    } catch (err) {
+      setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setUser, setActiveWorkspaceId, setIsLocalMode, setIsLoading, setWorkspaceConnectionState, setSyncErrorDetails]);
+
+  /**
    * Register a new workspace
    */
   const registerWorkspace = useCallback(async (workspaceData) => {
@@ -197,12 +252,27 @@ export const useAuth = () => {
     workspaceConnectionState,
     syncErrorDetails,
     login,
+    register,
+    loginWithGoogle,
     logout,
     registerWorkspace,
     joinWorkspace,
     continueOffline,
     connectFromOffline,
     restoreSession,
+    checkPendingInvitations: authApi.checkPendingInvitations,
+    acceptInvitation: async (token) => {
+      setIsLoading(true);
+      try {
+        const res = await authApi.acceptInvitation(token);
+        setActiveWorkspaceId(res.workspaceId);
+        setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTED);
+        return res;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    declineInvitation: authApi.declineInvitation,
   };
 };
 

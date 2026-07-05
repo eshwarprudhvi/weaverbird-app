@@ -1646,10 +1646,49 @@ function AuthenticatedApp() {
   );
 }
 
-function App() {
-  const { isAuthenticated, isLocalMode, isLoading } = useAuth();
+import { WorkspaceScopeProvider, WorkspaceDiagnostics, workspaceEventBus, workspaceSessionManager } from "../application/session";
+import "../application/modules";
 
-  if (isLoading) {
+function App() {
+  const { isAuthenticated, isLocalMode, isLoading, activeWorkspaceId, checkPendingInvitations } = useAuth();
+  const [initialAuthRoute, setInitialAuthRoute] = useState("welcome");
+  const [sessionLoading, setSessionLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      workspaceSessionManager.transitionTo(activeWorkspaceId).catch(console.error);
+    }
+  }, [activeWorkspaceId, isLoading]);
+
+  useEffect(() => {
+    const unsubInit = workspaceEventBus.on('workspace.initializing', () => setSessionLoading(true));
+    const unsubReady = workspaceEventBus.on('workspace.ready', () => setSessionLoading(false));
+    const unsubFailed = workspaceEventBus.on('workspace.failed', () => setSessionLoading(false));
+    
+    return () => {
+      unsubInit();
+      unsubReady();
+      unsubFailed();
+    };
+  }, []);
+
+  useEffect(() => {
+    // If authenticated but no workspace, determine if they have invites
+    if (isAuthenticated && !activeWorkspaceId && !isLocalMode) {
+      checkPendingInvitations().then(invs => {
+        if (invs && invs.length > 0) {
+          setInitialAuthRoute("pending-invitations");
+        } else {
+          setInitialAuthRoute("no-workspace");
+        }
+      }).catch(() => {
+        // If invitations check fails, still navigate to no-workspace
+        setInitialAuthRoute("no-workspace");
+      });
+    }
+  }, [isAuthenticated, activeWorkspaceId, isLocalMode, checkPendingInvitations]);
+
+  if (isLoading || sessionLoading) {
     return (
       <div style={{
         display: "flex",
@@ -1662,19 +1701,27 @@ function App() {
         fontSize: "18px",
         fontWeight: "700"
       }}>
-        Loading {APPLICATION.name}...
+        {sessionLoading ? `Loading Workspace...` : `Loading ${APPLICATION.name}...`}
       </div>
     );
   }
 
-  if (!isAuthenticated && !isLocalMode) {
-    return <AuthRouter />;
+  // If not authenticated or (authenticated but no workspace)
+  if ((!isAuthenticated && !isLocalMode) || (isAuthenticated && !activeWorkspaceId && !isLocalMode)) {
+    return <AuthRouter initialRoute={isAuthenticated ? initialAuthRoute : "welcome"} />;
   }
 
-  return (
+  const appContent = (
     <WorkspaceProvider>
       <AuthenticatedApp />
+      {import.meta.env.DEV && <WorkspaceDiagnostics />}
     </WorkspaceProvider>
+  );
+
+  return (
+    <WorkspaceScopeProvider workspaceId={activeWorkspaceId}>
+      {appContent}
+    </WorkspaceScopeProvider>
   );
 }
 

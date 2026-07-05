@@ -1,0 +1,10 @@
+export { workspaceSessionManager } from './WorkspaceSessionManager';
+export { workspaceBootstrapper } from './WorkspaceBootstrapper';
+export { workspaceRegistry } from './WorkspaceRegistry';
+export { workspaceReadinessManager } from './WorkspaceReadinessManager';
+export { workspaceCacheManager } from './WorkspaceCacheManager';
+export { workspaceListenerManager } from './WorkspaceListenerManager';
+export { workspaceStorageService } from './WorkspaceStorageService';
+export { WorkspaceScopeProvider, useWorkspaceScope } from './WorkspaceScope';
+export { WorkspaceDiagnostics } from './WorkspaceDiagnostics';
+export { workspaceEventBus } from './WorkspaceEventBus';

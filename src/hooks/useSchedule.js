@@ -1,10 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useWorkspaceScope } from '../application/session';
 
 export const useSchedule = (setIsNewMeetingModalOpen) => {
+  const scope = useWorkspaceScope();
+
   const [schedule, setSchedule] = useState(() => {
-    const saved = localStorage.getItem("ipm_schedule");
-    return saved ? JSON.parse(saved) : [];
+    return scope.storage.getItem(scope.workspaceId, 'schedule') || [];
   });
+
+  useEffect(() => {
+    const unsub = scope.eventBus.on('schedule.updated', (newSchedule) => {
+      setSchedule(newSchedule);
+    });
+    return unsub;
+  }, [scope.eventBus]);
 
 
   const handleAddMeeting = (newMeeting) => {

@@ -1,12 +1,12 @@
 import React from "react";
-import { Building2, LogIn, Users, HardDrive } from "lucide-react";
+import { Building2, LogIn, HardDrive } from "lucide-react";
 import AuthCard from "../../components/auth/AuthCard";
 import AuthHeader from "../../components/auth/AuthHeader";
 import AuthActionCard from "../../components/auth/AuthActionCard";
 import useAuth from "../../hooks/useAuth";
 
 const WelcomePage = ({ onNavigate }) => {
-  const { continueOffline } = useAuth();
+  const { continueOffline, loginWithGoogle } = useAuth();
 
   return (
     <AuthCard maxWidth="520px" padding="40px 36px">
@@ -16,30 +16,27 @@ const WelcomePage = ({ onNavigate }) => {
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "14px", width: "100%", marginBottom: "28px" }}>
-        {/* Create Workspace */}
-        <AuthActionCard
-          icon={Building2}
-          title="Create Workspace"
-          description="Start a new company studio and become its Workspace Owner."
-          onClick={() => onNavigate("create")}
-          isPrimary={true}
-          badge="New"
-        />
-
-        {/* Sign In */}
+        {/* Continue with Google */}
         <AuthActionCard
           icon={LogIn}
-          title="Sign In"
-          description="Already have a workspace? Sign in to sync and collaborate."
-          onClick={() => onNavigate("login")}
+          title="Continue with Google"
+          description="Sign in securely using your Google account."
+          onClick={async () => {
+             try {
+                await loginWithGoogle();
+             } catch (err) {
+                console.error(err);
+             }
+          }}
+          isPrimary={true}
         />
 
-        {/* Join Workspace */}
+        {/* Continue with Email */}
         <AuthActionCard
-          icon={Users}
-          title="Join Workspace"
-          description="Accept an invitation code or link from an existing team."
-          onClick={() => onNavigate("join")}
+          icon={Building2}
+          title="Continue with Email"
+          description="Sign in or create an account using your business email."
+          onClick={() => onNavigate("login")}
         />
       </div>
 

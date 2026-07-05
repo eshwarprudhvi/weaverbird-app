@@ -88,7 +88,8 @@ export const useWorkspace = () => {
 
       if (db) {
         setStatus('syncing');
-        await updateWorkspaceSettings(activeWorkspace.id, merged);
+        const activeWorkspaceId = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId) || 'default-workspace';
+        await updateWorkspaceSettings(activeWorkspaceId, merged);
         setStatus('synced');
         setLastSynced(new Date());
       } else {

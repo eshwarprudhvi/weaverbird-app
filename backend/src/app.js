@@ -20,9 +20,11 @@ const meetingRoutes = require('./modules/meeting/meeting.routes');
 const reportRoutes = require('./modules/report/report.routes');
 const assetRoutes = require('./modules/asset/asset.routes');
 const integrationRoutes = require('./modules/integration/integration.routes');
+const invitationRoutes = require('./modules/invitation/invitation.routes');
 
-// Initialize Event Subscribers
+// Initialize Event Subscribers & Jobs
 require('./shared/subscribers');
+require('./modules/jobs/invitationExpiration.job');
 
 const app = express();
 
@@ -94,6 +96,7 @@ app.use('/api/v1/meetings', meetingRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/assets', assetRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
+app.use('/api/v1/invitations', invitationRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {

@@ -4,16 +4,15 @@ import { APPLICATION } from "../../config/application";
 import useAuth from "../../hooks/useAuth";
 
 const WorkspaceCreationForm = ({ onBack, onSuccess }) => {
-  const { registerWorkspace, isLoading } = useAuth();
+  const { registerWorkspace, isLoading, user } = useAuth();
   const [step, setStep] = useState(1);
 
-  // Form State
+  // Form State — email comes from the authenticated user session
   const [formData, setFormData] = useState({
     companyName: "",
     studioName: "",
     ownerName: "",
-    email: "",
-    password: "",
+    email: user?.email || "",
     businessCategory: "Interior Design",
     country: "United States"
   });
@@ -36,7 +35,7 @@ const WorkspaceCreationForm = ({ onBack, onSuccess }) => {
 
   const handleStep2Submit = async (e) => {
     e.preventDefault();
-    if (!formData.studioName || !formData.ownerName || !formData.email || !formData.password) {
+    if (!formData.studioName || !formData.ownerName) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -178,7 +177,7 @@ const WorkspaceCreationForm = ({ onBack, onSuccess }) => {
             Workspace Details
           </h2>
           <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: 0 }}>
-            Step 2 of 2: Configure your studio and admin credentials
+            Step 2 of 2: Configure your studio details
           </p>
         </div>
 
@@ -218,33 +217,25 @@ const WorkspaceCreationForm = ({ onBack, onSuccess }) => {
           </div>
         </div>
 
-        {/* Email */}
+        {/* Email (read-only, from authenticated session) */}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-title)" }}>Email Address *</label>
-          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-            <Mail size={16} color="var(--text-muted)" style={{ position: "absolute", left: "12px" }} />
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleChange("email", e.target.value)}
-              placeholder="jane.doe@example.com"
-              style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "var(--bg-app)", color: "var(--text-main)", fontSize: "13px", outline: "none" }}
-            />
-          </div>
-        </div>
-
-        {/* Password */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-title)" }}>Password *</label>
-          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-            <Lock size={16} color="var(--text-muted)" style={{ position: "absolute", left: "12px" }} />
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => handleChange("password", e.target.value)}
-              placeholder="Min. 8 characters"
-              style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "var(--bg-app)", color: "var(--text-main)", fontSize: "13px", outline: "none" }}
-            />
+          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-title)" }}>Signed in as</label>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "10px 12px 10px 36px",
+            borderRadius: "8px",
+            border: "1px solid var(--border)",
+            backgroundColor: "var(--bg-app)",
+            position: "relative",
+            opacity: 0.8
+          }}>
+            <Mail size={16} color="var(--accent-gold)" style={{ position: "absolute", left: "12px" }} />
+            <span style={{ fontSize: "13px", color: "var(--text-main)", fontWeight: "500" }}>
+              {user?.email || "Not signed in"}
+            </span>
+            <CheckCircle2 size={14} color="var(--accent-gold)" style={{ marginLeft: "auto" }} />
           </div>
         </div>
 

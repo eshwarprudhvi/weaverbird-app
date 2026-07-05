@@ -1,16 +1,30 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOptimisticSync } from './useOptimisticSync';
+import { useWorkspaceScope } from '../application/session';
 
 export const useProjects = (activeProjectId, setActiveProjectId, setCustomConfirm, setIsNewProjModalOpen, setEditItemModal) => {
+  const scope = useWorkspaceScope();
+
   const [projects, setProjects] = useState(() => {
-    const saved = localStorage.getItem("ipm_projects");
-    return saved ? JSON.parse(saved) : [];
+    return scope.storage.getItem(scope.workspaceId, 'projects') || [];
   });
 
   const [deletedProjectIds, setDeletedProjectIds] = useState(() => {
-    const saved = localStorage.getItem("ipm_deleted_project_ids");
-    return saved ? JSON.parse(saved) : [];
+    return scope.storage.getItem(scope.workspaceId, 'deleted_project_ids') || [];
   });
+
+  useEffect(() => {
+    const unsubProjects = scope.eventBus.on('projects.updated', (newProjects) => {
+      setProjects(newProjects);
+    });
+    const unsubDeleted = scope.eventBus.on('projects.deleted.updated', (newIds) => {
+      setDeletedProjectIds(newIds);
+    });
+    return () => {
+      unsubProjects();
+      unsubDeleted();
+    };
+  }, [scope.eventBus]);
 
   const { optimisticProjects, setOptimisticProjects, retrySync } = useOptimisticSync();
 

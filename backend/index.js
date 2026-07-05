@@ -9,10 +9,14 @@ const server = app.listen(config.port, () => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  logger.error('UNHANDLED REJECTION! Shutting down...', err);
-  server.close(() => {
-    process.exit(1);
-  });
+  logger.error('UNHANDLED REJECTION!', err);
+  if (config.env === 'production') {
+    logger.error('Shutting down due to unhandled rejection in production...');
+    server.close(() => {
+      process.exit(1);
+    });
+  }
+  // In development, log but keep the server running
 });
 
 // Handle uncaught exceptions

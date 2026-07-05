@@ -1,10 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useWorkspaceScope } from '../application/session';
 
 export const useCatalog = (setCustomConfirm) => {
+  const scope = useWorkspaceScope();
+
   const [materialCatalog, setMaterialCatalog] = useState(() => {
-    const saved = localStorage.getItem("ipm_material_catalog");
-    return saved ? JSON.parse(saved) : [];
+    return scope.storage.getItem(scope.workspaceId, 'material_catalog') || [];
   });
+
+  useEffect(() => {
+    const unsub = scope.eventBus.on('catalog.updated', (newCatalog) => {
+      setMaterialCatalog(newCatalog);
+    });
+    return unsub;
+  }, [scope.eventBus]);
 
   const handleAddCatalogItem = (e, name, price) => {
     if (e) e.preventDefault();

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { collection, onSnapshot, getDocs, doc } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, doc, setDoc } from "firebase/firestore";
 import { createProject, updateProject, deleteProject } from "../api/project.api";
 import { APPLICATION } from "../config/application";
 
@@ -110,8 +110,8 @@ export const useCloudSync = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    localStorage.setItem("ipm_projects", JSON.stringify(projects));
 
     if (isConfigured && db && cloudSyncEnabled && isAuthorized && userEmail && hasLoadedProjectsFromCloud) {
       if (!isRemoteChange.current) {
@@ -145,8 +145,8 @@ export const useCloudSync = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    localStorage.setItem("ipm_schedule", JSON.stringify(schedule));
     if (!cloudSyncEnabled || hasLoadedScheduleFromCloud) {
       if (!isRemoteChange.current) {
         syncScheduleToCloud(schedule);
@@ -170,8 +170,8 @@ export const useCloudSync = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    localStorage.setItem("ipm_material_catalog", JSON.stringify(materialCatalog));
     if (!cloudSyncEnabled || hasLoadedCatalogFromCloud) {
       if (!isRemoteChange.current) {
         syncCatalogToCloud(materialCatalog);
@@ -181,32 +181,18 @@ export const useCloudSync = ({
 
   // Handle Firestore cloud database listeners
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let unsubscribeUsers = () => { };
-    let unsubscribeData = () => { };
-    let unsubscribeDeleted = () => { };
-    let unsubscribeSchedule = () => { };
-    let unsubscribeTodos = () => { };
-    let unsubscribeCatalog = () => { };
-
+    
     if (!isConfigured || !db || !cloudSyncEnabled || !userEmail) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setHasLoadedProjectsFromCloud(false);
-      setHasLoadedScheduleFromCloud(false);
-      setHasLoadedTodosFromCloud(false);
-      setHasLoadedCatalogFromCloud(false);
       return;
     }
 
     try {
       const cleanEmail = userEmail.toLowerCase().trim();
       const usersCol = collection(db, "users");
-      const projectsColRef = collection(db, "projects");
-      const deletedColRef = collection(db, "deleted_projects");
-
-      // 1. Listen for user role changes
+      
+      // Only User Role changes are kept here (RBAC)
       unsubscribeUsers = onSnapshot(usersCol, async (snapshot) => {
         const usersList = [];
         snapshot.forEach((docSnap) => {
@@ -226,222 +212,12 @@ export const useCloudSync = ({
         }
       });
 
-      // 2. Listen to deleted projects collection
-      unsubscribeDeleted = onSnapshot(deletedColRef, (deletedSnap) => {
-        try {
-          const cloudDeletedIds = [];
-          deletedSnap.forEach((docSnap) => {
-            cloudDeletedIds.push(docSnap.id);
-          });
-          const savedDeletedRaw = localStorage.getItem("ipm_deleted_project_ids");
-          const localDeletedIds = savedDeletedRaw ? JSON.parse(savedDeletedRaw) : [];
-          
-          if (JSON.stringify(localDeletedIds.sort()) !== JSON.stringify(cloudDeletedIds.sort())) {
-            const combined = [...new Set([...localDeletedIds, ...cloudDeletedIds])];
-            localStorage.setItem("ipm_deleted_project_ids", JSON.stringify(combined));
-          }
-        } catch (err) {
-          console.error("Error processing deleted projects snapshot:", err);
-        }
-      });
-
-      // 3. Listen to active projects updates
-      unsubscribeData = onSnapshot(projectsColRef, (querySnapshot) => {
-        try {
-          isRemoteChange.current = true;
-
-          const cloudProjects = [];
-          querySnapshot.forEach((docSnap) => {
-            cloudProjects.push({ ...docSnap.data(), id: docSnap.id });
-          });
-
-          setProjects((prevProjects) => {
-            const savedDeletedRaw = localStorage.getItem("ipm_deleted_project_ids");
-            const currentDeletedIds = savedDeletedRaw ? JSON.parse(savedDeletedRaw) : [];
-
-            const allProjectsMap = new Map();
-
-            prevProjects.forEach((p) => {
-              if (!currentDeletedIds.includes(p.id)) {
-                allProjectsMap.set(p.id, p);
-              }
-            });
-
-            cloudProjects.forEach((cloudProj) => {
-              if (currentDeletedIds.includes(cloudProj.id)) return;
-
-              const localProj = allProjectsMap.get(cloudProj.id);
-              if (!localProj) {
-                allProjectsMap.set(cloudProj.id, { ...cloudProj, syncState: "SYNCED" });
-              } else {
-                const localTime = localProj.updatedAt ? new Date(localProj.updatedAt).getTime() : 0;
-                const cloudTime = cloudProj.updatedAt ? new Date(cloudProj.updatedAt).getTime() : 0;
-
-                const localIsNewer = localTime >= cloudTime;
-                const baseProj = localIsNewer ? localProj : cloudProj;
-                const otherProj = localIsNewer ? cloudProj : localProj;
-
-                const baseMaterials = baseProj.materials || [];
-                const otherMaterials = otherProj.materials || [];
-                const mergedMaterials = [...baseMaterials];
-                otherMaterials.forEach((item) => {
-                  if (!baseMaterials.some((m) => m.id === item.id)) {
-                    mergedMaterials.push(item);
-                  }
-                });
-
-                const baseTasks = baseProj.tasks || [];
-                const otherTasks = otherProj.tasks || [];
-                const mergedTasks = [...baseTasks];
-                otherTasks.forEach((item) => {
-                  if (!baseTasks.some((t) => t.id === item.id)) {
-                    mergedTasks.push(item);
-                  }
-                });
-
-                allProjectsMap.set(cloudProj.id, {
-                  ...baseProj,
-                  materials: mergedMaterials,
-                  tasks: mergedTasks,
-                  syncState: "SYNCED"
-                });
-              }
-            });
-
-            const mergedList = Array.from(allProjectsMap.values());
-            localStorage.setItem("ipm_projects", JSON.stringify(mergedList));
-
-            mergedList.forEach((p) => {
-              const inCloud = cloudProjects.some((cp) => cp.id === p.id);
-              if (!inCloud && (p.syncState === "PENDING" || p.syncState === "SYNCED")) {
-                setTimeout(() => {
-                  syncProjectToCloud(p);
-                }, 200);
-              }
-            });
-
-            currentDeletedIds.forEach((deletedId) => {
-              const inCloud = cloudProjects.some((cp) => cp.id === deletedId);
-              if (inCloud) {
-                setTimeout(() => {
-                  deleteProjectFromCloud(deletedId);
-                }, 200);
-              }
-            });
-
-            prevProjectsRef.current = mergedList;
-            return mergedList;
-          });
-
-          setTimeout(() => {
-            isRemoteChange.current = false;
-          }, 100);
-          setHasLoadedProjectsFromCloud(true);
-
-          const backupsColRef = collection(db, "users", cleanEmail, "backups");
-          getDocs(backupsColRef).then((querySnapshot) => {
-            const cloudBackups = [];
-            querySnapshot.forEach((docSnap) => {
-              cloudBackups.push(docSnap.data());
-            });
-            cloudBackups.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            localStorage.setItem("ipm_projects_backups_daily", JSON.stringify(cloudBackups));
-          }).catch((err) => console.error("Error syncing cloud backups list:", err));
-        } catch (err) {
-          console.error("Error processing projects collection snapshot:", err);
-        }
-      }, (error) => {
-        console.error("Error listening to projects updates:", error);
-      });
-
-      // 4. Listen to real-time private schedule sync edits
-      const scheduleDocRef = doc(db, "users", cleanEmail, "private", "meetings");
-      unsubscribeSchedule = onSnapshot(scheduleDocRef, (docSnap) => {
-        try {
-          if (docSnap.exists()) {
-            const cloudData = docSnap.data();
-
-            isRemoteChange.current = true;
-
-            if (cloudData.schedule) {
-              setSchedule(cloudData.schedule);
-              localStorage.setItem("ipm_schedule", JSON.stringify(cloudData.schedule));
-            }
-
-            setTimeout(() => {
-              isRemoteChange.current = false;
-            }, 100);
-          }
-          setHasLoadedScheduleFromCloud(true);
-        } catch (err) {
-          console.error("Error processing private schedule snapshot:", err);
-        }
-      }, (error) => {
-        console.error("Error listening to private schedule updates:", error);
-      });
-
-      // 5. Listen to real-time private todos sync edits
-      const todosDocRef = doc(db, "users", cleanEmail, "private", "todos");
-      unsubscribeTodos = onSnapshot(todosDocRef, (docSnap) => {
-        try {
-          if (docSnap.exists()) {
-            const cloudData = docSnap.data();
-
-            isRemoteChange.current = true;
-
-            if (cloudData.todos) {
-              setTodos(cloudData.todos);
-            }
-
-            setTimeout(() => {
-              isRemoteChange.current = false;
-            }, 100);
-          }
-          setHasLoadedTodosFromCloud(true);
-        } catch (err) {
-          console.error("Error processing private todos snapshot:", err);
-        }
-      }, (error) => {
-        console.error("Error listening to private todos updates:", error);
-      });
-
-      // 6. Listen to real-time private catalog sync edits
-      const catalogDocRef = doc(db, "users", cleanEmail, "private", "catalog");
-      unsubscribeCatalog = onSnapshot(catalogDocRef, (docSnap) => {
-        try {
-          if (docSnap.exists()) {
-            const cloudData = docSnap.data();
-
-            isRemoteChange.current = true;
-
-            if (cloudData.catalog) {
-              setMaterialCatalog(cloudData.catalog);
-              localStorage.setItem("ipm_material_catalog", JSON.stringify(cloudData.catalog));
-            }
-
-            setTimeout(() => {
-              isRemoteChange.current = false;
-            }, 100);
-          }
-          setHasLoadedCatalogFromCloud(true);
-        } catch (err) {
-          console.error("Error processing private catalog snapshot:", err);
-        }
-      }, (error) => {
-        console.error("Error listening to private catalog updates:", error);
-      });
-
     } catch (err) {
       console.error("Failed to initialize Firestore snapshot listeners:", err);
     }
 
     return () => {
       unsubscribeUsers();
-      unsubscribeData();
-      unsubscribeDeleted();
-      unsubscribeSchedule();
-      unsubscribeTodos();
-      unsubscribeCatalog();
     };
   }, [cloudSyncEnabled, userEmail, isConfigured, isAuthorized, db]);
 
