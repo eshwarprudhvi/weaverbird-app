@@ -55,17 +55,25 @@ export const TasksModule = {
 
                EntityIdentityResolver.resolve(localTodosMap, todosList);
 
+               const parseTime = (val) => {
+                 if (!val) return 0;
+                 if (val.toDate && typeof val.toDate === 'function') return val.toDate().getTime();
+                 if (typeof val.seconds === 'number') return val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1000000);
+                 const d = new Date(val);
+                 return isNaN(d.getTime()) ? 0 : d.getTime();
+               };
+
                // Standard merge (Refinement 8: Server timestamps win)
                todosList.forEach((cloudTodo) => {
                  const localTodo = localTodosMap.get(cloudTodo.id);
                  if (!localTodo) {
                    localTodosMap.set(cloudTodo.id, cloudTodo);
                  } else {
-                   const localTime = localTodo.updatedAt ? new Date(localTodo.updatedAt).getTime() : 0;
-                   const cloudTime = cloudTodo.updatedAt ? new Date(cloudTodo.updatedAt).getTime() : 0;
-                   const localIsNewer = localTime >= cloudTime;
-                   const base = localIsNewer ? localTodo : cloudTodo;
-                   localTodosMap.set(cloudTodo.id, { ...base, ...cloudTodo }); // Cloud wins on conflict
+                   const localTime = parseTime(localTodo.updatedAt);
+                   const cloudTime = parseTime(cloudTodo.updatedAt);
+                   const localIsNewer = localTime > cloudTime;
+                   const merged = localIsNewer ? { ...cloudTodo, ...localTodo } : { ...localTodo, ...cloudTodo };
+                   localTodosMap.set(cloudTodo.id, merged);
                  }
                });
 

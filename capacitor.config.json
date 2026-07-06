@@ -1,6 +1,6 @@
 {
   "appId": "com.projectmanager.app.test",
-  "appName": "weaverBirdProjectManager",
+  "appName": "projectmanager-Prudhvi",
   "webDir": "dist",
   "plugins": {
     "CapacitorUpdater": {

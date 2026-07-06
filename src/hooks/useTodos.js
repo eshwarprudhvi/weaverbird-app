@@ -27,7 +27,9 @@ export const useTodos = () => {
       createdAt: new Date().toISOString()
     };
     
-    setTodos((prev) => [optimisticTodo, ...prev]);
+    const updated = [optimisticTodo, ...todos];
+    setTodos(updated);
+    scope.storage.setItem(scope.workspaceId, 'todos', updated);
 
     try {
       await taskRepository.create(scope.workspaceId, {
@@ -37,22 +39,24 @@ export const useTodos = () => {
       });
     } catch (err) {
       console.error("Failed to add task:", err);
-      setTodos((prev) => prev.filter((t) => t.id !== tempId));
+      const reverted = todos.filter((t) => t.id !== tempId);
+      setTodos(reverted);
+      scope.storage.setItem(scope.workspaceId, 'todos', reverted);
     }
   };
 
   const handleToggleTodo = async (todoId, completed) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todoId ? { ...t, completed } : t))
-    );
+    const updated = todos.map((t) => (t.id === todoId ? { ...t, completed } : t));
+    setTodos(updated);
+    scope.storage.setItem(scope.workspaceId, 'todos', updated);
 
     try {
       await taskRepository.update(scope.workspaceId, todoId, { completed });
     } catch (err) {
       console.error("Failed to toggle task:", err);
-      setTodos((prev) =>
-        prev.map((t) => (t.id === todoId ? { ...t, completed: !completed } : t))
-      );
+      const reverted = todos.map((t) => (t.id === todoId ? { ...t, completed: !completed } : t));
+      setTodos(reverted);
+      scope.storage.setItem(scope.workspaceId, 'todos', reverted);
     }
   };
 
@@ -62,31 +66,35 @@ export const useTodos = () => {
     const oldTodo = todos.find((t) => t.id === todoId);
     const oldText = oldTodo ? oldTodo.text : "";
 
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todoId ? { ...t, text: text.trim() } : t))
-    );
+    const updated = todos.map((t) => (t.id === todoId ? { ...t, text: text.trim() } : t));
+    setTodos(updated);
+    scope.storage.setItem(scope.workspaceId, 'todos', updated);
 
     try {
       await taskRepository.update(scope.workspaceId, todoId, { text: text.trim() });
     } catch (err) {
       console.error("Failed to edit task:", err);
-      setTodos((prev) =>
-        prev.map((t) => (t.id === todoId ? { ...t, text: oldText } : t))
-      );
+      const reverted = todos.map((t) => (t.id === todoId ? { ...t, text: oldText } : t));
+      setTodos(reverted);
+      scope.storage.setItem(scope.workspaceId, 'todos', reverted);
     }
   };
 
   const handleDeleteTodo = async (todoId) => {
     const oldTodo = todos.find((t) => t.id === todoId);
 
-    setTodos((prev) => prev.filter((t) => t.id !== todoId));
+    const updated = todos.filter((t) => t.id !== todoId);
+    setTodos(updated);
+    scope.storage.setItem(scope.workspaceId, 'todos', updated);
 
     try {
       await taskRepository.delete(scope.workspaceId, todoId);
     } catch (err) {
       console.error("Failed to delete task:", err);
       if (oldTodo) {
-        setTodos((prev) => [oldTodo, ...prev]);
+        const reverted = [oldTodo, ...todos.filter((t) => t.id !== todoId)];
+        setTodos(reverted);
+        scope.storage.setItem(scope.workspaceId, 'todos', reverted);
       }
     }
   };

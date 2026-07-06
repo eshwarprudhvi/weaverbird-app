@@ -31,10 +31,18 @@ const app = express();
 
 // Security Middleware
 app.use(helmet());
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [process.env.CORS_ORIGIN, 'capacitor://localhost', 'http://localhost']
+  : ['http://localhost:5173', 'http://localhost:3000', 'capacitor://localhost', 'http://localhost'];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.CORS_ORIGIN 
-    : ['http://localhost:5173', 'http://localhost:3000'],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
   credentials: true
 }));
 

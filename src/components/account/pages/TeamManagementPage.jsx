@@ -469,20 +469,23 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                 {filteredInvitations.map(inv => (
                   <div key={inv.id} style={{
                     display: 'flex',
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
                     justifyContent: 'space-between',
                     alignItems: 'center',
+                    gap: '16px',
                     padding: '18px 20px',
                     borderRadius: '14px',
                     backgroundColor: 'var(--bg-card)',
                     border: '1px solid var(--border)',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-main)' }}>{inv.email}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '200px', flex: '1 1 auto' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-main)', wordBreak: 'break-all' }}>{inv.email}</span>
                         {getStatusBadge(inv.status)}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12.5px', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                         <span>Role: <strong style={{ color: 'var(--text-main)' }}>{formatRoleDisplay(inv.role)}</strong></span>
                         <span>Invited by: <strong>{inv.invitedBy || 'Admin'}</strong></span>
                         {inv.expiresAt && inv.status === 'pending' && (
@@ -506,7 +509,7 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                     </div>
 
                     {/* Actions */}
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       {(inv.status === 'pending' || inv.status === 'expired') && (
                         <button
                           onClick={() => handleResend(inv)}

@@ -170,7 +170,7 @@ export const useProjects = (activeProjectId, setActiveProjectId, setCustomConfir
         const nowStr = new Date().toISOString();
         setProjects(prev =>
           (Array.isArray(prev) ? prev : []).map((p) =>
-            p.id === projId ? { ...p, isTrashed: true, trashedAt: nowStr } : p
+            p.id === projId ? { ...p, isTrashed: true, trashedAt: nowStr, status: 'deleted' } : p
           )
         );
         if (activeProjectId === projId) {
@@ -180,6 +180,7 @@ export const useProjects = (activeProjectId, setActiveProjectId, setCustomConfir
         updateProjectInRepository(projId, {
           isTrashed: true,
           trashedAt: nowStr,
+          status: 'deleted',
         });
       }
     });

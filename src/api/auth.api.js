@@ -2,7 +2,7 @@ import apiClient from './client';
 import { ENDPOINTS } from './endpoints';
 import invitationRepository from '../repositories/InvitationRepository';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { auth, isConfigured } from '../firebase';
+import { auth, db, isConfigured } from '../firebase';
 
 /**
  * Map Firebase auth error codes to user-friendly messages
@@ -38,6 +38,9 @@ function mapFirebaseError(error) {
   }
 }
 
+import { RepositoryFactory } from '../repositories/RepositoryFactory';
+import { doc, getDoc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+
 export const authApi = {
   /**
    * Login with email/password
@@ -56,6 +59,31 @@ export const authApi = {
     
     const token = isConfigured ? await userCredential.user.getIdToken() : `simulated-token-${email}`;
     const uid = isConfigured ? userCredential.user.uid : `user-${Date.now()}`;
+    
+    if (RepositoryFactory.isFirebaseMode()) {
+      try {
+        const indexDoc = await getDoc(doc(db, 'workspaceIndex', uid));
+        if (indexDoc.exists()) {
+          const indexData = indexDoc.data();
+          return {
+            user: {
+              email: auth.currentUser?.email || email,
+              role: indexData.role || 'editor',
+              id: uid
+            },
+            token,
+            activeWorkspaceId: indexData.workspaceId
+          };
+        }
+      } catch (e) {
+        console.error("Firestore session load failed:", e);
+      }
+      return {
+        user: { email, role: 'editor', id: uid },
+        token,
+        activeWorkspaceId: null
+      };
+    }
     
     try {
       const response = await apiClient.get('/auth/me', {
@@ -103,7 +131,7 @@ export const authApi = {
     return {
       user: { email, role: 'editor', id: uid },
       token,
-      activeWorkspaceId: null // newly registered user has no workspace
+      activeWorkspaceId: null
     };
   },
 
@@ -131,6 +159,31 @@ export const authApi = {
       uid = userCredential.user.uid;
     }
     
+    if (RepositoryFactory.isFirebaseMode()) {
+      try {
+        const indexDoc = await getDoc(doc(db, 'workspaceIndex', uid));
+        if (indexDoc.exists()) {
+          const indexData = indexDoc.data();
+          return {
+            user: {
+              email: auth.currentUser?.email || email,
+              role: indexData.role || 'editor',
+              id: uid
+            },
+            token,
+            activeWorkspaceId: indexData.workspaceId
+          };
+        }
+      } catch (e) {
+        console.error("Firestore session load failed:", e);
+      }
+      return {
+        user: { email, role: 'editor', id: uid },
+        token,
+        activeWorkspaceId: null
+      };
+    }
+    
     try {
       const response = await apiClient.get('/auth/me', {
         headers: {
@@ -148,7 +201,6 @@ export const authApi = {
         activeWorkspaceId: response.data.currentMembership?.workspaceId || null
       };
     } catch (error) {
-      // If user doesn't exist on backend yet, they are just registered
       return {
         user: { email, role: 'editor', id: uid },
         token,
@@ -158,32 +210,107 @@ export const authApi = {
   },
 
   /**
-   * Register a new workspace (Feature-flagged in UI)
-   * Target endpoint: POST /api/v1/auth/register-workspace
-   * @param {Object} workspaceData { companyName, studioName, ownerName, email, password, businessCategory, country }
-   * @returns {Promise<Object>} Normalized session & workspace creation response
+   * Register a new workspace
    */
   async registerWorkspace(workspaceData) {
+    if (RepositoryFactory.isFirebaseMode()) {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("Authentication required");
+      
+      // Idempotency check: Return existing active workspace if already registered
+      const indexRef = doc(db, 'workspaceIndex', userId);
+      const indexSnap = await getDoc(indexRef);
+      if (indexSnap.exists()) {
+        const indexData = indexSnap.data();
+        if (indexData.status === 'active' && indexData.workspaceId) {
+          const wsSnap = await getDoc(doc(db, 'workspaces', indexData.workspaceId));
+          if (wsSnap.exists()) {
+            return {
+              success: true,
+              workspace: { id: indexData.workspaceId, name: wsSnap.data().companyName }
+            };
+          }
+        }
+      }
+      
+      const workspaceId = `ws_${Date.now()}`;
+      const batch = writeBatch(db);
+      
+      // 1. Create workspace document
+      const wsRef = doc(db, 'workspaces', workspaceId);
+      batch.set(wsRef, {
+        companyName: workspaceData.companyName || workspaceData.studioName || 'My Workspace',
+        country: workspaceData.country || 'India',
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        schemaVersion: 1
+      });
+
+      // 2. Add owner to workspace members subcollection
+      const memberRef = doc(db, 'workspaces', workspaceId, 'members', userId);
+      batch.set(memberRef, {
+        email: auth.currentUser.email,
+        name: workspaceData.ownerName || auth.currentUser.displayName || 'Owner',
+        role: 'owner',
+        status: 'active',
+        joinedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        schemaVersion: 1
+      });
+
+      // 3. Create workspace index
+      batch.set(indexRef, {
+        workspaceId,
+        role: 'owner',
+        status: 'active',
+        updatedAt: serverTimestamp()
+      });
+
+      await batch.commit();
+
+      return {
+        success: true,
+        workspace: { id: workspaceId, name: workspaceData.companyName }
+      };
+    }
+
     const response = await apiClient.post('/auth/register-workspace', workspaceData);
     return response.data;
   },
 
   /**
-   * Join an existing workspace via invite code or link
-   * Target endpoint: POST /api/v1/auth/join-workspace or workspace invite API
-   * @param {Object} joinData { code, email }
-   * @returns {Promise<Object>} Normalized membership response
+   * Join workspace
    */
   async joinWorkspace(joinData) {
+    if (RepositoryFactory.isFirebaseMode()) {
+      throw new Error("Join workspace requires invitation link acceptance in serverless mode");
+    }
     const response = await apiClient.post('/auth/join-workspace', joinData);
     return response.data;
   },
 
   /**
-   * Verify current session token against backend
-   * @returns {Promise<Object>} User session data
+   * Verify session
    */
   async getMe() {
+    if (RepositoryFactory.isFirebaseMode()) {
+      const userId = auth.currentUser?.uid;
+      if (userId) {
+        const docSnap = await getDoc(doc(db, 'workspaceIndex', userId));
+        if (docSnap.exists()) {
+          const data = docSnap.doc ? docSnap.data() : docSnap.data();
+          return {
+            user: { email: auth.currentUser.email, uid: userId },
+            currentMembership: {
+              workspaceId: data.workspaceId,
+              role: data.role
+            }
+          };
+        }
+      }
+      return { user: null, currentMembership: null };
+    }
     const response = await apiClient.get('/auth/me');
     return response.data;
   },
@@ -197,10 +324,12 @@ export const authApi = {
       }
     }
     
-    try {
-      await apiClient.post('/auth/logout');
-    } catch (e) {
-      // Ignore network errors
+    if (!RepositoryFactory.isFirebaseMode()) {
+      try {
+        await apiClient.post('/auth/logout');
+      } catch (e) {
+        // Ignore network errors
+      }
     }
     return { success: true };
   },

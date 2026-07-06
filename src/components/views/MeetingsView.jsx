@@ -8,6 +8,10 @@ const MeetingsView = (props) => {
     isTodoScreenOpen,
     todos,
     setTodos,
+    handleAddTodo,
+    handleToggleTodo,
+    handleEditTodo,
+    handleDeleteTodo,
     newTodoInput,
     setNewTodoInput,
     editTodoId,
@@ -59,6 +63,10 @@ const MeetingsView = (props) => {
           setIsTodoScreenOpen={setIsTodoScreenOpen}
           todos={todos}
           setTodos={setTodos}
+          handleAddTodo={handleAddTodo}
+          handleToggleTodo={handleToggleTodo}
+          handleEditTodo={handleEditTodo}
+          handleDeleteTodo={handleDeleteTodo}
           newTodoInput={newTodoInput}
           setNewTodoInput={setNewTodoInput}
           editTodoId={editTodoId}

@@ -25,14 +25,15 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy the source code (or build output from builder stage)
+# Copy the source code and entrypoint
+COPY --from=builder /app/index.js ./index.js
 COPY --from=builder /app/src ./src
 
 # Expose the API port
-EXPOSE 3001
+EXPOSE 5000
 
 # Run the app as a non-root user for security
 USER node
 
 # Start the server
-CMD ["node", "src/server.js"]
+CMD ["node", "index.js"]

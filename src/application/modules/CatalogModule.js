@@ -50,17 +50,25 @@ export const CatalogModule = {
 
                EntityIdentityResolver.resolve(localCatalogMap, catalogList);
 
+               const parseTime = (val) => {
+                 if (!val) return 0;
+                 if (val.toDate && typeof val.toDate === 'function') return val.toDate().getTime();
+                 if (typeof val.seconds === 'number') return val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1000000);
+                 const d = new Date(val);
+                 return isNaN(d.getTime()) ? 0 : d.getTime();
+               };
+
                // Standard merge (Refinement 8: Server timestamps win)
                catalogList.forEach((cloudItem) => {
                  const localItem = localCatalogMap.get(cloudItem.id);
                  if (!localItem) {
                    localCatalogMap.set(cloudItem.id, cloudItem);
                  } else {
-                   const localTime = localItem.updatedAt ? new Date(localItem.updatedAt).getTime() : 0;
-                   const cloudTime = cloudItem.updatedAt ? new Date(cloudItem.updatedAt).getTime() : 0;
-                   const localIsNewer = localTime >= cloudTime;
-                   const base = localIsNewer ? localItem : cloudItem;
-                   localCatalogMap.set(cloudItem.id, { ...base, ...cloudItem }); // Cloud wins on conflict
+                   const localTime = parseTime(localItem.updatedAt);
+                   const cloudTime = parseTime(cloudItem.updatedAt);
+                   const localIsNewer = localTime > cloudTime;
+                   const merged = localIsNewer ? { ...cloudItem, ...localItem } : { ...localItem, ...cloudItem };
+                   localCatalogMap.set(cloudItem.id, merged);
                  }
                });
 

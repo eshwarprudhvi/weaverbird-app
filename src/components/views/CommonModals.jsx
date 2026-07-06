@@ -342,9 +342,16 @@ const CommonModals = (props) => {
                                     title: "Empty Trash",
                                     message: "Are you sure you want to permanently delete all projects in the trash? This cannot be undone!",
                                     onConfirm: () => {
-                                      const trashedIds = safeProjects.filter(p => p.isTrashed).map(p => p.id);
+                                      const trashedProjects = safeProjects.filter(p => p.isTrashed);
+                                      const trashedIds = trashedProjects.map(p => p.id);
                                       setProjects(prev => (Array.isArray(prev) ? prev : []).filter(p => !p.isTrashed));
                                       setDeletedProjectIds(prev => [...new Set([...(Array.isArray(prev) ? prev : []), ...trashedIds])]);
+                                      if (scope && scope.workspaceId) {
+                                        trashedProjects.forEach(p => {
+                                          projectRepository.delete(scope.workspaceId, p.id)
+                                            .catch(err => console.error("Failed to permanently delete project from trash:", err));
+                                        });
+                                      }
                                     }
                                   });
                                 }}
@@ -397,11 +404,11 @@ const CommonModals = (props) => {
                                       onConfirm: () => {
                                         setProjects(prev =>
                                           (Array.isArray(prev) ? prev : []).map(proj =>
-                                            proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null } : proj
+                                            proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null, status: 'active' } : proj
                                           )
                                         );
                                         if (scope && scope.workspaceId) {
-                                          projectRepository.update(scope.workspaceId, p.id, { isTrashed: false, trashedAt: null })
+                                          projectRepository.restore(scope.workspaceId, p.id)
                                             .catch(err => console.error("Failed to restore project from trash:", err));
                                         }
                                       }

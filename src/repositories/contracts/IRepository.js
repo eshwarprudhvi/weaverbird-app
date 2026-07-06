@@ -14,6 +14,10 @@ export class IRepository {
     throw new Error("Method 'delete()' must be implemented.");
   }
 
+  restore(workspaceId, id) {
+    throw new Error("Method 'restore()' must be implemented.");
+  }
+
   getById(workspaceId, id) {
     throw new Error("Method 'getById()' must be implemented.");
   }
@@ -24,5 +28,13 @@ export class IRepository {
 
   sync(workspaceId, items) {
     throw new Error("Method 'sync()' must be implemented.");
+  }
+
+  subscribe(workspaceId, callback) {
+    throw new Error("Method 'subscribe()' must be implemented.");
+  }
+
+  unsubscribe() {
+    throw new Error("Method 'unsubscribe()' must be implemented.");
   }
 }

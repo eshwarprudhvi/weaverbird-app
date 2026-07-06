@@ -17,21 +17,33 @@ class EmailProviderAdapter {
 class NodemailerAdapter extends EmailProviderAdapter {
   constructor() {
     super();
-    // In production, these should be securely stored in process.env / config service
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-      port: process.env.SMTP_PORT || 587,
-      auth: {
-        user: process.env.SMTP_USER || 'ethereal_user',
-        pass: process.env.SMTP_PASS || 'ethereal_pass'
-      }
-    });
+    this.smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+    
+    if (this.smtpConfigured) {
+      this.transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT || 587,
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+    } else {
+      logger.warn('SMTP credentials not configured (SMTP_HOST, SMTP_USER, SMTP_PASS). Emails will be logged but not sent.');
+      this.transporter = null;
+    }
   }
 
   async sendEmail({ to, subject, html, attachments = [] }) {
+    if (!this.transporter || !this.smtpConfigured) {
+      logger.info({ to, subject }, '[EmailService] SMTP not configured — email skipped (logged only). Set SMTP_HOST, SMTP_USER, SMTP_PASS in .env to enable delivery.');
+      return false;
+    }
+
     try {
       const info = await this.transporter.sendMail({
-        from: `"WeaverBird" <noreply@weaverbird.app>`,
+        from: `"WeaverBird" <${process.env.SMTP_FROM || 'noreply@weaverbird.app'}>`,
         to,
         subject,
         html,
@@ -69,3 +81,4 @@ class EmailService {
 }
 
 module.exports = new EmailService();
+

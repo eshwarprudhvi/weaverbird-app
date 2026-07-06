@@ -44,44 +44,57 @@ class InvitationService {
       throw new AppError('You cannot invite yourself to the workspace', 400, errorCodes.VALIDATION_ERROR);
     }
 
-    // Check if recipient is already an active member
-    const existingMembers = await workspaceRepo.getMembers(workspaceId);
-    const isAlreadyMember = existingMembers.some(
-      m => (m.email || '').toLowerCase() === cleanEmail && m.status !== 'removed'
-    );
-    if (isAlreadyMember) {
-      throw new AppError('This user is already an active member of the workspace', 400, errorCodes.VALIDATION_ERROR);
+    try {
+      // Check if recipient is already an active member
+      const existingMembers = await workspaceRepo.getMembers(workspaceId);
+      const isAlreadyMember = existingMembers.some(
+        m => (m.email || '').toLowerCase() === cleanEmail && m.status !== 'removed'
+      );
+      if (isAlreadyMember) {
+        throw new AppError('This user is already an active member of the workspace', 400, errorCodes.VALIDATION_ERROR);
+      }
+
+      // Check for existing pending invitation in this workspace
+      const existingInvite = await invitationRepo.findPendingByWorkspaceAndEmail(workspaceId, cleanEmail);
+      if (existingInvite) {
+        throw new AppError('A pending invitation already exists for this email address in this workspace', 400, errorCodes.VALIDATION_ERROR);
+      }
+
+      const token = invitationTokenService.generateToken();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + (Number(expiresInDays) || 7));
+
+      const normalizedRole = role ? role.toLowerCase() : 'member';
+
+      const invitationData = {
+        workspaceId,
+        email: cleanEmail,
+        role: normalizedRole,
+        token,
+        message: message || '',
+        invitedBy: currentUser.email || currentUser.uid,
+        expiresAt: expiresAt.toISOString()
+      };
+
+      const invitationId = await invitationRepo.create(invitationData);
+      const invitation = await invitationRepo.findById(invitationId);
+
+      // Emit event (non-blocking — errors in subscribers are caught by EventBus)
+      EventBus.publish('invitation.created', { invitation });
+
+      return invitation;
+    } catch (error) {
+      // Re-throw operational AppErrors as-is
+      if (error instanceof AppError) {
+        throw error;
+      }
+      // Wrap unexpected Firestore/infrastructure errors
+      throw new AppError(
+        `Failed to create invitation: ${error.message || 'Unknown error'}`,
+        500,
+        errorCodes.INTERNAL_SERVER_ERROR
+      );
     }
-
-    // Check for existing pending invitation in this workspace
-    const existingInvite = await invitationRepo.findPendingByWorkspaceAndEmail(workspaceId, cleanEmail);
-    if (existingInvite) {
-      throw new AppError('A pending invitation already exists for this email address in this workspace', 400, errorCodes.VALIDATION_ERROR);
-    }
-
-    const token = invitationTokenService.generateToken();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (Number(expiresInDays) || 7));
-
-    const normalizedRole = role ? role.toLowerCase() : 'member';
-
-    const invitationData = {
-      workspaceId,
-      email: cleanEmail,
-      role: normalizedRole,
-      token,
-      message: message || '',
-      invitedBy: currentUser.email || currentUser.uid,
-      expiresAt: expiresAt.toISOString()
-    };
-
-    const invitationId = await invitationRepo.create(invitationData);
-    const invitation = await invitationRepo.findById(invitationId);
-
-    // Emit event
-    EventBus.publish('invitation.created', { invitation });
-
-    return invitation;
   }
 
   /**

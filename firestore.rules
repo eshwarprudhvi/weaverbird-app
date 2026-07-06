@@ -2,15 +2,138 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Default Rule: Deny all reads/writes
-    match /{document=**} {
-      allow read: if request.auth != null;
-      
-      // PHASE 8 LOCKDOWN:
-      // Client-side writes are strictly prohibited.
-      // All writes MUST flow through the Node.js Backend REST API, 
-      // which uses the Firebase Admin SDK (bypassing these rules).
-      allow write: if false; 
+    // --- Role Helper Functions ---
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserRole(workspaceId) {
+      return get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function isWorkspaceMember(workspaceId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid));
+    }
+
+    function workspaceAfter(workspaceId) {
+      return getAfter(/databases/$(database)/documents/workspaces/$(workspaceId));
+    }
+
+    // Role-based helper checks
+    function isWorkspaceAdmin(workspaceId) {
+      return isWorkspaceMember(workspaceId) && 
+        (getUserRole(workspaceId) == 'admin' || getUserRole(workspaceId) == 'owner');
+    }
+
+    function isWorkspaceOwner(workspaceId) {
+      return isWorkspaceMember(workspaceId) && 
+        getUserRole(workspaceId) == 'owner';
+    }
+
+    // Helper to verify that immutable fields did not change during update
+    function isUnchanged(field) {
+      return request.resource.data[field] == resource.data[field];
+    }
+
+    // --- Workspace User Mapping Rules ---
+    match /workspaceIndex/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['workspaceId', 'role', 'status', 'updatedAt'])
+        && request.resource.data.workspaceId is string
+        && request.resource.data.role in ['owner', 'admin', 'member', 'editor']
+        && request.resource.data.status == 'active';
+    }
+
+    // --- Workspaces Rules ---
+    match /workspaces/{workspaceId} {
+      allow read: if isWorkspaceMember(workspaceId);
+      allow create: if isAuthenticated();
+      allow update, delete: if isWorkspaceAdmin(workspaceId);
+
+      match /members/{memberId} {
+        allow read: if isWorkspaceMember(workspaceId);
+        // WARNING: This rule assumes that workspaces/{workspaceId} and 
+        // workspaces/{workspaceId}/members/{ownerUid} are created in the 
+        // same writeBatch() or runTransaction(). Changing the creation flow 
+        // requires corresponding updates to these rules.
+        allow create: if isWorkspaceAdmin(workspaceId) || (
+          isAuthenticated() && 
+          request.auth.uid == memberId && 
+          request.resource.data.role == 'owner' &&
+          !exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
+          workspaceAfter(workspaceId).data.status == 'active'
+        );
+        allow update: if isWorkspaceAdmin(workspaceId) && isUnchanged('joinedAt');
+        allow delete: if isWorkspaceAdmin(workspaceId);
+      }
+
+      match /projects/{projectId} {
+        allow read: if isWorkspaceMember(workspaceId);
+        allow create: if isWorkspaceMember(workspaceId);
+        allow update: if isWorkspaceMember(workspaceId)
+          && isUnchanged('createdAt')
+          && isUnchanged('createdBy')
+          && isUnchanged('schemaVersion');
+        allow delete: if isWorkspaceAdmin(workspaceId);
+      }
+
+      match /deleted_projects/{deletedId} {
+        allow read: if isWorkspaceMember(workspaceId);
+        allow create, update, delete: if isWorkspaceAdmin(workspaceId);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isWorkspaceMember(workspaceId);
+        allow create: if isWorkspaceMember(workspaceId)
+          && request.resource.data.keys().hasAll(['title', 'completed', 'schemaVersion'])
+          && request.resource.data.schemaVersion == 1;
+        allow update: if isWorkspaceMember(workspaceId)
+          && isUnchanged('createdAt')
+          && isUnchanged('createdBy')
+          && isUnchanged('schemaVersion');
+        allow delete: if isWorkspaceAdmin(workspaceId);
+      }
+
+      match /meetings/{meetingId} {
+        allow read: if isWorkspaceMember(workspaceId);
+        allow create: if isWorkspaceMember(workspaceId)
+          && request.resource.data.keys().hasAll(['title', 'date', 'status', 'schemaVersion']);
+        allow update: if isWorkspaceMember(workspaceId)
+          && isUnchanged('createdAt')
+          && isUnchanged('createdBy')
+          && isUnchanged('schemaVersion');
+        allow delete: if isWorkspaceAdmin(workspaceId);
+      }
+
+      match /catalog/{catalogId} {
+        allow read: if isWorkspaceMember(workspaceId);
+        allow create: if isWorkspaceAdmin(workspaceId)
+          && request.resource.data.keys().hasAll(['name', 'price', 'schemaVersion']);
+        allow update: if isWorkspaceAdmin(workspaceId)
+          && isUnchanged('createdAt')
+          && isUnchanged('createdBy')
+          && isUnchanged('schemaVersion');
+        allow delete: if isWorkspaceAdmin(workspaceId);
+      }
+    }
+
+    // --- Invitation Security Rules ---
+    match /invitations/{invitationId} {
+      allow read: if isAuthenticated() && (
+        isWorkspaceAdmin(resource.data.workspaceId) || 
+        request.auth.token.email.lower() == resource.data.email
+      );
+      allow create: if isAuthenticated() && isWorkspaceAdmin(request.resource.data.workspaceId)
+        && request.resource.data.keys().hasAll(['email', 'workspaceId', 'role', 'status', 'schemaVersion'])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.schemaVersion == 1;
+      allow update: if isAuthenticated() && (
+        isWorkspaceAdmin(resource.data.workspaceId) || 
+        request.auth.token.email.lower() == resource.data.email
+      ) && isUnchanged('email') && isUnchanged('workspaceId') && isUnchanged('schemaVersion');
+      allow delete: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
     }
   }
 }

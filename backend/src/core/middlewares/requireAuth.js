@@ -24,6 +24,9 @@ const requireAuth = async (req, res, next) => {
     }
 
     if (token.startsWith('simulated-token-')) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new AppError('Simulated tokens are disabled in production.', 401, errorCodes.UNAUTHORIZED);
+      }
       const email = token.replace('simulated-token-', '');
       req.user = { uid: email, email: email };
       return next();

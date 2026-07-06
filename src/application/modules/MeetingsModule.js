@@ -79,19 +79,27 @@ export const MeetingsModule = {
 
                 EntityIdentityResolver.resolve(localMeetingsMap, meetingsList);
 
+                const parseTime = (val) => {
+                  if (!val) return 0;
+                  if (val.toDate && typeof val.toDate === 'function') return val.toDate().getTime();
+                  if (typeof val.seconds === 'number') return val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1000000);
+                  const d = new Date(val);
+                  return isNaN(d.getTime()) ? 0 : d.getTime();
+                };
+
                 // Standard merge (Refinement 8: Server timestamps win)
                 meetingsList.forEach((cloudMeet) => {
                   const localMeet = localMeetingsMap.get(cloudMeet.id);
                   if (!localMeet) {
                     localMeetingsMap.set(cloudMeet.id, { ...cloudMeet, syncState: 'SYNCED' });
                   } else {
-                    const localTime = localMeet.updatedAt ? new Date(localMeet.updatedAt).getTime() : 0;
-                    const cloudTime = cloudMeet.updatedAt ? new Date(cloudMeet.updatedAt).getTime() : 0;
-                    const localIsNewer = localTime >= cloudTime;
+                    const localTime = parseTime(localMeet.updatedAt);
+                    const cloudTime = parseTime(cloudMeet.updatedAt);
+                    const localIsNewer = localTime > cloudTime;
 
                     const mergedMeet = localIsNewer
-                      ? { ...cloudMeet, ...localMeet, syncState: localMeet.syncState !== 'SYNCED' ? localMeet.syncState : 'SYNCED' }
-                      : { ...localMeet, ...cloudMeet, syncState: 'SYNCED' };
+                       ? { ...cloudMeet, ...localMeet, syncState: localMeet.syncState !== 'SYNCED' ? localMeet.syncState : 'SYNCED' }
+                       : { ...localMeet, ...cloudMeet, syncState: 'SYNCED' };
 
                     localMeetingsMap.set(cloudMeet.id, mergedMeet);
                   }

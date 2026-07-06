@@ -44,92 +44,108 @@ export const ProjectsModule = {
            }
        });
 
-       const unsubProjects = onSnapshot(projectsQuery, (querySnapshot) => {
-            try {
-                const cloudProjects = [];
-                querySnapshot.forEach((docSnap) => {
-                    const data = docSnap.data();
-                    
-                    // Refinement 14: Read Model Validation
-                    const isValid = 
-                      data && 
-                      typeof data.name === 'string' && 
-                      data.name.trim().length > 0 &&
-                      (data.status !== 'deleted');
+        const unsubProjects = onSnapshot(projectsQuery, (querySnapshot) => {
+             try {
+                 const cloudProjects = [];
+                 const deletedFromCloud = [];
 
-                    if (isValid) {
-                        cloudProjects.push({ ...data, id: docSnap.id });
-                    } else if (data && data.status !== 'deleted') {
-                        console.warn(`[ProjectsModule] Ignored malformed project document: ${docSnap.id}`, data);
-                    }
-                });
+                 querySnapshot.forEach((docSnap) => {
+                     const data = docSnap.data();
+                     
+                     if (data && data.status === 'deleted') {
+                         deletedFromCloud.push(docSnap.id);
+                         if (data.tempId) deletedFromCloud.push(data.tempId);
+                         return;
+                     }
+                     
+                     // Refinement 14: Read Model Validation
+                     const isValid = 
+                       data && 
+                       typeof data.name === 'string' && 
+                       data.name.trim().length > 0;
 
-                const currentDeletedIds = workspaceStorageService.getItem(workspaceId, 'deleted_project_ids') || [];
-                const prevProjects = workspaceStorageService.getItem(workspaceId, 'projects') || [];
-                
-                const allProjectsMap = new Map();
-                prevProjects.forEach((p) => {
-                    // Exclude permanently-deleted IDs (keep locally-trashed projects in read model for Trash view)
-                    if (!currentDeletedIds.includes(p.id)) {
-                        allProjectsMap.set(p.id, p);
-                    }
-                });
+                     if (isValid) {
+                         cloudProjects.push({ ...data, id: docSnap.id });
+                     } else {
+                         console.warn(`[ProjectsModule] Ignored malformed project document: ${docSnap.id}`, data);
+                     }
+                 });
 
-                // Pass 1: Resolve temporary IDs (using shared resolver)
-                EntityIdentityResolver.resolve(allProjectsMap, cloudProjects);
+                 const currentDeletedIds = workspaceStorageService.getItem(workspaceId, 'deleted_project_ids') || [];
+                 const combinedDeletedIds = [...new Set([...currentDeletedIds, ...deletedFromCloud])];
+                 
+                 if (JSON.stringify(currentDeletedIds.sort()) !== JSON.stringify(combinedDeletedIds.sort())) {
+                     workspaceStorageService.setItem(workspaceId, 'deleted_project_ids', combinedDeletedIds);
+                     workspaceEventBus.emit('projects.deleted.updated', combinedDeletedIds);
+                 }
 
-                // Pass 2: Standard merge
-                cloudProjects.forEach((cloudProj) => {
-                    if (currentDeletedIds.includes(cloudProj.id)) return;
+                 const prevProjects = workspaceStorageService.getItem(workspaceId, 'projects') || [];
+                 
+                 const allProjectsMap = new Map();
+                 prevProjects.forEach((p) => {
+                     // Exclude permanently-deleted IDs (keep locally-trashed projects in read model for Trash view)
+                     if (!combinedDeletedIds.includes(p.id)) {
+                         allProjectsMap.set(p.id, p);
+                     }
+                 });
 
-                    const localProj = allProjectsMap.get(cloudProj.id);
-                    if (!localProj) {
-                        allProjectsMap.set(cloudProj.id, { ...cloudProj, syncState: "SYNCED" });
-                    } else {
-                        const localTime = localProj.updatedAt ? new Date(localProj.updatedAt).getTime() : 0;
-                        const cloudTime = cloudProj.updatedAt ? new Date(cloudProj.updatedAt).getTime() : 0;
+                 // Pass 1: Resolve temporary IDs (using shared resolver)
+                 EntityIdentityResolver.resolve(allProjectsMap, cloudProjects);
 
-                        const localIsNewer = localTime >= cloudTime;
+                 // Pass 2: Standard merge
+                 const parseTime = (val) => {
+                     if (!val) return 0;
+                     if (val.toDate && typeof val.toDate === 'function') return val.toDate().getTime();
+                     if (typeof val.seconds === 'number') return val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1000000);
+                     const d = new Date(val);
+                     return isNaN(d.getTime()) ? 0 : d.getTime();
+                 };
 
+                 cloudProjects.forEach((cloudProj) => {
+                     if (combinedDeletedIds.includes(cloudProj.id)) return;
 
-                        // When local is newer, trust local task/material state.
-                        // When cloud is newer, trust cloud task/material state.
-                        // This prevents completed tasks from being stomped by stale server state.
-                        const mergedProject = localIsNewer
-                          ? {
-                              // Local wins: keep local task/material state
-                              ...cloudProj,    // start with cloud for metadata (name, status, etc.)
-                              ...localProj,    // local overrides all (is more recent)
-                              // Merge arrays: local is base, add any NEW cloud items not in local
-                              materials: (() => {
-                                const base = localProj.materials || [];
-                                const cloudItems = cloudProj.materials || [];
-                                const merged = [...base];
-                                cloudItems.forEach(item => {
-                                  if (!base.some(m => m.id === item.id)) merged.push(item);
-                                });
-                                return merged;
-                              })(),
-                              tasks: (() => {
-                                const base = localProj.tasks || [];
-                                const cloudItems = cloudProj.tasks || [];
-                                const merged = [...base];
-                                cloudItems.forEach(item => {
-                                  if (!base.some(t => t.id === item.id)) merged.push(item);
-                                });
-                                return merged;
-                              })(),
-                              syncState: localProj.syncState !== 'SYNCED' ? localProj.syncState : 'SYNCED',
-                            }
-                          : {
-                              // Cloud wins: trust cloud completely (newer server data)
-                              ...cloudProj,
-                              syncState: 'SYNCED',
-                            };
+                     const localProj = allProjectsMap.get(cloudProj.id);
+                     if (!localProj) {
+                         allProjectsMap.set(cloudProj.id, { ...cloudProj, syncState: "SYNCED" });
+                     } else {
+                         const localTime = parseTime(localProj.updatedAt);
+                         const cloudTime = parseTime(cloudProj.updatedAt);
 
-                        allProjectsMap.set(cloudProj.id, mergedProject);
-                    }
-                });
+                         // Only trust local if it has pending changes and is strictly newer
+                         const localIsNewer = localProj.syncState !== 'SYNCED' && localTime > cloudTime;
+
+                         const mergedProject = localIsNewer
+                           ? {
+                               ...cloudProj,    // start with cloud for metadata
+                               ...localProj,    // local overrides all
+                               materials: (() => {
+                                 const base = localProj.materials || [];
+                                 const cloudItems = cloudProj.materials || [];
+                                 const merged = [...base];
+                                 cloudItems.forEach(item => {
+                                   if (!base.some(m => m.id === item.id)) merged.push(item);
+                                 });
+                                 return merged;
+                               })(),
+                               tasks: (() => {
+                                 const base = localProj.tasks || [];
+                                 const cloudItems = cloudProj.tasks || [];
+                                 const merged = [...base];
+                                 cloudItems.forEach(item => {
+                                   if (!base.some(t => t.id === item.id)) merged.push(item);
+                                 });
+                                 return merged;
+                               })(),
+                               syncState: localProj.syncState,
+                             }
+                           : {
+                               ...cloudProj,
+                               syncState: 'SYNCED',
+                             };
+
+                         allProjectsMap.set(cloudProj.id, mergedProject);
+                     }
+                 });
 
                const mergedFinal = Array.from(allProjectsMap.values());
                if (JSON.stringify(mergedFinal) !== JSON.stringify(prevProjects)) {
