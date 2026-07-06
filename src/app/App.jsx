@@ -446,12 +446,14 @@ function AuthenticatedApp() {
   // --- Structured Authentication Success & Local Sync Flow ---
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [hasCheckedLocalSync, setHasCheckedLocalSync] = useState(false);
+  const [pendingLocalProjects, setPendingLocalProjects] = useState([]);
 
   useEffect(() => {
     // Sequence: Authentication Successful -> Workspace Loading -> Workspace Ready -> Local Projects Found? -> YES -> LocalSyncDecisionModal
     if (!isLocalMode && user && !hasCheckedLocalSync && projects && projects.length > 0) {
       const localProjs = projects.filter(p => p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING"));
       if (localProjs.length > 0) {
+        setPendingLocalProjects(localProjs);
         setIsSyncModalOpen(true);
         setHasCheckedLocalSync(true);
       }
@@ -460,9 +462,12 @@ function AuthenticatedApp() {
 
   const handleLocalSyncDecision = async (strategy, selectedIds = []) => {
     setIsSyncModalOpen(false);
+    const targetProjects = pendingLocalProjects.length > 0 ? pendingLocalProjects : projects.filter(p => p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING"));
+    setPendingLocalProjects([]);
+
     if (strategy === "UPLOAD_ALL") {
       const updated = projects.map(p => {
-        if (p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING")) {
+        if (targetProjects.some(tp => tp.id === p.id) || p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING")) {
           const updatedProj = { ...p, syncState: "PENDING" };
           setTimeout(() => syncProjectToCloud(updatedProj), 100);
           return updatedProj;
@@ -476,7 +481,7 @@ function AuthenticatedApp() {
           const updatedProj = { ...p, syncState: "PENDING" };
           setTimeout(() => syncProjectToCloud(updatedProj), 100);
           return updatedProj;
-        } else if (p.syncState !== "SYNCED") {
+        } else if (targetProjects.some(tp => tp.id === p.id) && p.syncState !== "SYNCED") {
           return { ...p, syncState: "LOCAL" };
         }
         return p;
@@ -484,7 +489,7 @@ function AuthenticatedApp() {
       setProjects(updated);
     } else if (strategy === "KEEP_LOCAL") {
       const updated = projects.map(p => {
-        if (p.syncState !== "SYNCED") {
+        if (targetProjects.some(tp => tp.id === p.id) && p.syncState !== "SYNCED") {
           return { ...p, syncState: "LOCAL" };
         }
         return p;
@@ -1366,7 +1371,7 @@ function AuthenticatedApp() {
 
               <LocalSyncDecisionModal
                 isOpen={isSyncModalOpen}
-                localProjects={projects.filter(p => p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING"))}
+                localProjects={pendingLocalProjects.length > 0 ? pendingLocalProjects : projects.filter(p => p.syncState === "LOCAL" || (p.syncState !== "SYNCED" && p.syncState !== "PENDING"))}
                 onDecision={handleLocalSyncDecision}
               />
             </>
