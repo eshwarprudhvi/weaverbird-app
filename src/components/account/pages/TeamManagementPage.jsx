@@ -111,17 +111,15 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
   };
 
   return (
-    <div className="screen-content fade-in" style={{ padding: '0 0 80px 0', backgroundColor: 'var(--bg-app)', display: 'flex', flexDirection: 'column', minHeight: '100vh', color: 'var(--text-main)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-app)', color: 'var(--text-main)' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '20px 24px',
+        padding: '16px 20px',
         backgroundColor: 'var(--bg-nav-solid)',
         borderBottom: '1px solid var(--border)',
-        position: 'sticky',
-        top: 0,
         zIndex: 10
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -132,8 +130,8 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
             <ChevronLeft size={24} />
           </button>
           <div>
-            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text-title)' }}>Team & Workspace Management</h2>
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>Manage workspace members, roles, and onboarding invitations</p>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-title)' }}>Team & Workspace Management</h2>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>Manage members, roles, and invitations</p>
           </div>
         </div>
 
@@ -143,23 +141,24 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            padding: '10px 18px',
-            borderRadius: '10px',
+            padding: '8px 14px',
+            borderRadius: '8px',
             border: 'none',
             background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
             color: '#fff',
-            fontSize: '13.5px',
+            fontSize: '13px',
             fontWeight: '600',
             cursor: 'pointer',
             boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
           }}
         >
-          <Plus size={16} />
+          <Plus size={15} />
           <span>Invite Member</span>
         </button>
       </div>
 
-      <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+      <div className="screen-content fade-in" style={{ padding: '20px 20px 120px 20px' }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         <WorkspaceOverviewCard
           projectsCount={projectsCount}
           membersCount={authorizedUsers.length || 1}
@@ -244,13 +243,14 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                   border: '1px solid var(--border)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
                     <div style={{
                       width: '42px',
                       height: '42px',
                       borderRadius: '12px',
                       background: 'rgba(99, 102, 241, 0.15)',
                       display: 'flex',
+                      flexShrink: 0,
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: '#818cf8',
@@ -259,18 +259,40 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                     }}>
                       {(u.email || '?')[0].toUpperCase()}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-main)' }}>{u.email}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0, flex: 1 }}>
+                      <span style={{ 
+                        fontSize: '14px', 
+                        fontWeight: '600', 
+                        color: 'var(--text-main)',
+                        textOverflow: 'ellipsis',
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap'
+                      }} title={u.email}>
+                        {u.email}
+                      </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '12px', color: '#818cf8', fontWeight: '600', background: 'rgba(129, 140, 248, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '11px', color: '#818cf8', fontWeight: '600', background: 'rgba(129, 140, 248, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
                           {formatRoleDisplay(u.role)}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {u.email !== (userEmail || '').toLowerCase().trim() ? (
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  {u.role === 'owner' ? (
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: 'var(--accent-gold-dark)', 
+                      fontWeight: '700', 
+                      backgroundColor: 'rgba(212, 163, 89, 0.12)', 
+                      padding: '6px 12px', 
+                      borderRadius: '8px', 
+                      border: '1px solid rgba(212, 163, 89, 0.2)',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      Workspace Owner
+                    </span>
+                  ) : u.email !== (userEmail || '').toLowerCase().trim() ? (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
                       <select
                         value={u.role ? u.role.toLowerCase() : 'editor'}
                         onChange={async (e) => {
@@ -281,17 +303,17 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                           }
                         }}
                         style={{
-                          padding: '8px 12px',
+                          padding: '8px 8px',
                           borderRadius: '8px',
                           border: '1px solid var(--border)',
                           backgroundColor: 'var(--bg-app)',
                           color: 'var(--text-main)',
-                          fontSize: '13px',
+                          fontSize: '12px',
                           outline: 'none',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          maxWidth: '90px'
                         }}
                       >
-                        <option value="owner">Owner</option>
                         <option value="admin">Admin</option>
                         <option value="manager">Manager</option>
                         <option value="editor">Editor</option>
@@ -309,12 +331,12 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                           }
                         }}
                         style={{
-                          padding: '8px 14px',
+                          padding: '8px 10px',
                           borderRadius: '8px',
                           backgroundColor: 'rgba(239, 68, 68, 0.1)',
                           color: '#f87171',
                           border: '1px solid rgba(239, 68, 68, 0.2)',
-                          fontSize: '13px',
+                          fontSize: '12px',
                           fontWeight: '600',
                           cursor: 'pointer'
                         }}
@@ -323,7 +345,16 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                       </button>
                     </div>
                   ) : (
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', backgroundColor: 'var(--bg-app)', padding: '6px 14px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      color: 'var(--text-muted)', 
+                      fontStyle: 'italic', 
+                      backgroundColor: 'var(--bg-app)', 
+                      padding: '6px 12px', 
+                      borderRadius: '10px', 
+                      border: '1px solid var(--border)',
+                      whiteSpace: 'nowrap'
+                    }}>
                       You (Current Session)
                     </span>
                   )}
@@ -574,6 +605,7 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
         }}
       />
     </div>
+  </div>
   );
 };
 

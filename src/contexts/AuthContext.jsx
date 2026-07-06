@@ -2,8 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { APPLICATION } from "../config/application";
 import authApi from "../api/auth.api";
 import { workspaceEventBus } from "../application/session";
-import { auth, isConfigured } from "../firebase";
+import { auth, db, isConfigured } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 export const WORKSPACE_CONNECTION_STATES = {
   UNCONFIGURED: "UNCONFIGURED",
@@ -26,10 +27,25 @@ export const AuthProvider = ({ children }) => {
 
   // Listen to workspace bootstrapper failures to clear invalid workspace context
   useEffect(() => {
-    const unsubFailed = workspaceEventBus.on('workspace.failed', ({ workspaceId, error }) => {
+    const unsubFailed = workspaceEventBus.on('workspace.failed', async ({ workspaceId, error }) => {
       console.error("Workspace bootstrapper failed, clearing workspace session:", error);
       localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
       setActiveWorkspaceId(null);
+
+      // Reset the server-side workspaceIndex to prevent boot loops if the workspace doesn't exist
+      if (auth.currentUser && db) {
+        try {
+          const indexRef = doc(db, 'workspaceIndex', auth.currentUser.uid);
+          await setDoc(indexRef, {
+            workspaceId: null,
+            role: null,
+            status: 'inactive',
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        } catch (e) {
+          console.warn("Failed to clear invalid server-side workspaceIndex:", e);
+        }
+      }
     });
     return () => unsubFailed();
   }, []);
@@ -63,48 +79,48 @@ export const AuthProvider = ({ children }) => {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setIsLoading(true);
       try {
-        setIsLoading(true);
         const storedRole = localStorage.getItem(APPLICATION.storageKeys.userRole) || "editor";
         const storedWorkspace = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId);
 
         if (firebaseUser) {
+          let serverWorkspaceId = null;
+          let serverRole = storedRole;
+          
           try {
-            // Retrieve latest session from backend using active Firebase credentials
-            const meResult = await authApi.getMe();
-            const meData = meResult.data || meResult;
-            const serverWorkspaceId = meData.currentMembership?.workspaceId || null;
-            const serverRole = meData.currentMembership?.role || storedRole;
-
-            setUser({
-              email: firebaseUser.email,
-              role: serverRole,
-              id: firebaseUser.uid
-            });
-            setActiveWorkspaceId(serverWorkspaceId);
-            setIsLocalMode(false);
-            setWorkspaceConnectionState(serverWorkspaceId ? WORKSPACE_CONNECTION_STATES.CONNECTED : WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
-
-            if (serverWorkspaceId) {
-              localStorage.setItem(APPLICATION.storageKeys.activeWorkspaceId, serverWorkspaceId);
-            } else {
-              localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
+            const indexRef = doc(db, 'workspaceIndex', firebaseUser.uid);
+            const indexSnap = await getDoc(indexRef);
+            if (indexSnap.exists()) {
+              const data = indexSnap.data();
+              serverWorkspaceId = data.workspaceId;
+              serverRole = data.role || 'member';
             }
-            localStorage.setItem(APPLICATION.storageKeys.userRole, serverRole);
-            localStorage.setItem(APPLICATION.storageKeys.userEmail, firebaseUser.email);
-          } catch (meErr) {
-            console.warn("AuthContext: backend session validation failed, using cached session:", meErr);
-            setUser({
-              email: firebaseUser.email,
-              role: storedRole,
-              id: firebaseUser.uid
-            });
-            setActiveWorkspaceId(storedWorkspace || null);
-            setIsLocalMode(false);
-            setWorkspaceConnectionState(storedWorkspace ? WORKSPACE_CONNECTION_STATES.CONNECTED : WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+          } catch (e) {
+            console.warn("Failed to check workspace index:", e);
           }
+
+          const finalWorkspaceId = serverWorkspaceId || storedWorkspace || null;
+
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            role: serverRole
+          });
+          setIsLocalMode(false);
+          setActiveWorkspaceId(finalWorkspaceId);
+          setWorkspaceConnectionState(finalWorkspaceId ? WORKSPACE_CONNECTION_STATES.CONNECTED : WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+
+          if (finalWorkspaceId) {
+            localStorage.setItem(APPLICATION.storageKeys.activeWorkspaceId, finalWorkspaceId);
+            localStorage.setItem(APPLICATION.storageKeys.userRole, serverRole);
+          } else {
+            localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
+          }
+          localStorage.setItem(APPLICATION.storageKeys.userEmail, firebaseUser.email);
         } else {
-          // No active auth session
           const storedCloudSync = localStorage.getItem(APPLICATION.storageKeys.cloudSync);
           if (storedCloudSync === "false") {
             setIsLocalMode(true);
@@ -127,6 +143,43 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
+  const switchWorkspace = async (workspaceId) => {
+    setIsLoading(true);
+    try {
+      let role = 'member';
+      if (!isLocalMode && db && auth.currentUser) {
+        const memberRef = doc(db, 'workspaces', workspaceId, 'members', auth.currentUser.uid);
+        const memberSnap = await getDoc(memberRef);
+        if (memberSnap.exists()) {
+          role = memberSnap.data().role || 'member';
+        }
+        
+        const indexRef = doc(db, 'workspaceIndex', auth.currentUser.uid);
+        await setDoc(indexRef, {
+          workspaceId: workspaceId,
+          role: role,
+          status: 'active',
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      setActiveWorkspaceId(workspaceId);
+      setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTED);
+      localStorage.setItem(APPLICATION.storageKeys.activeWorkspaceId, workspaceId);
+      localStorage.setItem(APPLICATION.storageKeys.userRole, role);
+      
+      // Emit connection change event so session manager resets correctly
+      if (workspaceEventBus) {
+        workspaceEventBus.emit('workspace.connection_changed', { workspaceId });
+      }
+    } catch (error) {
+      console.error("Failed to switch workspace:", error);
+      alert("Failed to switch workspace: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const value = {
     user,
     setUser,
@@ -141,6 +194,7 @@ export const AuthProvider = ({ children }) => {
     syncErrorDetails,
     setSyncErrorDetails,
     isAuthenticated: !!user,
+    switchWorkspace,
   };
 
   return (

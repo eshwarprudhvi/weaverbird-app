@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useWorkspace } from "../contexts/WorkspaceContext";
+import WorkspaceInvitationsModal from "../components/account/modals/WorkspaceInvitationsModal";
 import { usePdfGenerator } from "../hooks/usePdfGenerator";
 import { useSharing } from "../hooks/useSharing";
 import { useNotifications } from "../hooks/useNotifications";
@@ -1384,11 +1385,12 @@ function AuthenticatedApp() {
 
 import { WorkspaceScopeProvider, WorkspaceDiagnostics, workspaceEventBus, workspaceSessionManager } from "../application/session";
 import "../application/modules";
-
 function App() {
-  const { isAuthenticated, isLocalMode, isLoading, activeWorkspaceId, checkPendingInvitations } = useAuth();
+  const { isAuthenticated, isLocalMode, isLoading, activeWorkspaceId, checkPendingInvitations, switchWorkspace } = useAuth();
   const [initialAuthRoute, setInitialAuthRoute] = useState("welcome");
   const [sessionLoading, setSessionLoading] = useState(false);
+  const [inAppInvites, setInAppInvites] = useState([]);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading) {
@@ -1424,6 +1426,21 @@ function App() {
     }
   }, [isAuthenticated, activeWorkspaceId, isLocalMode, checkPendingInvitations]);
 
+  // Load and show pending invitations in-app if authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isLocalMode) {
+      checkPendingInvitations().then(invs => {
+        setInAppInvites(invs || []);
+        if (invs && invs.length > 0) {
+          setIsInviteModalOpen(true);
+        }
+      }).catch(console.error);
+    } else {
+      setInAppInvites([]);
+      setIsInviteModalOpen(false);
+    }
+  }, [isAuthenticated, isLocalMode, activeWorkspaceId, checkPendingInvitations]);
+
   if (sessionLoading) {
     return (
       <div style={{
@@ -1457,6 +1474,23 @@ function App() {
   return (
     <WorkspaceScopeProvider workspaceId={activeWorkspaceId}>
       {appContent}
+      <WorkspaceInvitationsModal
+        isOpen={isInviteModalOpen}
+        invitations={inAppInvites}
+        onClose={() => setIsInviteModalOpen(false)}
+        onAccepted={(id) => {
+          setInAppInvites(prev => prev.filter(inv => inv.id !== id));
+        }}
+        onDeclined={(id) => {
+          setInAppInvites(prev => prev.filter(inv => inv.id !== id));
+          if (inAppInvites.length <= 1) {
+            setIsInviteModalOpen(false);
+          }
+        }}
+        onSwitchWorkspace={(workspaceId) => {
+          switchWorkspace(workspaceId);
+        }}
+      />
     </WorkspaceScopeProvider>
   );
 }

@@ -59,16 +59,14 @@ const BusinessProfilePage = ({ onBack }) => {
   };
 
   return (
-    <div className="screen-content fade-in" style={{ padding: '0 0 80px 0', backgroundColor: 'var(--bg-app)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-app)', color: 'var(--text-main)' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        padding: '20px',
+        padding: '16px 20px',
         backgroundColor: 'var(--bg-nav-solid)',
         borderBottom: '1px solid var(--border)',
-        position: 'sticky',
-        top: 0,
         zIndex: 10
       }}>
         <button 
@@ -82,6 +80,8 @@ const BusinessProfilePage = ({ onBack }) => {
           <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#f59e0b', fontWeight: 600 }}>Offline Mode</span>
         )}
       </div>
+
+      <div className="screen-content fade-in" style={{ padding: '20px 20px 120px 20px' }}>
 
       <div style={{ padding: '20px' }}>
         
@@ -233,6 +233,7 @@ const BusinessProfilePage = ({ onBack }) => {
 
       </div>
     </div>
+  </div>
   );
 };
 

@@ -1,4 +1,4 @@
-import { doc, getDocs, collection, query, where, serverTimestamp, runTransaction, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, serverTimestamp, runTransaction, updateDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { publishMetrics } from './utils/metrics';
 import { workspaceEventBus } from '../application/session';
@@ -15,8 +15,8 @@ export class FirestoreInvitationRepository {
       const startTime = performance.now();
       const batch = writeBatch(db);
       
-      const invitationId = `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const token = `tok_${Math.random().toString(36).substr(2, 9)}${Math.random().toString(36).substr(2, 9)}`;
+      const invitationId = token; // Use token as the document ID to bypass collection query validation rules
       const inviteRef = doc(db, 'invitations', invitationId);
 
       const normalizedEmail = data.email.trim().toLowerCase();
@@ -25,6 +25,7 @@ export class FirestoreInvitationRepository {
         token,
         email: normalizedEmail,
         workspaceId,
+        workspaceName: data.workspaceName || 'Studio Workspace',
         role: data.role || 'member',
         status: 'pending',
         createdAt: serverTimestamp(),
@@ -85,73 +86,114 @@ export class FirestoreInvitationRepository {
     try {
       const userEmail = auth.currentUser?.email;
       if (!userEmail) return [];
-      const q = query(collection(db, 'invitations'), where('email', '==', userEmail.trim().toLowerCase()));
+      const normalizedEmail = userEmail.trim().toLowerCase();
+      console.log(`[FirestoreInvitationRepository] Querying pending invitations for email: ${normalizedEmail}`);
+      const q = query(
+        collection(db, 'invitations'),
+        where('email', '==', normalizedEmail),
+        where('status', '==', 'pending')
+      );
       const snap = await getDocs(q);
       const list = [];
       snap.forEach(docSnap => {
         list.push({ id: docSnap.id, ...docSnap.data() });
       });
+      console.log(`[FirestoreInvitationRepository] Found ${list.length} pending invitations for ${normalizedEmail}`);
       return list;
     } catch (error) {
-      console.error('Failed to list my invitations:', error);
+      console.error('[FirestoreInvitationRepository] Failed to list my invitations:', error);
       return [];
     }
   }
 
   async validateToken(token) {
     try {
-      const q = query(collection(db, 'invitations'), where('token', '==', token), where('status', '==', 'pending'));
-      const snap = await getDocs(q);
-      if (snap.empty) return null;
-      let invitation = null;
-      snap.forEach(docSnap => {
-        invitation = { id: docSnap.id, ...docSnap.data() };
-      });
-      return invitation;
+      console.log(`[FirestoreInvitationRepository] Validating invitation token document: ${token}`);
+      const inviteRef = doc(db, 'invitations', token);
+      const snap = await getDoc(inviteRef);
+      if (!snap.exists()) {
+        console.warn(`[FirestoreInvitationRepository] Invitation document not found for token: ${token}`);
+        return null;
+      }
+      const data = snap.data();
+      const userEmail = auth.currentUser?.email;
+      if (!userEmail) {
+        console.warn('[FirestoreInvitationRepository] No authenticated user found during validation');
+        return null;
+      }
+      
+      const normalizedUserEmail = userEmail.trim().toLowerCase();
+      const normalizedInviteEmail = data.email.trim().toLowerCase();
+      if (normalizedUserEmail !== normalizedInviteEmail) {
+        console.warn(`[FirestoreInvitationRepository] User email ${normalizedUserEmail} does not match invitation email ${normalizedInviteEmail}`);
+        return null;
+      }
+
+      if (data.status !== 'pending') {
+        console.warn(`[FirestoreInvitationRepository] Invitation status is ${data.status}, expected pending`);
+        return null;
+      }
+      
+      console.log('[FirestoreInvitationRepository] Invitation token validated successfully');
+      return { id: snap.id, ...data };
     } catch (error) {
-      console.error('Validate token failed:', error);
+      console.error('[FirestoreInvitationRepository] Validate token failed:', error);
       throw error;
     }
   }
 
   async accept(idOrToken) {
     try {
+      console.log(`[FirestoreInvitationRepository] Starting accept operation for token/ID: ${idOrToken}`);
+      const userEmail = auth.currentUser?.email;
+      const userId = auth.currentUser?.uid;
+      if (!userId || !userEmail) {
+        throw new Error('User not authenticated');
+      }
+      const normalizedUserEmail = userEmail.trim().toLowerCase();
+
+      // Legacy support: resolve actual document reference if idOrToken is a token field value rather than the document ID
+      let inviteDocRef = doc(db, 'invitations', idOrToken);
+      let directSnap = await getDoc(inviteDocRef);
+      if (!directSnap.exists()) {
+        const q = query(collection(db, 'invitations'), where('token', '==', idOrToken));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          inviteDocRef = doc(db, 'invitations', qSnap.docs[0].id);
+        } else {
+          throw new Error('Invitation not found');
+        }
+      }
+
       // We run a transactional onboarding operation for direct client-side safety
       const result = await runTransaction(db, async (transaction) => {
-        // Query invitation
-        const q = query(collection(db, 'invitations'), where('token', '==', idOrToken));
-        const inviteSnap = await getDocs(q);
-        let inviteDocRef = null;
-        let inviteData = null;
-
-        if (!inviteSnap.empty) {
-          inviteSnap.forEach(snap => {
-            inviteDocRef = snap.ref;
-            inviteData = snap.data();
-          });
-        } else {
-          // Try fetching directly by document ID
-          inviteDocRef = doc(db, 'invitations', idOrToken);
-          const directSnap = await transaction.get(inviteDocRef);
-          if (directSnap.exists()) {
-            inviteData = directSnap.data();
-          }
+        console.log(`[FirestoreInvitationRepository] [Transaction] Fetching invitation document`);
+        const txSnap = await transaction.get(inviteDocRef);
+        
+        if (!txSnap.exists()) {
+          throw new Error('Invitation not found');
         }
 
-        if (!inviteData) {
-          throw new Error('Invitation not found');
+        const inviteData = txSnap.data();
+
+        // Verify that the workspace actually exists in the database
+        const wsRef = doc(db, 'workspaces', inviteData.workspaceId);
+        const wsSnap = await transaction.get(wsRef);
+        if (!wsSnap.exists()) {
+          throw new Error('The workspace for this invitation no longer exists.');
         }
 
         if (inviteData.status !== 'pending') {
           throw new Error(`Invitation is already ${inviteData.status}`);
         }
 
-        const userId = auth.currentUser?.uid;
-        if (!userId) {
-          throw new Error('User not authenticated');
+        const normalizedInviteEmail = inviteData.email.trim().toLowerCase();
+        if (normalizedInviteEmail !== normalizedUserEmail) {
+          throw new Error(`This invitation was sent to ${normalizedInviteEmail} but you are logged in as ${normalizedUserEmail}`);
         }
 
         // 1. Create membership document
+        console.log(`[FirestoreInvitationRepository] [Transaction] Creating member document in workspace: ${inviteData.workspaceId}`);
         const memberRef = doc(db, 'workspaces', inviteData.workspaceId, 'members', userId);
         transaction.set(memberRef, {
           email: inviteData.email,
@@ -159,10 +201,12 @@ export class FirestoreInvitationRepository {
           role: inviteData.role,
           status: 'active',
           joinedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
+          invitationId: inviteDocRef.id // Store the invitation ID for security rules validation!
         });
 
         // 2. Create workspaceIndex reference
+        console.log(`[FirestoreInvitationRepository] [Transaction] Creating workspaceIndex for user: ${userId}`);
         const indexRef = doc(db, 'workspaceIndex', userId);
         transaction.set(indexRef, {
           workspaceId: inviteData.workspaceId,
@@ -172,14 +216,17 @@ export class FirestoreInvitationRepository {
         });
 
         // 3. Mark invitation as accepted
+        console.log(`[FirestoreInvitationRepository] [Transaction] Marking invitation status as accepted`);
         transaction.update(inviteDocRef, {
           status: 'accepted',
           acceptedAt: serverTimestamp(),
           acceptedBy: userId
         });
 
-        return { workspaceId: inviteData.workspaceId, role: inviteData.role };
+        return { workspaceId: inviteData.workspaceId, role: inviteData.role, workspaceName: inviteData.workspaceName || 'Studio Workspace' };
       });
+
+      console.log(`[FirestoreInvitationRepository] Invitation accepted successfully! Workspace ID: ${result.workspaceId}`);
 
       if (workspaceEventBus) {
         workspaceEventBus.emit('invitation.accepted', { idOrToken });
@@ -187,23 +234,39 @@ export class FirestoreInvitationRepository {
 
       return result;
     } catch (error) {
-      console.error('Accept invitation failed:', error);
+      console.error('[FirestoreInvitationRepository] Accept invitation failed:', error);
       throw error;
     }
   }
 
   async decline(idOrToken) {
     try {
-      const q = query(collection(db, 'invitations'), where('token', '==', idOrToken));
-      const snap = await getDocs(q);
-      let inviteId = idOrToken;
-      if (!snap.empty) {
-        snap.forEach(docSnap => {
-          inviteId = docSnap.id;
-        });
+      console.log(`[FirestoreInvitationRepository] Declining invitation: ${idOrToken}`);
+      const userEmail = auth.currentUser?.email;
+      if (!userEmail) throw new Error('User email not found');
+      const normalizedUserEmail = userEmail.trim().toLowerCase();
+
+      // Legacy support: resolve actual document reference if idOrToken is a token field value rather than the document ID
+      let inviteRef = doc(db, 'invitations', idOrToken);
+      let snap = await getDoc(inviteRef);
+      if (!snap.exists()) {
+        const q = query(collection(db, 'invitations'), where('token', '==', idOrToken));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          inviteRef = doc(db, 'invitations', qSnap.docs[0].id);
+          snap = qSnap.docs[0];
+        } else {
+          throw new Error('Invitation not found');
+        }
       }
 
-      const inviteRef = doc(db, 'invitations', inviteId);
+      const inviteData = snap.data();
+      const normalizedInviteEmail = inviteData.email.trim().toLowerCase();
+      if (normalizedInviteEmail !== normalizedUserEmail) {
+        throw new Error(`This invitation was sent to ${normalizedInviteEmail} but you are logged in as ${normalizedUserEmail}`);
+      }
+
+      console.log('[FirestoreInvitationRepository] Updating invitation status to declined');
       await updateDoc(inviteRef, {
         status: 'declined',
         declinedAt: serverTimestamp()
@@ -215,7 +278,7 @@ export class FirestoreInvitationRepository {
 
       return { status: 'declined' };
     } catch (error) {
-      console.error('Decline invitation failed:', error);
+      console.error('[FirestoreInvitationRepository] Decline invitation failed:', error);
       throw error;
     }
   }

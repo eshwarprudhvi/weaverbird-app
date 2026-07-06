@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Mail, Shield, MessageSquare, Clock, Send, AlertCircle, CheckCircle, UserPlus } from 'lucide-react';
 import invitationRepository from '../../../repositories/InvitationRepository';
 import { sendInvitationEmail } from '../../../utils/emailService';
+import { useWorkspace } from '../../../contexts/WorkspaceContext';
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin', desc: 'Can manage workspace settings, members, and all projects.' },
@@ -19,6 +20,7 @@ const EXPIRATION_OPTIONS = [
 ];
 
 const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) => {
+  const { workspace } = useWorkspace();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('member');
   const [message, setMessage] = useState('');
@@ -31,8 +33,8 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !email.includes('@')) {
-      setError('Please enter a valid email address.');
+    if (!email || !email.trim()) {
+      setError('Please enter a collaborator email address.');
       return;
     }
 
@@ -41,22 +43,18 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
     setSuccessMsg(null);
 
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const workspaceName = workspace?.companyName || workspaceId;
       const createdInvite = await invitationRepository.create(workspaceId, {
-        email: email.trim(),
+        email: normalizedEmail,
         role,
         message: message.trim(),
         expiresInDays: Number(expiresInDays)
       });
 
-      if (createdInvite && createdInvite.token) {
-        const origin = (window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1'))
-          ? 'https://weaverbird-project-manager.web.app'
-          : window.location.origin;
-        const acceptUrl = `${origin}/invitations/accept?token=${createdInvite.token}`;
-        sendInvitationEmail(email.trim(), role, workspaceId, acceptUrl, message.trim()).catch(err => {
-          console.error("Frontend email delivery fallback error:", err);
-        });
-      }
+      sendInvitationEmail(normalizedEmail, role, workspaceName, "", message.trim()).catch(err => {
+        console.error("Frontend email delivery fallback error:", err);
+      });
 
       setSuccessMsg(`Invitation sent successfully to ${email}!`);
       setEmail('');

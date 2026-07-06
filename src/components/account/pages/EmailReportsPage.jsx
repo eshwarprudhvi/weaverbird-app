@@ -12,16 +12,14 @@ const EmailReportsPage = ({
   db 
 }) => {
   return (
-    <div className="screen-content fade-in" style={{ padding: '0 0 80px 0', backgroundColor: 'var(--bg-app)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-app)', color: 'var(--text-main)' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        padding: '20px',
+        padding: '16px 20px',
         backgroundColor: 'var(--bg-nav-solid)',
         borderBottom: '1px solid var(--border)',
-        position: 'sticky',
-        top: 0,
         zIndex: 10
       }}>
         <button 
@@ -33,7 +31,7 @@ const EmailReportsPage = ({
         <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-title)' }}>Email Reports</h2>
       </div>
 
-      <div style={{ padding: '20px' }}>
+      <div className="screen-content fade-in" style={{ padding: '20px 20px 120px 20px' }}>
         
         {/* Send Manual Report */}
         <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border)', marginBottom: '24px' }}>

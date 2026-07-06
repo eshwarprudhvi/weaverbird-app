@@ -18,6 +18,7 @@ export const useAuth = () => {
     syncErrorDetails,
     setSyncErrorDetails,
     isAuthenticated,
+    switchWorkspace,
   } = useAuthContext();
 
   /**
@@ -219,35 +220,34 @@ export const useAuth = () => {
     localStorage.removeItem(APPLICATION.storageKeys.userEmail);
   }, [setUser, setIsLocalMode, setWorkspaceConnectionState, setSyncErrorDetails]);
 
-  /**
-   * Initiate connection from an offline workspace
-   */
-  const connectFromOffline = useCallback(() => {
-    setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTING);
+  const connectFromOffline = useCallback(async () => {
     setIsLocalMode(false);
-  }, [setWorkspaceConnectionState, setIsLocalMode]);
+    setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+    localStorage.removeItem(APPLICATION.storageKeys.cloudSync);
+  }, [setIsLocalMode, setWorkspaceConnectionState]);
 
-  /**
-   * Manually trigger session restoration
-   */
   const restoreSession = useCallback(async () => {
-    const storedEmail = localStorage.getItem(APPLICATION.storageKeys.userEmail);
     const storedCloudSync = localStorage.getItem(APPLICATION.storageKeys.cloudSync);
+    const storedEmail = localStorage.getItem(APPLICATION.storageKeys.userEmail);
+    const storedRole = localStorage.getItem(APPLICATION.storageKeys.userRole) || "editor";
+    const storedWorkspace = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId);
+
     if (storedEmail) {
       setUser({
         email: storedEmail,
-        role: localStorage.getItem(APPLICATION.storageKeys.userRole) || "editor",
+        role: storedRole,
         id: `user-${storedEmail.replace(/[^a-zA-Z0-9]/g, "")}`
       });
+      setActiveWorkspaceId(storedWorkspace || null);
       setIsLocalMode(false);
-      setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTED);
+      setWorkspaceConnectionState(storedWorkspace ? WORKSPACE_CONNECTION_STATES.CONNECTED : WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
     } else if (storedCloudSync === "false") {
       setIsLocalMode(true);
       setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.OFFLINE);
     } else {
       setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
     }
-  }, [setUser, setIsLocalMode, setWorkspaceConnectionState]);
+  }, [setUser, setIsLocalMode, setWorkspaceConnectionState, setActiveWorkspaceId]);
 
   return {
     user,
@@ -266,18 +266,9 @@ export const useAuth = () => {
     continueOffline,
     connectFromOffline,
     restoreSession,
+    switchWorkspace,
     checkPendingInvitations: authApi.checkPendingInvitations,
-    acceptInvitation: async (token) => {
-      setIsLoading(true);
-      try {
-        const res = await authApi.acceptInvitation(token);
-        setActiveWorkspaceId(res.workspaceId);
-        setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTED);
-        return res;
-      } finally {
-        setIsLoading(false);
-      }
-    },
+    acceptInvitation: authApi.acceptInvitation,
     declineInvitation: authApi.declineInvitation,
   };
 };

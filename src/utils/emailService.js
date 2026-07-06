@@ -84,7 +84,7 @@ export const sendEmailWithAttachment = async (recipient, subject, bodyMessage, p
 export const sendInvitationEmail = async (recipient, role, workspaceName, acceptUrl, customMessage = "", credentials = {}, companyName = "Project Manager") => {
   const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || credentials.googleScriptUrl || localStorage.getItem("ipm_google_script_url");
   const subject = `You've been invited to join ${workspaceName || 'a team workspace'} on ${companyName}`;
-  const bodyMessage = `Hello!\n\nYou have been invited to collaborate on the workspace "${workspaceName || 'Team Workspace'}" with the role of [${role || 'Member'}].\n\n${customMessage ? `Message from sender:\n"${customMessage}"\n\n` : ''}To accept this invitation and get started, click or visit the link below:\n${acceptUrl}\n\nNote: This link will expire in 7 days.\n\nBest regards,\n${companyName} Studio Team`;
+  const bodyMessage = `Hello!\n\nYou have been invited to collaborate on the workspace "${workspaceName || 'Team Workspace'}" with the role of [${role || 'Member'}].\n\n${customMessage ? `Message from sender:\n"${customMessage}"\n\n` : ''}Open the Weaverbird app and sign in using:\n${recipient}\n\nYour invitation will appear inside the app.\n\nBest regards,\n${companyName} Studio Team`;
 
   if (scriptUrl) {
     try {

@@ -78,29 +78,29 @@ const WorkspaceOverviewCard = ({
       </div>
 
       {/* Grouped Stats Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "16px" }}>
-        <div style={{ padding: "14px", backgroundColor: "rgba(255, 255, 255, 0.02)", borderRadius: "12px", border: "1px solid var(--border)", textAlign: "center" }}>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: "6px", display: "flex", alignItems: "center", justify: "center", gap: "6px" }}>
-            <Folder size={14} color="#3b82f6" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "16px" }}>
+        <div style={{ padding: "10px 4px", backgroundColor: "rgba(255, 255, 255, 0.02)", borderRadius: "12px", border: "1px solid var(--border)", textAlign: "center" }}>
+          <div style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+            <Folder size={12} color="#3b82f6" style={{ flexShrink: 0 }} />
             <span>Projects</span>
           </div>
-          <div style={{ fontSize: "20px", fontWeight: 800, color: "var(--text-title)" }}>{projectsCount}</div>
+          <div style={{ fontSize: "18px", fontWeight: 800, color: "var(--text-title)" }}>{projectsCount}</div>
         </div>
 
-        <div style={{ padding: "14px", backgroundColor: "rgba(255, 255, 255, 0.02)", borderRadius: "12px", border: "1px solid var(--border)", textAlign: "center" }}>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: "6px", display: "flex", alignItems: "center", justify: "center", gap: "6px" }}>
-            <Users size={14} color="#a855f7" />
+        <div style={{ padding: "10px 4px", backgroundColor: "rgba(255, 255, 255, 0.02)", borderRadius: "12px", border: "1px solid var(--border)", textAlign: "center" }}>
+          <div style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+            <Users size={12} color="#a855f7" style={{ flexShrink: 0 }} />
             <span>Members</span>
           </div>
-          <div style={{ fontSize: "20px", fontWeight: 800, color: "var(--text-title)" }}>{membersCount}</div>
+          <div style={{ fontSize: "18px", fontWeight: 800, color: "var(--text-title)" }}>{membersCount}</div>
         </div>
 
-        <div style={{ padding: "14px", backgroundColor: "rgba(255, 255, 255, 0.02)", borderRadius: "12px", border: "1px solid var(--border)", textAlign: "center" }}>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: "6px", display: "flex", alignItems: "center", justify: "center", gap: "6px" }}>
-            <HardDrive size={14} color="#10b981" />
+        <div style={{ padding: "10px 4px", backgroundColor: "rgba(255, 255, 255, 0.02)", borderRadius: "12px", border: "1px solid var(--border)", textAlign: "center" }}>
+          <div style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+            <HardDrive size={12} color="#10b981" style={{ flexShrink: 0 }} />
             <span>Storage</span>
           </div>
-          <div style={{ fontSize: "13px", fontWeight: 800, color: "var(--text-title)", marginTop: "4px", wordBreak: "break-word" }}>{storageUsed}</div>
+          <div style={{ fontSize: "12px", fontWeight: 800, color: "var(--text-title)", marginTop: "4px", wordBreak: "break-all" }}>{storageUsed}</div>
         </div>
       </div>
 

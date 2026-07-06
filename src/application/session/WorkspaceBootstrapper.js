@@ -3,7 +3,7 @@ import { workspaceReadinessManager } from './WorkspaceReadinessManager';
 import { workspaceEventBus } from './WorkspaceEventBus';
 import { workspaceCacheManager } from './WorkspaceCacheManager';
 import { workspaceListenerManager } from './WorkspaceListenerManager';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer } from 'firebase/firestore';
 import { db, auth, isConfigured } from '../../firebase';
 
 /**
@@ -31,16 +31,18 @@ class WorkspaceBootstrapper {
           throw new Error(`Invalid workspace ID: ${workspaceId}`);
         }
 
+        console.log(`[WorkspaceBootstrapper] Checking if workspace document exists for ID: "${workspaceId}"`);
         // 2. Check if workspace document exists
         const workspaceDocRef = doc(db, 'workspaces', workspaceId);
-        const workspaceSnap = await getDoc(workspaceDocRef);
+        const workspaceSnap = await getDocFromServer(workspaceDocRef);
+        console.log(`[WorkspaceBootstrapper] Workspace exists in DB: ${workspaceSnap.exists()}`);
         if (!workspaceSnap.exists()) {
           throw new Error('Workspace document does not exist.');
         }
 
         // 3. Check if member document exists and status == active
         const memberDocRef = doc(db, 'workspaces', workspaceId, 'members', user.uid);
-        const memberSnap = await getDoc(memberDocRef);
+        const memberSnap = await getDocFromServer(memberDocRef);
         if (!memberSnap.exists()) {
           throw new Error('Member document does not exist in this workspace.');
         }

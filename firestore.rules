@@ -64,6 +64,16 @@ service cloud.firestore {
           request.resource.data.role == 'owner' &&
           !exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
           workspaceAfter(workspaceId).data.status == 'active'
+        ) || (
+          isAuthenticated() && 
+          request.auth.uid == memberId &&
+          request.resource.data.invitationId is string &&
+          exists(/databases/$(database)/documents/invitations/$(request.resource.data.invitationId)) &&
+          (
+            get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationId)).data.email == request.auth.token.email ||
+            (request.auth.token.email != null && get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationId)).data.email == request.auth.token.email.lower())
+          ) &&
+          get(/databases/$(database)/documents/invitations/$(request.resource.data.invitationId)).data.status == 'pending'
         );
         allow update: if isWorkspaceAdmin(workspaceId) && isUnchanged('joinedAt');
         allow delete: if isWorkspaceAdmin(workspaceId);
@@ -122,16 +132,18 @@ service cloud.firestore {
     // --- Invitation Security Rules ---
     match /invitations/{invitationId} {
       allow read: if isAuthenticated() && (
-        isWorkspaceAdmin(resource.data.workspaceId) || 
-        request.auth.token.email.lower() == resource.data.email
+        request.auth.token.email == resource.data.email ||
+        (request.auth.token.email != null && request.auth.token.email.lower() == resource.data.email)
       );
+      allow read: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
       allow create: if isAuthenticated() && isWorkspaceAdmin(request.resource.data.workspaceId)
         && request.resource.data.keys().hasAll(['email', 'workspaceId', 'role', 'status', 'schemaVersion'])
         && request.resource.data.status == 'pending'
         && request.resource.data.schemaVersion == 1;
       allow update: if isAuthenticated() && (
         isWorkspaceAdmin(resource.data.workspaceId) || 
-        request.auth.token.email.lower() == resource.data.email
+        request.auth.token.email == resource.data.email ||
+        (request.auth.token.email != null && request.auth.token.email.lower() == resource.data.email)
       ) && isUnchanged('email') && isUnchanged('workspaceId') && isUnchanged('schemaVersion');
       allow delete: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
     }
