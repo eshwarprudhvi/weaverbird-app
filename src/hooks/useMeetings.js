@@ -9,12 +9,46 @@ export const useMeetings = (setIsNewMeetingModalOpen) => {
     return scope.storage.getItem(scope.workspaceId, 'meetings') || [];
   });
 
+  const logMeetingsTransition = (reason, prev, next) => {
+    const prevIds = prev.map(m => m.id);
+    const nextIds = next.map(m => m.id);
+    const added = nextIds.filter(id => !prevIds.includes(id));
+    const removed = prevIds.filter(id => !nextIds.includes(id));
+    console.log(`[React] setMeetings called | Reason: ${reason} | Timestamp: ${new Date().toISOString()} | Workspace: ${scope.workspaceId} | Count: ${next.length} | Prev: ${JSON.stringify(prevIds)} | New: ${JSON.stringify(nextIds)} | Added: ${JSON.stringify(added)} | Removed: ${JSON.stringify(removed)}`);
+  };
+
+  useEffect(() => {
+    const stored = scope.storage.getItem(scope.workspaceId, 'meetings') || [];
+    setMeetings((prev) => {
+      if (JSON.stringify(prev) === JSON.stringify(stored)) return prev;
+      logMeetingsTransition("workspace_switch/mount_sync", prev, stored);
+      return stored;
+    });
+  }, [scope.workspaceId, scope.storage]);
+
   useEffect(() => {
     const unsub = scope.eventBus.on('meetings.updated', (newMeetings) => {
-      setMeetings(newMeetings || []);
+      setMeetings((prev) => {
+        const next = newMeetings || [];
+        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+        logMeetingsTransition("eventbus_meetings.updated", prev, next);
+        return next;
+      });
     });
     return unsub;
   }, [scope.eventBus]);
+
+  const updateMeetingsState = (updaterFn) => {
+    setMeetings((prev) => {
+      const next = typeof updaterFn === 'function' ? updaterFn(prev) : updaterFn;
+      if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+      logMeetingsTransition("optimistic_or_rollback_update", prev, next);
+      if (scope.workspaceId) {
+        scope.storage.setItem(scope.workspaceId, 'meetings', next);
+      }
+      return next;
+    });
+  };
 
   const handleAddMeeting = async (newMeeting) => {
     const exists = meetings.some((s) => s.date === newMeeting.date && !s.completed);
@@ -32,7 +66,7 @@ export const useMeetings = (setIsNewMeetingModalOpen) => {
       completed: false
     };
 
-    setMeetings((prev) => [...prev, meetingWithTempId]);
+    updateMeetingsState((prev) => [...prev, meetingWithTempId]);
     if (setIsNewMeetingModalOpen) {
       setIsNewMeetingModalOpen(false);
     }
@@ -46,7 +80,7 @@ export const useMeetings = (setIsNewMeetingModalOpen) => {
       });
     } catch (err) {
       console.error("Failed to add meeting:", err);
-      setMeetings((prev) => prev.filter((m) => m.id !== tempId));
+      updateMeetingsState((prev) => prev.filter((m) => m.id !== tempId));
     }
   };
 
@@ -54,7 +88,7 @@ export const useMeetings = (setIsNewMeetingModalOpen) => {
     const oldMeet = meetings.find((m) => m.id === meetId);
     if (!oldMeet) return;
 
-    setMeetings((prev) =>
+    updateMeetingsState((prev) =>
       prev.map((m) => {
         if (m.id === meetId) {
           return { ...m, completed: !m.completed };
@@ -69,7 +103,7 @@ export const useMeetings = (setIsNewMeetingModalOpen) => {
       });
     } catch (err) {
       console.error("Failed to toggle meeting completion:", err);
-      setMeetings((prev) =>
+      updateMeetingsState((prev) =>
         prev.map((m) => {
           if (m.id === meetId) {
             return { ...m, completed: oldMeet.completed };
@@ -81,17 +115,37 @@ export const useMeetings = (setIsNewMeetingModalOpen) => {
   };
 
   const handleDeleteMeeting = async (meetId) => {
-    const oldMeet = meetings.find((m) => m.id === meetId);
+    const oldMeet = meetings.find((m) => m.id === meetId || m.tempId === meetId);
     if (!oldMeet) return;
 
-    setMeetings((prev) => prev.filter((m) => m.id !== meetId));
+    console.log(`[Delete] User clicked delete | meetingId: ${meetId} | workspaceId: ${scope.workspaceId} | count: ${meetings.length} | timestamp: ${new Date().toISOString()}`);
+
+    const deletedIds = scope.storage.getItem(scope.workspaceId, 'deletedMeetingIds') || [];
+    const idsToAdd = [oldMeet.id];
+    if (oldMeet.tempId && oldMeet.tempId !== oldMeet.id) {
+      idsToAdd.push(oldMeet.tempId);
+    }
+    if (meetId !== oldMeet.id && !idsToAdd.includes(meetId)) {
+      idsToAdd.push(meetId);
+    }
+    const newDeletedIds = Array.from(new Set([...deletedIds, ...idsToAdd]));
+    if (scope.workspaceId) {
+      scope.storage.setItem(scope.workspaceId, 'deletedMeetingIds', newDeletedIds);
+    }
+
+    updateMeetingsState((prev) => prev.filter((m) => m.id !== oldMeet.id && m.tempId !== oldMeet.id && m.id !== meetId));
 
     try {
       await meetingRepository.delete(scope.workspaceId, meetId);
     } catch (err) {
       console.error("Failed to delete meeting:", err);
       if (oldMeet) {
-        setMeetings((prev) => [...prev, oldMeet]);
+        if (scope.workspaceId) {
+          const currentDeleted = scope.storage.getItem(scope.workspaceId, 'deletedMeetingIds') || [];
+          const restoredDeleted = currentDeleted.filter(id => !idsToAdd.includes(id));
+          scope.storage.setItem(scope.workspaceId, 'deletedMeetingIds', restoredDeleted);
+        }
+        updateMeetingsState((prev) => [...prev, oldMeet]);
       }
     }
   };

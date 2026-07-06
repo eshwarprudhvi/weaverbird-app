@@ -24,7 +24,11 @@ class MeetingService {
   }
 
   async getMeeting(workspaceId, meetingId) {
-    const meeting = await meetingRepo.findById(workspaceId, meetingId);
+    let meeting = await meetingRepo.findById(workspaceId, meetingId);
+    if (!meeting) {
+      // Try tempId lookup
+      meeting = await meetingRepo.findByTempId(workspaceId, meetingId);
+    }
     if (!meeting) {
       throw new AppError('Meeting not found', 404, errorCodes.RESOURCE_NOT_FOUND);
     }
@@ -55,11 +59,11 @@ class MeetingService {
   async updateMeeting(workspaceId, meetingId, currentUser, updateData) {
     const meeting = await this.getMeeting(workspaceId, meetingId);
     
-    await meetingRepo.update(workspaceId, meetingId, updateData);
+    await meetingRepo.update(workspaceId, meeting.id, updateData);
 
     EventBus.publish('meeting.updated', {
       workspaceId,
-      meetingId,
+      meetingId: meeting.id,
       userId: currentUser.uid,
       updates: Object.keys(updateData)
     });
@@ -70,11 +74,11 @@ class MeetingService {
   async deleteMeeting(workspaceId, meetingId, currentUser) {
     const meeting = await this.getMeeting(workspaceId, meetingId);
     
-    await meetingRepo.delete(workspaceId, meetingId, currentUser.uid);
+    await meetingRepo.delete(workspaceId, meeting.id, currentUser.uid);
 
     EventBus.publish('meeting.deleted', {
       workspaceId,
-      meetingId,
+      meetingId: meeting.id,
       projectId: meeting.projectId,
       userId: currentUser.uid,
     });

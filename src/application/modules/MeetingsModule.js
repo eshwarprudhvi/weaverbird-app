@@ -21,61 +21,95 @@ export const MeetingsModule = {
        const meetingsColRef = collection(db, 'workspaces', workspaceId, 'meetings');
        
        const unsubMeetings = onSnapshot(meetingsColRef, (querySnapshot) => {
-           try {
-               const meetingsList = [];
-               querySnapshot.forEach((docSnap) => {
-                   const data = docSnap.data();
-                   
-                   // Refinement 14: Read Model Validation
-                   const isValid = 
-                     data && 
-                     typeof data.title === 'string' && 
-                     data.title.trim().length > 0 &&
-                     (data.status !== 'deleted');
+            try {
+                const docChanges = [];
+                querySnapshot.docChanges().forEach(change => {
+                  docChanges.push({ type: change.type, id: change.doc.id });
+                });
 
-                   if (isValid) {
-                       meetingsList.push({ id: docSnap.id, ...data });
-                   } else if (data && data.status !== 'deleted') {
-                       console.warn(`[MeetingsModule] Ignored malformed meeting document: ${docSnap.id}`, data);
-                   }
-               });
+                console.log(`[Listener] Snapshot received | Workspace: ${workspaceId} | Size: ${querySnapshot.size} | Changes: ${JSON.stringify(docChanges)} | Timestamp: ${new Date().toISOString()}`);
 
-               // Sort meetings chronologically
-               meetingsList.sort((a, b) => {
-                 const aTime = a.date ? new Date(a.date).getTime() : 0;
-                 const bTime = b.date ? new Date(b.date).getTime() : 0;
-                 return aTime - bTime;
-               });
+                const deletedIds = new Set(workspaceStorageService.getItem(workspaceId, 'deletedMeetingIds') || []);
 
-               // TempId resolution
-               const prevMeetings = workspaceStorageService.getItem(workspaceId, 'meetings') || [];
-               const localMeetingsMap = new Map();
-               prevMeetings.forEach(m => localMeetingsMap.set(m.id, m));
+                const meetingsList = [];
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    
+                    if (data && data.status === 'deleted') {
+                        deletedIds.add(docSnap.id);
+                        if (data.tempId) deletedIds.add(data.tempId);
+                        return;
+                    }
 
-               EntityIdentityResolver.resolve(localMeetingsMap, meetingsList);
+                    // Refinement 14: Read Model Validation
+                    const isValid = 
+                      data && 
+                      typeof data.title === 'string' && 
+                      data.title.trim().length > 0;
 
-               // Standard merge (Refinement 8: Server timestamps win)
-               meetingsList.forEach((cloudMeet) => {
-                 const localMeet = localMeetingsMap.get(cloudMeet.id);
-                 if (!localMeet) {
-                   localMeetingsMap.set(cloudMeet.id, cloudMeet);
-                 } else {
-                   const localTime = localMeet.updatedAt ? new Date(localMeet.updatedAt).getTime() : 0;
-                   const cloudTime = cloudMeet.updatedAt ? new Date(cloudMeet.updatedAt).getTime() : 0;
-                   const localIsNewer = localTime >= cloudTime;
-                   const base = localIsNewer ? localMeet : cloudMeet;
-                   localMeetingsMap.set(cloudMeet.id, { ...base, ...cloudMeet }); // cloudMeet fields always win on conflict
-                 }
-               });
+                    if (isValid) {
+                        if (deletedIds.has(docSnap.id) || (data.tempId && deletedIds.has(data.tempId))) {
+                            console.log(`[MeetingsModule] Ignoring deleted meeting: ${docSnap.id}`);
+                            return;
+                        }
+                        meetingsList.push({ id: docSnap.id, ...data });
+                    } else if (data) {
+                        console.warn(`[MeetingsModule] Ignored malformed meeting document: ${docSnap.id}`, data);
+                    }
+                });
 
-               const mergedFinal = Array.from(localMeetingsMap.values()).filter(m => m.status !== 'deleted');
+                workspaceStorageService.setItem(workspaceId, 'deletedMeetingIds', Array.from(deletedIds));
 
-               workspaceStorageService.setItem(workspaceId, 'meetings', mergedFinal);
-               workspaceEventBus.emit('meetings.updated', mergedFinal);
-           } catch (err) {
-               console.error("MeetingsModule: Error processing meetings snapshot", err);
-           }
-       });
+                console.log(`[Listener] Meetings count from snapshot: ${meetingsList.length} | IDs: ${JSON.stringify(meetingsList.map(m => m.id))}`);
+
+                // Sort meetings chronologically
+                meetingsList.sort((a, b) => {
+                  const aTime = a.date ? new Date(a.date).getTime() : 0;
+                  const bTime = b.date ? new Date(b.date).getTime() : 0;
+                  return aTime - bTime;
+                });
+
+                // TempId resolution
+                const rawPrevMeetings = workspaceStorageService.getItem(workspaceId, 'meetings') || [];
+                const prevMeetings = rawPrevMeetings.filter(m => !deletedIds.has(m.id) && (!m.tempId || !deletedIds.has(m.tempId)) && m.status !== 'deleted');
+                const localMeetingsMap = new Map();
+                prevMeetings.forEach(m => localMeetingsMap.set(m.id, m));
+
+                console.log(`[Storage] Cache before update | Current cache IDs: ${JSON.stringify(Array.from(localMeetingsMap.keys()))} | Incoming IDs: ${JSON.stringify(meetingsList.map(m => m.id))}`);
+
+                EntityIdentityResolver.resolve(localMeetingsMap, meetingsList);
+
+                // Standard merge (Refinement 8: Server timestamps win)
+                meetingsList.forEach((cloudMeet) => {
+                  const localMeet = localMeetingsMap.get(cloudMeet.id);
+                  if (!localMeet) {
+                    localMeetingsMap.set(cloudMeet.id, { ...cloudMeet, syncState: 'SYNCED' });
+                  } else {
+                    const localTime = localMeet.updatedAt ? new Date(localMeet.updatedAt).getTime() : 0;
+                    const cloudTime = cloudMeet.updatedAt ? new Date(cloudMeet.updatedAt).getTime() : 0;
+                    const localIsNewer = localTime >= cloudTime;
+
+                    const mergedMeet = localIsNewer
+                      ? { ...cloudMeet, ...localMeet, syncState: localMeet.syncState !== 'SYNCED' ? localMeet.syncState : 'SYNCED' }
+                      : { ...localMeet, ...cloudMeet, syncState: 'SYNCED' };
+
+                    localMeetingsMap.set(cloudMeet.id, mergedMeet);
+                  }
+                });
+
+                const mergedFinal = Array.from(localMeetingsMap.values()).filter(m => !deletedIds.has(m.id) && (!m.tempId || !deletedIds.has(m.tempId)) && m.status !== 'deleted');
+
+                if (JSON.stringify(mergedFinal) !== JSON.stringify(prevMeetings)) {
+                  workspaceStorageService.setItem(workspaceId, 'meetings', mergedFinal);
+                  console.log(`[Storage] Cache after update | Stored IDs: ${JSON.stringify(mergedFinal.map(m => m.id))}`);
+                  workspaceEventBus.emit('meetings.updated', mergedFinal);
+                } else {
+                  console.log(`[Storage] Cache unchanged | Stored IDs: ${JSON.stringify(mergedFinal.map(m => m.id))}`);
+                }
+            } catch (err) {
+                console.error("MeetingsModule: Error processing meetings snapshot", err);
+            }
+        });
        
        workspaceListenerManager.register('meetings', 'meetings-list', unsubMeetings);
     }

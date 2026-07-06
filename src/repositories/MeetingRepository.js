@@ -109,6 +109,7 @@ class MeetingRepository extends IMeetingRepository {
   }
 
   async delete(workspaceId, meetingId) {
+    console.log(`[Repository] DELETE request started | meetingId: ${meetingId} | workspaceId: ${workspaceId} | count: N/A | timestamp: ${new Date().toISOString()}`);
     return await this.lock.acquire(meetingId, async () => {
       const startTime = performance.now();
 
@@ -124,6 +125,8 @@ class MeetingRepository extends IMeetingRepository {
         await retryRequest(async () => {
           return await deleteApi(meetingId);
         });
+
+        console.log(`[Repository] DELETE success | meetingId: ${meetingId} | workspaceId: ${workspaceId} | count: N/A | timestamp: ${new Date().toISOString()}`);
 
         const duration = performance.now() - startTime;
         publishMetrics({
