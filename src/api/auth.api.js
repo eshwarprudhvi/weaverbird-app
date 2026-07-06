@@ -1,7 +1,42 @@
 import apiClient from './client';
 import { ENDPOINTS } from './endpoints';
+import invitationRepository from '../repositories/InvitationRepository';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { auth, isConfigured } from '../firebase';
+
+/**
+ * Map Firebase auth error codes to user-friendly messages
+ */
+function mapFirebaseError(error) {
+  const code = error?.code || '';
+  switch (code) {
+    case 'auth/user-not-found':
+      return 'No account found with this email. Please create an account first.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Invalid email or password. If you signed up with Google, use "Continue with Google" or set a password from your Account page.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Contact your admin.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists. Try signing in instead.';
+    case 'auth/weak-password':
+      return 'Password is too weak. Use at least 6 characters.';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please try again later.';
+    case 'auth/popup-closed-by-user':
+      return 'Sign-in was cancelled. Please try again.';
+    case 'auth/popup-blocked':
+      return 'Sign-in popup was blocked by your browser. Please allow popups for this site.';
+    case 'auth/cancelled-popup-request':
+      return 'Multiple sign-in popups were opened. Please use the active one.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection.';
+    default:
+      return error?.message || 'Authentication failed. Please try again.';
+  }
+}
 
 export const authApi = {
   /**
@@ -12,7 +47,11 @@ export const authApi = {
     let userCredential;
     
     if (isConfigured && auth) {
-      userCredential = await signInWithEmailAndPassword(auth, email, password);
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      } catch (firebaseError) {
+        throw new Error(mapFirebaseError(firebaseError));
+      }
     }
     
     const token = isConfigured ? await userCredential.user.getIdToken() : `simulated-token-${email}`;
@@ -51,7 +90,11 @@ export const authApi = {
     let userCredential;
     
     if (isConfigured && auth) {
-      userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      try {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      } catch (firebaseError) {
+        throw new Error(mapFirebaseError(firebaseError));
+      }
     }
     
     const token = isConfigured ? await userCredential.user.getIdToken() : `simulated-token-${email}`;
@@ -74,8 +117,15 @@ export const authApi = {
     let uid = `user-${Date.now()}`;
     
     if (isConfigured && auth) {
-      const provider = new GoogleAuthProvider();
-      userCredential = await signInWithPopup(auth, provider);
+      try {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({
+          prompt: 'select_account'
+        });
+        userCredential = await signInWithPopup(auth, provider);
+      } catch (firebaseError) {
+        throw new Error(mapFirebaseError(firebaseError));
+      }
       email = userCredential.user.email;
       token = await userCredential.user.getIdToken();
       uid = userCredential.user.uid;
@@ -159,24 +209,21 @@ export const authApi = {
    * Check pending invitations for the logged-in user
    */
   async checkPendingInvitations() {
-    const response = await apiClient.get('/invitations/pending');
-    return response.data.invitations || [];
+    return await invitationRepository.listMy();
   },
 
   /**
    * Accept an invitation
    */
   async acceptInvitation(token) {
-    const response = await apiClient.post('/invitations/accept', { token });
-    return response.data;
+    return await invitationRepository.accept(token);
   },
 
   /**
    * Decline an invitation
    */
   async declineInvitation(token) {
-    const response = await apiClient.post('/invitations/decline', { token });
-    return response.data;
+    return await invitationRepository.decline(token);
   }
 };
 

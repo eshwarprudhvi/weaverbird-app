@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Building2, LogIn, HardDrive } from "lucide-react";
 import AuthCard from "../../components/auth/AuthCard";
 import AuthHeader from "../../components/auth/AuthHeader";
@@ -7,6 +7,7 @@ import useAuth from "../../hooks/useAuth";
 
 const WelcomePage = ({ onNavigate }) => {
   const { continueOffline, loginWithGoogle } = useAuth();
+  const [error, setError] = useState("");
 
   return (
     <AuthCard maxWidth="520px" padding="40px 36px">
@@ -15,6 +16,12 @@ const WelcomePage = ({ onNavigate }) => {
         subtitle="Collaborate with your team, sync projects in real-time, or manage local designs seamlessly."
       />
 
+      {error && (
+        <div style={{ padding: "10px 14px", borderRadius: "8px", backgroundColor: "rgba(239, 68, 68, 0.1)", color: "#ef4444", fontSize: "13px", marginBottom: "16px", textAlign: "center" }}>
+          {error}
+        </div>
+      )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: "14px", width: "100%", marginBottom: "28px" }}>
         {/* Continue with Google */}
         <AuthActionCard
@@ -22,10 +29,11 @@ const WelcomePage = ({ onNavigate }) => {
           title="Continue with Google"
           description="Sign in securely using your Google account."
           onClick={async () => {
+             setError("");
              try {
                 await loginWithGoogle();
              } catch (err) {
-                console.error(err);
+                setError(err.message || "Failed to sign in with Google.");
              }
           }}
           isPrimary={true}

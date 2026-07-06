@@ -10,20 +10,10 @@ class InvitationTokenService {
   }
 
   /**
-   * Hashes the token if we want to store it securely (optional, but good practice).
-   * Here we can just store the token as is for simplicity, 
-   * since it's used as a secure lookup key.
-   */
-  hashToken(token) {
-    return crypto.createHash('sha256').update(token).digest('hex');
-  }
-
-  /**
    * Resolves an invitation by token.
    */
   async resolveByToken(token) {
-    // If we hashed the token before storing, we'd hash here.
-    // Assuming we store the raw token in the document for lookup.
+    if (!token) return null;
     const snapshot = await db.collection('invitations')
       .where('token', '==', token)
       .limit(1)
@@ -38,6 +28,57 @@ class InvitationTokenService {
   }
 
   /**
+   * Returns a public summary of the invitation without requiring authentication
+   * and without exposing Firestore internal document IDs.
+   */
+  async getPublicSummaryByToken(token) {
+    const inv = await this.resolveByToken(token);
+    if (!inv) {
+      return { valid: false, reason: 'Invitation not found or invalid token.' };
+    }
+
+    const isExpired = inv.expiresAt && new Date(inv.expiresAt) < new Date();
+    if (inv.status !== 'pending' || isExpired) {
+      return { 
+        valid: false, 
+        reason: isExpired ? 'This invitation has expired.' : `This invitation is no longer active (${inv.status}).`,
+        status: isExpired ? 'expired' : inv.status 
+      };
+    }
+
+    // Fetch workspace display name cleanly
+    let workspaceName = 'Workspace';
+    try {
+      const wsDoc = await db.collection('workspaces').doc(inv.workspaceId).get();
+      if (wsDoc.exists) {
+        const wsData = wsDoc.data();
+        workspaceName = wsData.studioName || wsData.companyName || 'Workspace';
+      }
+    } catch (e) {
+      // Fallback if workspace fetch fails
+    }
+
+    // Format role to Title Case for display
+    const formattedRole = inv.role 
+      ? inv.role.charAt(0).toUpperCase() + inv.role.slice(1).toLowerCase() 
+      : 'Member';
+
+    return {
+      valid: true,
+      summary: {
+        token: inv.token,
+        email: inv.email,
+        role: formattedRole,
+        workspaceName,
+        invitedBy: inv.invitedBy || 'An administrator',
+        expiresAt: inv.expiresAt,
+        message: inv.message || '',
+        status: 'pending'
+      }
+    };
+  }
+
+  /**
    * Validates if the invitation matches the expected email and is pending.
    */
   validateInvitationSecurity(invitation, userEmail) {
@@ -49,13 +90,13 @@ class InvitationTokenService {
       return { valid: false, reason: `Invitation is no longer pending (status: ${invitation.status}).` };
     }
 
-    // Expiration check (can be double-checked here even if Jobs cleans it up)
+    // Expiration check
     if (invitation.expiresAt && new Date(invitation.expiresAt) < new Date()) {
       return { valid: false, reason: 'Invitation has expired.' };
     }
 
     // Security: Only the exact invited email can accept it
-    if (invitation.email.toLowerCase() !== userEmail.toLowerCase()) {
+    if (!userEmail || invitation.email.toLowerCase() !== userEmail.toLowerCase()) {
       return { valid: false, reason: 'This invitation was sent to a different email address.' };
     }
 

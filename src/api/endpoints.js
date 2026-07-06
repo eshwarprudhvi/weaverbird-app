@@ -28,5 +28,19 @@ export const ENDPOINTS = {
   ASSETS: {
     BASE: '/assets',
     DETAIL: (assetId) => `/assets/${assetId}`,
+  },
+  CATALOG: {
+    LIST: '/catalog',
+    DETAIL: (itemId) => `/catalog/${itemId}`,
+  },
+  INVITATIONS: {
+    CREATE: '/invitations',
+    LIST_WORKSPACE: '/invitations',
+    LIST_MY: '/invitations/my',
+    VALIDATE_TOKEN: (token) => `/invitations/token/${token}`,
+    ACCEPT: (id) => `/invitations/${id}/accept`,
+    DECLINE: (id) => `/invitations/${id}/decline`,
+    CANCEL: (id) => `/invitations/${id}`,
+    RESEND: (id) => `/invitations/${id}/resend`,
   }
 };

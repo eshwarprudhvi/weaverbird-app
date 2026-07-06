@@ -32,7 +32,7 @@ class WorkspaceCacheManager {
   async clearProjects() { await this._invokeIfPresent('projects'); }
   async clearTasks() { await this._invokeIfPresent('tasks'); }
   async clearTodos() { await this._invokeIfPresent('todos'); }
-  async clearSchedule() { await this._invokeIfPresent('schedule'); }
+  async clearMeetings() { await this._invokeIfPresent('meetings'); }
   async clearCatalog() { await this._invokeIfPresent('catalog'); }
   async clearDashboard() { await this._invokeIfPresent('dashboard'); }
   async clearNotifications() { await this._invokeIfPresent('notifications'); }

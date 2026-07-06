@@ -17,10 +17,15 @@ class AuditSubscriber {
     EventBus.subscribe('asset.uploaded', this.handleAssetUploaded);
     EventBus.subscribe('asset.versioned', this.handleAssetVersioned);
     EventBus.subscribe('asset.deleted', this.handleAssetDeleted);
+    EventBus.subscribe('invitation.created', this.handleInvitationCreated);
+    EventBus.subscribe('invitation.accepted', this.handleInvitationAccepted);
+    EventBus.subscribe('invitation.declined', this.handleInvitationDeclined);
+    EventBus.subscribe('invitation.cancelled', this.handleInvitationCancelled);
+    EventBus.subscribe('invitation.expired', this.handleInvitationExpired);
+    EventBus.subscribe('member.created', this.handleMemberCreated);
   }
 
   async handleProjectCreated(payload) {
-    // Future: Write to 'audits' collection
     logger.info({ payload }, 'Audit: Project created');
   }
 
@@ -58,6 +63,30 @@ class AuditSubscriber {
 
   async handleAssetDeleted(payload) {
     logger.info({ payload }, 'Audit: Asset deleted');
+  }
+
+  async handleInvitationCreated(payload) {
+    logger.info({ payload }, 'Audit: Invitation created');
+  }
+
+  async handleInvitationAccepted(payload) {
+    logger.info({ payload }, 'Audit: Invitation accepted');
+  }
+
+  async handleInvitationDeclined(payload) {
+    logger.info({ payload }, 'Audit: Invitation declined');
+  }
+
+  async handleInvitationCancelled(payload) {
+    logger.info({ payload }, 'Audit: Invitation cancelled');
+  }
+
+  async handleInvitationExpired(payload) {
+    logger.info({ payload }, 'Audit: Invitation expired');
+  }
+
+  async handleMemberCreated(payload) {
+    logger.info({ payload }, 'Audit: Workspace member created');
   }
 }
 

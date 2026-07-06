@@ -10,11 +10,11 @@ export const APPLICATION = {
   name: "Apex Studio",
   shortName: "AS",
   version: "1.0.0",
-  supportEmail: "support@apexstudio.app",
+  supportEmail: "eshwarprudhvi2005@gmail.com",
   website: "https://apexstudio.app",
 
   features: {
-    selfRegistration: false, // Feature flag: when false, onboarding shows "Coming Soon" completion screen
+    selfRegistration: true, // Feature flag: when false, onboarding shows "Coming Soon" completion screen
     googleAuth: true,
     offlineMode: true,
   },

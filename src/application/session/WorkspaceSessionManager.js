@@ -56,6 +56,13 @@ class WorkspaceSessionManager {
       // 3. Update internal tracker
       this.activeWorkspaceId = workspaceId;
 
+      if (!workspaceId || workspaceId === 'default-workspace') {
+        this.sessionState = 'IDLE';
+        workspaceEventBus.emit('workspace.initializing', { workspaceId: null });
+        workspaceEventBus.emit('workspace.ready', { workspaceId: null });
+        return;
+      }
+
       this.sessionState = 'INITIALIZING';
       workspaceEventBus.emit('workspace.initializing', { workspaceId });
 

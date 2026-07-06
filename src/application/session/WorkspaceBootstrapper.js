@@ -1,7 +1,10 @@
 import { workspaceRegistry } from './WorkspaceRegistry';
 import { workspaceReadinessManager } from './WorkspaceReadinessManager';
 import { workspaceEventBus } from './WorkspaceEventBus';
-
+import { workspaceCacheManager } from './WorkspaceCacheManager';
+import { workspaceListenerManager } from './WorkspaceListenerManager';
+import { doc, getDoc } from 'firebase/firestore';
+import { db, auth, isConfigured } from '../../firebase';
 
 /**
  * Workspace Bootstrapper
@@ -16,26 +19,66 @@ class WorkspaceBootstrapper {
    */
   async initialize(workspaceId) {
     try {
+      // 1. Authenticated User & Valid workspaceId validation
+      if (isConfigured && auth) {
+        // We wait briefly if Auth might not be initialized yet
+        const user = auth.currentUser;
+        if (!user) {
+          throw new Error('No authenticated user found.');
+        }
 
-      // 2. Validate workspace if needed (e.g. check permissions/existence)
-      // For now, assuming workspaceId is already validated by AuthContext.
+        if (!workspaceId || workspaceId === 'default-workspace') {
+          throw new Error(`Invalid workspace ID: ${workspaceId}`);
+        }
 
-      // 3. Reset readiness
+        // 2. Check if workspace document exists
+        const workspaceDocRef = doc(db, 'workspaces', workspaceId);
+        const workspaceSnap = await getDoc(workspaceDocRef);
+        if (!workspaceSnap.exists()) {
+          throw new Error('Workspace document does not exist.');
+        }
+
+        // 3. Check if member document exists and status == active
+        const memberDocRef = doc(db, 'workspaces', workspaceId, 'members', user.uid);
+        const memberSnap = await getDoc(memberDocRef);
+        if (!memberSnap.exists()) {
+          throw new Error('Member document does not exist in this workspace.');
+        }
+
+        const memberData = memberSnap.data();
+        if (memberData.status !== 'active') {
+          throw new Error(`Member is not active in this workspace (Status: ${memberData.status || 'unknown'}).`);
+        }
+      } else {
+        // Simulated/Local mode checks
+        if (!workspaceId || workspaceId === 'default-workspace') {
+          throw new Error(`Invalid workspace ID in local mode: ${workspaceId}`);
+        }
+      }
+
+      // 4. Reset readiness
       workspaceReadinessManager.reset();
 
-      // 4. Initialize all modules registered in WorkspaceRegistry
+      // 5. Initialize all modules registered in WorkspaceRegistry
       // The registry handles priority sorting internally.
       await workspaceRegistry.initializeAll(workspaceId);
 
-      // 5. Block on Readiness Gates
+      // 6. Block on Readiness Gates
       // Modules must have called workspaceReadinessManager.markReady() for their respective gates.
       await workspaceReadinessManager.awaitReady();
 
-      // 6. Readiness completed!
+      // 7. Readiness completed!
       workspaceEventBus.emit('workspace.ready', { workspaceId });
 
     } catch (error) {
       console.error("WorkspaceBootstrapper: Failed to initialize workspace", error);
+      
+      // Stop all active Firestore listeners
+      workspaceListenerManager.stopAll();
+      
+      // Clear all workspace caches
+      await workspaceCacheManager.clearAll();
+      
       workspaceEventBus.emit('workspace.failed', { workspaceId, error });
       throw error;
     }
@@ -43,3 +86,4 @@ class WorkspaceBootstrapper {
 }
 
 export const workspaceBootstrapper = new WorkspaceBootstrapper();
+

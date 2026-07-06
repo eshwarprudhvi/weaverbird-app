@@ -1,6 +1,16 @@
 const { db } = require('../../config/firebase');
 
 class WorkspaceRepository {
+  async create(data) {
+    const docRef = await db.collection('workspaces').add({
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'active'
+    });
+    return docRef.id;
+  }
+
   async findById(workspaceId) {
     const doc = await db.collection('workspaces').doc(workspaceId).get();
     if (!doc.exists) return null;

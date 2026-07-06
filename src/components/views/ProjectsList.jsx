@@ -37,7 +37,7 @@ const ProjectsList = (props) => {
                           })()
                         }
                         rightActions={
-                          userRole === "admin" && (
+                          (userRole === "admin" || userRole === "owner") && (
                             <button
                               className="icon-btn"
                               onClick={() => setIsCatalogScreenOpen(true)}

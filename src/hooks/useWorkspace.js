@@ -3,35 +3,23 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { updateWorkspaceSettings } from '../api/workspace.api';
 import { db } from '../firebase';
 import { APPLICATION } from '../config/application';
+import { useAuthContext } from '../contexts/AuthContext';
 
 const WORKSPACE_CACHE_KEY = APPLICATION.storageKeys.workspaceCache;
-const WORKSPACE_DOC_PATH = 'app/workspace';
-
-const DEFAULT_WORKSPACE = {
-  companyName: "My Workspace",
-  studioName: "Interior Studio",
-  businessCategory: "",
-  email: "",
-  phone: "",
-  address: "",
-  website: "",
-  gstNumber: "",
-  subscription: "pro",
-  branding: { logoUrl: "", themePrimary: "" },
-  settings: {}
-};
 
 export const useWorkspace = () => {
+  const { activeWorkspaceId } = useAuthContext();
+
   const [workspace, setWorkspace] = useState(() => {
     try {
       const cached = localStorage.getItem(WORKSPACE_CACHE_KEY);
       if (cached) {
-        return { ...DEFAULT_WORKSPACE, ...JSON.parse(cached) };
+        return JSON.parse(cached);
       }
     } catch (e) {
       console.error("Failed to parse workspace cache", e);
     }
-    return DEFAULT_WORKSPACE;
+    return null;
   });
 
   const [status, setStatus] = useState('loading');
@@ -41,6 +29,13 @@ export const useWorkspace = () => {
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
+    if (!activeWorkspaceId) {
+      setWorkspace(null);
+      setStatus('idle');
+      setLoading(false);
+      return;
+    }
+
     if (!db) {
       console.warn("Firestore db not initialized, relying on local cache.");
       setStatus('offline');
@@ -49,21 +44,21 @@ export const useWorkspace = () => {
     }
 
     setStatus('syncing');
-    const docRef = doc(db, WORKSPACE_DOC_PATH);
+    const docRef = doc(db, 'workspaces', activeWorkspaceId);
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const mergedData = { ...DEFAULT_WORKSPACE, ...data };
+        const mergedData = { id: docSnap.id, ...data };
         setWorkspace(mergedData);
         localStorage.setItem(WORKSPACE_CACHE_KEY, JSON.stringify(mergedData));
         setLastSynced(new Date());
         setStatus('synced');
         setError(null);
       } else {
-        // Document doesn't exist yet, we can create it or just wait for the user to save
-        setStatus('synced');
-        setLastSynced(new Date());
+        setWorkspace(null);
+        setStatus('error');
+        setError(new Error('Workspace does not exist.'));
       }
       setLoading(false);
       setIsDirty(false);
@@ -75,7 +70,7 @@ export const useWorkspace = () => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [activeWorkspaceId]);
 
   const updateWorkspace = async (newProfileData) => {
     try {
@@ -86,9 +81,8 @@ export const useWorkspace = () => {
       setWorkspace(merged);
       localStorage.setItem(WORKSPACE_CACHE_KEY, JSON.stringify(merged));
 
-      if (db) {
+      if (db && activeWorkspaceId) {
         setStatus('syncing');
-        const activeWorkspaceId = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId) || 'default-workspace';
         await updateWorkspaceSettings(activeWorkspaceId, merged);
         setStatus('synced');
         setLastSynced(new Date());
@@ -106,7 +100,6 @@ export const useWorkspace = () => {
   };
 
   const refreshWorkspace = async () => {
-    // onSnapshot handles real-time sync, but providing this for manual triggers if needed
     setIsDirty(false);
   };
 
@@ -121,3 +114,4 @@ export const useWorkspace = () => {
     refreshWorkspace
   };
 };
+

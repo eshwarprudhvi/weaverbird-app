@@ -10,10 +10,14 @@ class NotificationSubscriber {
     EventBus.subscribe('project.created', this.handleProjectCreated);
     EventBus.subscribe('task.assigned', this.handleTaskAssigned);
     EventBus.subscribe('meeting.scheduled', this.handleMeetingScheduled);
+    EventBus.subscribe('invitation.created', this.handleInvitationCreated);
+    EventBus.subscribe('invitation.accepted', this.handleInvitationAccepted);
+    EventBus.subscribe('invitation.declined', this.handleInvitationDeclined);
+    EventBus.subscribe('invitation.expired', this.handleInvitationExpired);
+    EventBus.subscribe('member.created', this.handleMemberCreated);
   }
 
   async handleProjectCreated(payload) {
-    // Future: Send email or push notification to workspace admins
     logger.info({ payload }, 'Notification: Sending project created notification');
   }
 
@@ -23,6 +27,26 @@ class NotificationSubscriber {
 
   async handleMeetingScheduled(payload) {
     logger.info({ payload }, 'Notification: Sending meeting scheduled notification');
+  }
+
+  async handleInvitationCreated(payload) {
+    logger.info({ payload }, 'Notification: Sending invitation email to recipient');
+  }
+
+  async handleInvitationAccepted(payload) {
+    logger.info({ payload }, 'Notification: Sending invitation accepted notification to owner');
+  }
+
+  async handleInvitationDeclined(payload) {
+    logger.info({ payload }, 'Notification: Sending invitation declined notification to owner');
+  }
+
+  async handleInvitationExpired(payload) {
+    logger.info({ payload }, 'Notification: Sending invitation expired notification to owner');
+  }
+
+  async handleMemberCreated(payload) {
+    logger.info({ payload }, 'Notification: Sending welcome notification to new workspace member');
   }
 }
 

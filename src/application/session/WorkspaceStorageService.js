@@ -24,12 +24,44 @@ class WorkspaceStorageService {
   getItem(workspaceId, entity) {
     const key = this._getKey(workspaceId, entity);
     const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : null;
+    if (!data) return null;
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed === 'object' && 'data' in parsed && 'version' in parsed) {
+        return parsed.data;
+      }
+      return parsed; // Fallback for legacy unwrapped storage
+    } catch (e) {
+      return null;
+    }
   }
 
   setItem(workspaceId, entity, data) {
     const key = this._getKey(workspaceId, entity);
-    localStorage.setItem(key, JSON.stringify(data));
+    const envelope = {
+      version: 2,
+      lastSync: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+      data: data
+    };
+    localStorage.setItem(key, JSON.stringify(envelope));
+  }
+
+  getMetadata(workspaceId, entity) {
+    const key = this._getKey(workspaceId, entity);
+    const data = localStorage.getItem(key);
+    if (!data) return null;
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed === 'object' && 'data' in parsed && 'version' in parsed) {
+        return {
+          version: parsed.version,
+          lastSync: parsed.lastSync,
+          lastModified: parsed.lastModified
+        };
+      }
+    } catch (e) {}
+    return null;
   }
 
   removeItem(workspaceId, entity) {

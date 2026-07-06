@@ -92,7 +92,17 @@ const ROLE_PERMISSIONS = {
  * Get all permissions for a given role name
  */
 const getPermissionsForRole = (roleName) => {
-  return ROLE_PERMISSIONS[roleName] || [];
+  if (!roleName) return [];
+  const normalized = roleName.toLowerCase().trim();
+  
+  let mappedRole = roleName;
+  if (normalized === 'owner' || normalized === 'workspace owner') mappedRole = ROLES.OWNER;
+  else if (normalized === 'admin') mappedRole = ROLES.ADMIN;
+  else if (normalized === 'manager') mappedRole = ROLES.MANAGER;
+  else if (normalized === 'editor') mappedRole = ROLES.EDITOR;
+  else if (normalized === 'viewer') mappedRole = ROLES.VIEWER;
+
+  return ROLE_PERMISSIONS[mappedRole] || [];
 };
 
 module.exports = {
@@ -100,3 +110,4 @@ module.exports = {
   ROLES,
   getPermissionsForRole,
 };
+

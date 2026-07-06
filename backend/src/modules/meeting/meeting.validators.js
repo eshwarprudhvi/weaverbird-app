@@ -20,6 +20,11 @@ const createMeetingSchema = z.object({
     projectId: z.string().optional(),
     scheduledDate: z.string().optional(),
     durationMinutes: z.number().optional(),
+    date: z.string().optional(),
+    completed: z.boolean().optional(),
+    tempId: z.string().optional(),
+    visibility: z.string().optional(),
+    ownerUid: z.string().optional(),
   })
 });
 
@@ -30,6 +35,11 @@ const updateMeetingSchema = z.object({
     status: z.string().optional(),
     scheduledDate: z.string().optional(),
     durationMinutes: z.number().optional(),
+    date: z.string().optional(),
+    completed: z.boolean().optional(),
+    tempId: z.string().optional(),
+    visibility: z.string().optional(),
+    ownerUid: z.string().optional(),
   })
 });
 

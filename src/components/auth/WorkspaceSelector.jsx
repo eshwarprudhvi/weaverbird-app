@@ -8,12 +8,13 @@ import { useAuth } from "../../hooks/useAuth";
  * this component displays their available workspaces and allows switching.
  */
 const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
-  const { activeWorkspaceId } = useAuth();
+  const { activeWorkspaceId, user } = useAuth();
 
-  // Simulated future workspace list (Version 1 currently supports 1 active workspace)
-  const workspaces = [
-    { id: "default-workspace", name: "Primary Studio Workspace", role: "owner" }
-  ];
+  // Dynamically resolve workspace list from active session
+  const workspaces = activeWorkspaceId ? [
+    { id: activeWorkspaceId, name: "Active Workspace", role: user?.role || "owner" }
+  ] : [];
+
 
   return (
     <div style={{

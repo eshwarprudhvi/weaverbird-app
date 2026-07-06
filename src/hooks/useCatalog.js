@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useWorkspaceScope } from '../application/session';
+import { catalogRepository } from '../repositories/CatalogRepository';
 
 export const useCatalog = (setCustomConfirm) => {
   const scope = useWorkspaceScope();
@@ -10,20 +11,34 @@ export const useCatalog = (setCustomConfirm) => {
 
   useEffect(() => {
     const unsub = scope.eventBus.on('catalog.updated', (newCatalog) => {
-      setMaterialCatalog(newCatalog);
+      setMaterialCatalog(newCatalog || []);
     });
     return unsub;
   }, [scope.eventBus]);
 
-  const handleAddCatalogItem = (e, name, price) => {
+  const handleAddCatalogItem = async (e, name, price) => {
     if (e) e.preventDefault();
     if (!name.trim()) return;
+
+    const tempId = `temp_${Date.now()}`;
     const newItem = {
-      id: "cat_" + Date.now(),
+      id: tempId,
       name: name.trim(),
       price: price.trim(),
     };
-    setMaterialCatalog([newItem, ...materialCatalog]);
+
+    setMaterialCatalog((prev) => [newItem, ...prev]);
+
+    try {
+      await catalogRepository.create(scope.workspaceId, {
+        tempId,
+        name: name.trim(),
+        price: price.trim()
+      });
+    } catch (err) {
+      console.error("Failed to add catalog item:", err);
+      setMaterialCatalog((prev) => prev.filter((item) => item.id !== tempId));
+    }
   };
 
   const handleDeleteCatalogItem = (e, itemId) => {
@@ -31,8 +46,16 @@ export const useCatalog = (setCustomConfirm) => {
     setCustomConfirm({
       title: "Delete Catalog Item",
       message: "Are you sure you want to delete this material price reference? This action cannot be undone.",
-      onConfirm: () => {
+      onConfirm: async () => {
+        const oldCatalog = [...materialCatalog];
         setMaterialCatalog((prev) => prev.filter((item) => item.id !== itemId));
+
+        try {
+          await catalogRepository.delete(scope.workspaceId, itemId);
+        } catch (err) {
+          console.error("Failed to delete catalog item:", err);
+          setMaterialCatalog(oldCatalog);
+        }
       },
     });
   };

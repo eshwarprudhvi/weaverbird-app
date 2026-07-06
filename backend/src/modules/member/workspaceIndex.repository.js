@@ -13,10 +13,11 @@ class WorkspaceIndexRepository {
   /**
    * Create or update the workspace index for a user
    */
-  async setIndex(uid, workspaceId, status = 'active') {
+  async setIndex(uid, workspaceId, status = 'active', role = 'editor') {
     await db.collection('workspaceIndex').doc(uid).set({
       workspaceId,
       status,
+      role,
       updatedAt: new Date().toISOString()
     }, { merge: true });
   }

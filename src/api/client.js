@@ -44,13 +44,37 @@ apiClient.interceptors.request.use(async (config) => {
   }
 
   // Attempt to read workspaceId from localStorage
-  const storedWorkspaceId = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId) || 'default-workspace';
-  config.headers['x-workspace-id'] = storedWorkspaceId;
+  const storedWorkspaceId = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId);
+  
+  // Exempt authentication and invitation routes from workspace checks
+  const isExemptRoute = config.url && (
+    config.url.startsWith('/auth/') || 
+    config.url.startsWith('/invitations/') ||
+    config.url === '/auth' || 
+    config.url === '/invitations'
+  );
+
+  if (!storedWorkspaceId || storedWorkspaceId === 'default-workspace') {
+    if (!isExemptRoute) {
+      return Promise.reject(new WorkspaceNotInitializedError());
+    }
+  } else {
+    config.headers['x-workspace-id'] = storedWorkspaceId;
+  }
 
   return config;
 }, (error) => {
   return Promise.reject(error);
 });
+
+export class WorkspaceNotInitializedError extends Error {
+  constructor() {
+    super('No active workspace. Please log in or select a workspace.');
+    this.name = 'WorkspaceNotInitializedError';
+    this.isWorkspaceError = true;
+  }
+}
+
 
 /**
  * Response Interceptor

@@ -3,11 +3,19 @@
  */
 
 exports.successResponse = (res, statusCode, message, data = {}, meta = {}) => {
+  const req = res.req;
+  const workspaceId = req.workspace?.id || req.headers?.['x-workspace-id'] || null;
+  const mergedMeta = {
+    workspaceId,
+    timestamp: new Date().toISOString(),
+    apiVersion: 2,
+    ...meta
+  };
   return res.status(statusCode).json({
     success: true,
     message,
     data,
-    meta,
+    meta: mergedMeta,
     errors: null,
   });
 };

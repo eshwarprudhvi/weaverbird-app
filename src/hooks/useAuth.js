@@ -29,9 +29,9 @@ export const useAuth = () => {
     try {
       const session = await authApi.login(credentials);
       setUser(session.user);
-      setActiveWorkspaceId(session.activeWorkspaceId || "default-workspace");
+      setActiveWorkspaceId(session.activeWorkspaceId || null);
       setIsLocalMode(false);
-      setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTED);
+      setWorkspaceConnectionState(session.activeWorkspaceId ? WORKSPACE_CONNECTION_STATES.CONNECTED : WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
       setSyncErrorDetails(null);
 
       // Persist to storage using APPLICATION keys
@@ -66,6 +66,7 @@ export const useAuth = () => {
       localStorage.removeItem(APPLICATION.storageKeys.userEmail);
       localStorage.removeItem(APPLICATION.storageKeys.userRole);
       localStorage.removeItem(APPLICATION.storageKeys.cloudSync);
+      localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
     } finally {
       setIsLoading(false);
     }
@@ -145,6 +146,11 @@ export const useAuth = () => {
         localStorage.setItem(APPLICATION.storageKeys.userEmail, result.user.email);
         localStorage.setItem(APPLICATION.storageKeys.userRole, result.user.role || "owner");
         localStorage.setItem(APPLICATION.storageKeys.cloudSync, "true");
+        
+        if (result.activeWorkspaceId) {
+          setActiveWorkspaceId(result.activeWorkspaceId);
+          localStorage.setItem(APPLICATION.storageKeys.activeWorkspaceId, result.activeWorkspaceId);
+        }
       }
       return result;
     } catch (err) {
@@ -173,15 +179,15 @@ export const useAuth = () => {
         const emailVal = joinData.email || `invited-${Date.now()}@example.com`;
         result = {
           user: { email: emailVal, role: "editor", id: `user-${Date.now()}` },
-          workspaceId: joinData.workspaceId || "default-workspace"
+          workspaceId: joinData.workspaceId || null
         };
       }
 
       if (result && result.user) {
         setUser(result.user);
-        setActiveWorkspaceId(result.workspaceId || "default-workspace");
+        setActiveWorkspaceId(result.workspaceId || null);
         setIsLocalMode(false);
-        setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTED);
+        setWorkspaceConnectionState(result.workspaceId ? WORKSPACE_CONNECTION_STATES.CONNECTED : WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
         setSyncErrorDetails(null);
         localStorage.setItem(APPLICATION.storageKeys.userEmail, result.user.email);
         localStorage.setItem(APPLICATION.storageKeys.userRole, result.user.role || "editor");

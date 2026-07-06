@@ -14,24 +14,34 @@ const listTasksSchema = z.object({
 
 const createTaskSchema = z.object({
   body: z.object({
-    title: z.string().min(2).max(150),
+    title: z.string().min(2).max(150).optional(),
+    text: z.string().optional(),
     description: z.string().optional(),
     status: z.string().optional(),
-    projectId: z.string().min(1),
+    completed: z.boolean().optional(),
+    projectId: z.string().optional(),
     assigneeId: z.string().optional(),
     priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
     dueDate: z.string().optional(),
+    tempId: z.string().optional(),
+    visibility: z.string().optional(),
+    ownerUid: z.string().optional(),
   })
 });
 
 const updateTaskSchema = z.object({
   body: z.object({
     title: z.string().min(2).max(150).optional(),
+    text: z.string().optional(),
     description: z.string().optional(),
     status: z.string().optional(),
+    completed: z.boolean().optional(),
     assigneeId: z.string().optional(),
     priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
     dueDate: z.string().optional(),
+    tempId: z.string().optional(),
+    visibility: z.string().optional(),
+    ownerUid: z.string().optional(),
   })
 });
 

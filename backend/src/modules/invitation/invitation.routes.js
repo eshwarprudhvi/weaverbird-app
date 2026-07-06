@@ -1,69 +1,42 @@
 const express = require('express');
-const { 
-  acceptInvitation, 
-  declineInvitation, 
-  cancelInvitation, 
-  getPendingInvitations, 
-  getWorkspaceInvitations 
+const {
+  createInvitation,
+  resendInvitation,
+  validateToken,
+  acceptInvitation,
+  declineInvitation,
+  cancelInvitation,
+  getPendingInvitations,
+  getWorkspaceInvitations
 } = require('./invitation.controller');
 const requireAuth = require('../../core/middlewares/requireAuth');
 const requireWorkspace = require('../../core/middlewares/requireWorkspace');
+const validateRequest = require('../../core/middlewares/validateRequest');
+const {
+  createInvitationSchema,
+  tokenParamSchema,
+  idParamSchema
+} = require('./invitation.validators');
 
 const router = express.Router();
 
-/**
- * @swagger
- * /invitations/pending:
- *   get:
- *     summary: Get pending invitations for the authenticated user
- *     tags: [Invitations]
- *     security:
- *       - bearerAuth: []
- */
+// Public Token Validation Endpoint (No authentication required)
+router.get('/token/:token', validateRequest(tokenParamSchema), validateToken);
+
+// Standard REST Endpoints
+router.post('/', requireAuth, requireWorkspace, validateRequest(createInvitationSchema), createInvitation);
+router.get('/', requireAuth, requireWorkspace, getWorkspaceInvitations);
+router.get('/my', requireAuth, getPendingInvitations);
+router.post('/:id/accept', requireAuth, acceptInvitation);
+router.post('/:id/decline', requireAuth, declineInvitation);
+router.delete('/:id', requireAuth, requireWorkspace, cancelInvitation);
+router.post('/:id/resend', requireAuth, requireWorkspace, resendInvitation);
+
+// Backward-compatible Route Aliases
 router.get('/pending', requireAuth, getPendingInvitations);
-
-/**
- * @swagger
- * /invitations/accept:
- *   post:
- *     summary: Accept an invitation
- *     tags: [Invitations]
- *     security:
- *       - bearerAuth: []
- */
-router.post('/accept', requireAuth, acceptInvitation);
-
-/**
- * @swagger
- * /invitations/decline:
- *   post:
- *     summary: Decline an invitation
- *     tags: [Invitations]
- *     security:
- *       - bearerAuth: []
- */
-router.post('/decline', requireAuth, declineInvitation);
-
-/**
- * @swagger
- * /invitations/{invitationId}/cancel:
- *   post:
- *     summary: Cancel a pending invitation (Owner only)
- *     tags: [Invitations]
- *     security:
- *       - bearerAuth: []
- */
-router.post('/:invitationId/cancel', requireAuth, requireWorkspace, cancelInvitation);
-
-/**
- * @swagger
- * /invitations/workspace:
- *   get:
- *     summary: Get all invitations for the active workspace
- *     tags: [Invitations]
- *     security:
- *       - bearerAuth: []
- */
 router.get('/workspace', requireAuth, requireWorkspace, getWorkspaceInvitations);
+router.post('/accept', requireAuth, acceptInvitation);
+router.post('/decline', requireAuth, declineInvitation);
+router.post('/:invitationId/cancel', requireAuth, requireWorkspace, cancelInvitation);
 
 module.exports = router;

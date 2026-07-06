@@ -32,7 +32,7 @@ export default function BottomNav({
         <div className="nav-icon-wrapper">
           <Calendar size={20} />
         </div>
-        <span className="nav-label">Schedule</span>
+        <span className="nav-label">Meetings</span>
       </button>
 
       {/* Center Hump with + Button */}

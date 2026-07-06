@@ -33,7 +33,28 @@ class TaskRepository {
     return { id: doc.id, ...data };
   }
 
+  async findByTempId(workspaceId, tempId) {
+    const snap = await db
+      .collection('workspaces')
+      .doc(workspaceId)
+      .collection('tasks')
+      .where('tempId', '==', tempId)
+      .limit(1)
+      .get();
+      
+    if (snap.empty) return null;
+    const doc = snap.docs[0];
+    return { id: doc.id, ...doc.data() };
+  }
+
   async create(workspaceId, taskData) {
+    if (taskData.tempId) {
+      const existing = await this.findByTempId(workspaceId, taskData.tempId);
+      if (existing) {
+        return existing;
+      }
+    }
+
     const docRef = await db
       .collection('workspaces')
       .doc(workspaceId)

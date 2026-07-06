@@ -15,7 +15,9 @@ import WorkspaceStatusCard from "../../components/account/WorkspaceStatusCard";
 import { WORKSPACE_CONNECTION_STATES } from "../../contexts/AuthContext";
 import { useWorkspace } from "../../contexts/WorkspaceContext";
 
-import { Moon, Sun, Trash2, Mail, Shield, CheckCircle2, Sliders, LogOut, Cloud, Users, Save, Smartphone, Palette, Bell, HelpCircle, FileText, Info, ExternalLink, User } from "lucide-react";
+import { Moon, Sun, Trash2, Mail, Shield, CheckCircle2, Sliders, LogOut, Cloud, Users, Save, Smartphone, Palette, Bell, HelpCircle, FileText, Info, ExternalLink, User, Lock, KeyRound } from "lucide-react";
+import { auth as firebaseAuth, isConfigured as firebaseIsConfigured } from "../../firebase";
+import { EmailAuthProvider, linkWithCredential } from "firebase/auth";
 
 const AccountPage = (props) => {
   const {
@@ -57,6 +59,55 @@ const AccountPage = (props) => {
   const [isAppearanceSheetOpen, setIsAppearanceSheetOpen] = useState(false);
   const [isNotificationsSheetOpen, setIsNotificationsSheetOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+
+  // Set Password for Email Login
+  const [showSetPassword, setShowSetPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState({ type: "", text: "" });
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
+
+  const [hasPasswordProvider, setHasPasswordProvider] = useState(false);
+  const [hasGoogleProvider, setHasGoogleProvider] = useState(false);
+
+  React.useEffect(() => {
+    if (firebaseIsConfigured && firebaseAuth?.currentUser) {
+      const providers = firebaseAuth.currentUser.providerData || [];
+      setHasPasswordProvider(providers.some(p => p.providerId === "password"));
+      setHasGoogleProvider(providers.some(p => p.providerId === "google.com"));
+    }
+  }, []);
+
+  const handleSetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMessage({ type: "error", text: "Password must be at least 6 characters." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: "error", text: "Passwords do not match." });
+      return;
+    }
+    setIsSettingPassword(true);
+    setPasswordMessage({ type: "", text: "" });
+    try {
+      const credential = EmailAuthProvider.credential(firebaseAuth.currentUser.email, newPassword);
+      await linkWithCredential(firebaseAuth.currentUser, credential);
+      setPasswordMessage({ type: "success", text: "Password set! You can now use email & password to sign in." });
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowSetPassword(false);
+    } catch (err) {
+      if (err.code === "auth/provider-already-linked") {
+        setPasswordMessage({ type: "error", text: "A password is already set for this account." });
+      } else if (err.code === "auth/requires-recent-login") {
+        setPasswordMessage({ type: "error", text: "Please sign out and sign back in with Google, then try again." });
+      } else {
+        setPasswordMessage({ type: "error", text: err.message || "Failed to set password." });
+      }
+    } finally {
+      setIsSettingPassword(false);
+    }
+  };
 
   // Calculate local projects count from localStorage
   const getLocalProjectsCount = () => {
@@ -216,6 +267,72 @@ const AccountPage = (props) => {
             <ListRow icon={Smartphone} title="App Update" borderBottom={false} rightElement={<span style={{ fontSize: '13px', color: 'var(--accent-gold)', fontWeight: 600 }}>v{WEB_APP_VERSION}</span>} onClick={() => checkUpdate(true)} />
           </div>
         </div>
+
+        {/* SECURITY & LOGIN (For Google users without password) */}
+        {hasGoogleProvider && !hasPasswordProvider && (
+          <div style={{ marginBottom: '28px' }}>
+            <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '14px' }}>
+              Security & Login
+            </h3>
+            <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '16px', padding: '20px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(212, 175, 55, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-gold)' }}>
+                  <KeyRound size={20} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text-title)' }}>Enable Email & Password Login</h4>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>You currently sign in with Google. Set a password to also allow signing in with your email address.</p>
+                </div>
+              </div>
+
+              {!showSetPassword ? (
+                <button
+                  onClick={() => setShowSetPassword(true)}
+                  style={{ padding: '10px 16px', backgroundColor: 'var(--accent-gold)', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Set Password
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+                  {passwordMessage.text && (
+                    <div style={{ padding: '10px', borderRadius: '8px', fontSize: '13px', backgroundColor: passwordMessage.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: passwordMessage.type === 'error' ? '#ef4444' : '#10b981' }}>
+                      {passwordMessage.text}
+                    </div>
+                  )}
+                  <input
+                    type="password"
+                    placeholder="New Password (min 6 chars)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '13px', outline: 'none' }}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirm Password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '13px', outline: 'none' }}
+                  />
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      onClick={handleSetPassword}
+                      disabled={isSettingPassword}
+                      style={{ padding: '10px 16px', backgroundColor: 'var(--accent-gold)', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', flex: 1, opacity: isSettingPassword ? 0.7 : 1 }}
+                    >
+                      {isSettingPassword ? "Saving..." : "Save Password"}
+                    </button>
+                    <button
+                      onClick={() => { setShowSetPassword(false); setPasswordMessage({ type: "", text: "" }); }}
+                      style={{ padding: '10px 16px', backgroundColor: 'transparent', color: 'var(--text-title)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* LEVEL 1: PRIMARY FEATURES */}
         {userRole === 'admin' && (

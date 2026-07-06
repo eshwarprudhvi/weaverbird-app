@@ -21,6 +21,7 @@ const reportRoutes = require('./modules/report/report.routes');
 const assetRoutes = require('./modules/asset/asset.routes');
 const integrationRoutes = require('./modules/integration/integration.routes');
 const invitationRoutes = require('./modules/invitation/invitation.routes');
+const catalogRoutes = require('./modules/catalog/catalog.routes');
 
 // Initialize Event Subscribers & Jobs
 require('./shared/subscribers');
@@ -40,7 +41,7 @@ app.use(cors({
 // Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: process.env.NODE_ENV === 'production' ? 100 : 10000, // limit each IP to 100 requests (or 10000 in dev) per windowMs
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
@@ -97,6 +98,7 @@ app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/assets', assetRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
 app.use('/api/v1/invitations', invitationRoutes);
+app.use('/api/v1/catalog', catalogRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {

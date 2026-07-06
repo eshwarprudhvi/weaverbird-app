@@ -5,7 +5,7 @@ import { useSharing } from "../hooks/useSharing";
 import { useNotifications } from "../hooks/useNotifications";
 import { useProjectItems } from "../hooks/useProjectItems";
 import { useProjects } from "../hooks/useProjects";
-import { useSchedule } from "../hooks/useSchedule";
+import { useMeetings } from "../hooks/useMeetings";
 import { useTodos } from "../hooks/useTodos";
 import { useCatalog } from "../hooks/useCatalog";
 import { useCloudSync } from "../hooks/useCloudSync";
@@ -17,6 +17,7 @@ import { APPLICATION } from "../config/application";
 import MaterialsCatalog from "../components/views/MaterialsCatalog";
 import AccountPage from "../pages/Account/AccountPage";
 import TodoView from "../components/views/TodoView";
+import MeetingsView from "../components/views/MeetingsView";
 import ProjectsList from "../components/views/ProjectsList";
 import ProjectDetail from "../components/views/ProjectDetail";
 import CommonModals from "../components/views/CommonModals";
@@ -175,12 +176,12 @@ function AuthenticatedApp() {
   } = useProjects(activeProjectId, setActiveProjectId, setCustomConfirm, setIsNewProjModalOpen, setEditItemModal);
 
   const {
-    schedule,
-    setSchedule,
+    meetings,
+    setMeetings,
     handleAddMeeting,
     handleToggleMeeting,
     handleDeleteMeeting
-  } = useSchedule(setIsNewMeetingModalOpen);
+  } = useMeetings(setIsNewMeetingModalOpen);
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem("ipm_theme");
     return (saved === "dark" || saved === "light") ? saved : "light";
@@ -347,19 +348,23 @@ function AuthenticatedApp() {
 
   // Collapsible lists
 
-  // Schedule sub-tabs: 'incomplete' | 'completed'
-  const [scheduleSubTab, setScheduleSubTab] = useState("incomplete");
+  // Meetings sub-tabs: 'incomplete' | 'completed'
+  const [meetingsSubTab, setMeetingsSubTab] = useState("incomplete");
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
   const [currentCalendarDate, setCurrentCalendarDate] = useState(
     () => new Date()
   );
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
 
-  // Todo list state (synced with cloud)
-  const [todos, setTodos] = useState([]);
-  const [newTodoInput, setNewTodoInput] = useState("");
-  const [editTodoId, setEditTodoId] = useState(null);
-  const [editTodoText, setEditTodoText] = useState("");
+  // Todo list state (using hook)
+  const {
+    todos,
+    setTodos,
+    handleAddTodo,
+    handleToggleTodo,
+    handleEditTodo,
+    handleDeleteTodo
+  } = useTodos();
 
   // Priority task collapsible state
   const [highPriorityCollapsed, setHighPriorityCollapsed] = useState(false);
@@ -410,8 +415,8 @@ function AuthenticatedApp() {
   const {
     hasLoadedProjectsFromCloud,
     setHasLoadedProjectsFromCloud,
-    hasLoadedScheduleFromCloud,
-    setHasLoadedScheduleFromCloud,
+    hasLoadedScheduleFromCloud: hasLoadedMeetingsFromCloud,
+    setHasLoadedScheduleFromCloud: setHasLoadedMeetingsFromCloud,
     hasLoadedTodosFromCloud,
     setHasLoadedTodosFromCloud,
     hasLoadedCatalogFromCloud,
@@ -428,8 +433,9 @@ function AuthenticatedApp() {
     setAuthorizedUsers,
     projects,
     setProjects,
-    schedule,
-    setSchedule,
+    deletedProjectIds,
+    schedule: meetings,
+    setSchedule: setMeetings,
     todos,
     setTodos,
     materialCatalog,
@@ -649,7 +655,7 @@ function AuthenticatedApp() {
       let idCounter = 1;
 
       // 1. Today's meetings -> Today at 6:00 AM
-      const todaysMeets = schedule.filter(
+      const todaysMeets = meetings.filter(
         (s) => s.date === todayDateStr && !s.completed
       );
       if (todaysMeets.length > 0) {
@@ -657,7 +663,7 @@ function AuthenticatedApp() {
       }
 
       // 2. Tomorrow's meetings -> Today at 12:00 PM (noon)
-      const tomorrowsMeets = schedule.filter(
+      const tomorrowsMeets = meetings.filter(
         (s) => s.date === tomorrowDateStr && !s.completed
       );
       if (tomorrowsMeets.length > 0) {
@@ -708,7 +714,7 @@ function AuthenticatedApp() {
 
   useEffect(() => {
     rescheduleNotifications();
-  }, [projects, schedule]);
+  }, [projects, meetings]);
 
   // Save local project backup (retaining recent edits and 30 days of daily snapshots)
   const saveProjectBackup = (currentProjects) => {
@@ -773,8 +779,8 @@ function AuthenticatedApp() {
   }, [deletedProjectIds]);
 
   useEffect(() => {
-    localStorage.setItem("ipm_schedule", JSON.stringify(schedule));
-  }, [schedule]);
+    localStorage.setItem("ipm_schedule", JSON.stringify(meetings));
+  }, [meetings]);
 
   useEffect(() => {
     localStorage.setItem("ipm_theme", theme);
@@ -805,8 +811,8 @@ function AuthenticatedApp() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
-  const todayMeetings = schedule.filter((s) => s.date === todayStr);
-  const tomorrowMeetings = schedule.filter((s) => s.date === tomorrowStr);
+  const todayMeetings = meetings.filter((s) => s.date === todayStr);
+  const tomorrowMeetings = meetings.filter((s) => s.date === tomorrowStr);
 
   const todayMeetingsCount = todayMeetings.filter((s) => !s.completed).length;
   const tomorrowMeetingsCount = tomorrowMeetings.filter(
@@ -824,7 +830,7 @@ function AuthenticatedApp() {
   );
 
   // --- SORTED AND FILTERED MEETINGS ---
-  const sortedAndFilteredMeetings = [...schedule]
+  const sortedAndFilteredMeetings = [...meetings]
     .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
     .filter((s) => {
       const dateMatch =
@@ -943,7 +949,7 @@ function AuthenticatedApp() {
     handleTaskDragOver,
     handleTaskDrop,
     handleSaveEdit
-  } = useProjectItems({ newMaterialInput, activeProjectId, setProjects, projects, activeRoomId, setNewMaterialInput, activeProject, setCustomConfirm, newWorkInput, newTaskPriority, setNewWorkInput, setNewTaskPriority, setDraggedTaskId, draggedTaskId, editItemModal, schedule, setSchedule, setMaterialCatalog, materialCatalog, setEditItemModal });
+  } = useProjectItems({ newMaterialInput, activeProjectId, setProjects, projects, activeRoomId, setNewMaterialInput, activeProject, setCustomConfirm, newWorkInput, newTaskPriority, setNewWorkInput, setNewTaskPriority, setDraggedTaskId, draggedTaskId, editItemModal, meetings, setMeetings, setMaterialCatalog, materialCatalog, setEditItemModal });
 
 
   // --- HANDLERS ---
@@ -1082,7 +1088,7 @@ function AuthenticatedApp() {
               {/* TAB 1: PROJECTS */}
               {currentTab === "projects" && (
                 <>
-                  {isCatalogScreenOpen && userRole === "admin" ? (
+                  {isCatalogScreenOpen && (userRole === "admin" || userRole === "owner") ? (
                     <MaterialsCatalog
                       setIsCatalogScreenOpen={setIsCatalogScreenOpen}
                       materialCatalog={materialCatalog}
@@ -1164,307 +1170,32 @@ function AuthenticatedApp() {
 
               {/* TAB 3: SCHEDULE (Screen 4 Details) */}
               {currentTab === "schedule" && (
-                <>
-                  <AppHeader 
-                    variant="page"
-                    title="Meetings"
-                    rightActions={
-                      <button
-                        className="icon-btn todo-header-btn"
-                        onClick={() => setIsTodoScreenOpen(true)}
-                        aria-label="Open To-Do List"
-                        title="To-Do List"
-                      >
-                        <CheckSquare size={20} />
-                        {todos.filter((t) => !t.completed).length > 0 && (
-                          <span className="todo-badge">
-                            {todos.filter((t) => !t.completed).length}
-                          </span>
-                        )}
-                      </button>
-                    }
-                  />
-
-                  {/* ===== TODO FULL SCREEN OVERLAY ===== */}
-                  {isTodoScreenOpen && (
-                    <TodoView
-                      setIsTodoScreenOpen={setIsTodoScreenOpen}
-                      todos={todos}
-                      setTodos={setTodos}
-                      newTodoInput={newTodoInput}
-                      setNewTodoInput={setNewTodoInput}
-                      editTodoId={editTodoId}
-                      setEditTodoId={setEditTodoId}
-                      editTodoText={editTodoText}
-                      setEditTodoText={setEditTodoText}
-                    />
-                  )}
-
-                  {/* Unified meetings list */}
-
-                  {!isTodoScreenOpen && (
-                    <div
-                      className="screen-content fade-in"
-                      style={{ paddingTop: "12px" }}
-                    >
-
-                      {/* Schedule Stats Card (Hero) */}
-                      <div className="schedule-hero" style={{ padding: "16px 20px" }}>
-                        <div className="schedule-stats-row">
-                          <div className="schedule-stat-card">
-                            <div className="schedule-stat-title">Scheduled Today</div>
-                            <div className="schedule-stat-number">
-                              {todayMeetingsCount}
-                            </div>
-                          </div>
-                          <div className="schedule-stat-card">
-                            <div className="schedule-stat-title">
-                              Scheduled Tomorrow
-                            </div>
-                            <div className="schedule-stat-number">
-                              {tomorrowMeetingsCount}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Collapsible Calendar Header */}
-                      <div
-                        className="collapsible-header"
-                        onClick={() => setCalendarCollapsed(!calendarCollapsed)}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          cursor: "pointer",
-                          marginBottom: "12px",
-                        }}
-                      >
-                        <div
-                          className="collapsible-title"
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          <Calendar
-                            size={18}
-                            style={{ color: "var(--accent-gold-dark)" }}
-                          />
-                          <span
-                            style={{
-                              fontSize: "14px",
-                              fontWeight: "700",
-                              color: "var(--text-title)",
-                            }}
-                          >
-                            Meetings Calendar{" "}
-                            {selectedCalendarDate &&
-                              `(${formatDate(selectedCalendarDate)})`}
-                          </span>
-                        </div>
-                        {calendarCollapsed ? (
-                          <ChevronDown size={18} />
-                        ) : (
-                          <ChevronUp size={18} />
-                        )}
-                      </div>
-
-                      {/* Monthly Calendar View */}
-                      {!calendarCollapsed && (
-                        <div
-                          className="calendar-card"
-                          style={{ marginTop: "-4px", marginBottom: "16px" }}
-                        >
-                          <div
-                            className="calendar-header"
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "12px",
-                              }}
-                            >
-                              <button
-                                type="button"
-                                className="icon-btn"
-                                onClick={handlePrevMonth}
-                                style={{ padding: "4px" }}
-                                aria-label="Previous Month"
-                              >
-                                <ChevronLeft size={18} />
-                              </button>
-                              <h3
-                                style={{
-                                  margin: 0,
-                                  minWidth: "120px",
-                                  textAlign: "center",
-                                }}
-                              >
-                                {currentCalendarDate.toLocaleString("default", {
-                                  month: "long",
-                                  year: "numeric",
-                                })}
-                              </h3>
-                              <button
-                                type="button"
-                                className="icon-btn"
-                                onClick={handleNextMonth}
-                                style={{ padding: "4px" }}
-                                aria-label="Next Month"
-                              >
-                                <ChevronRight size={18} />
-                              </button>
-                            </div>
-                            {selectedCalendarDate && (
-                              <button
-                                className="calendar-clear-btn"
-                                onClick={() => setSelectedCalendarDate(null)}
-                              >
-                                Show All
-                              </button>
-                            )}
-                          </div>
-                          <div className="calendar-weekdays">
-                            <span>S</span>
-                            <span>M</span>
-                            <span>T</span>
-                            <span>W</span>
-                            <span>T</span>
-                            <span>F</span>
-                            <span>S</span>
-                          </div>
-                          <div className="calendar-grid">
-                            {getDaysInMonth().map((dayStr, idx) => {
-                              if (!dayStr) {
-                                return (
-                                  <div
-                                    key={`empty-${idx}`}
-                                    className="calendar-day empty"
-                                  ></div>
-                                );
-                              }
-
-                              const dayNum = parseInt(dayStr.split("-")[2], 10);
-                              const hasMeetings = schedule.some(
-                                (s) => s.date === dayStr && !s.completed
-                              );
-                              const isSelected = selectedCalendarDate === dayStr;
-                              const isToday = dayStr === todayStr;
-
-                              return (
-                                <div
-                                  key={dayStr}
-                                  className={`calendar-day ${hasMeetings ? "has-meetings" : ""
-                                    } ${isSelected ? "selected" : ""} ${isToday ? "today" : ""}`}
-                                  onClick={() => {
-                                    if (isSelected) {
-                                      setSelectedCalendarDate(null);
-                                    } else {
-                                      setSelectedCalendarDate(dayStr);
-                                    }
-                                  }}
-                                >
-                                  <span className="day-number">{dayNum}</span>
-                                  {hasMeetings && <span className="day-dot"></span>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Schedule Lists */}
-                      <div className="list-section-card">
-                        <div
-                          className="list-columns-subheader"
-                          style={{ gridTemplateColumns: "46px 1fr 70px" }}
-                        >
-                          <span>Done</span>
-                          <span>Sync Info</span>
-                          <span className="text-right">Actions</span>
-                        </div>
-
-                        <div>
-                          {sortedAndFilteredMeetings.length > 0 ? (
-                            sortedAndFilteredMeetings.map((meet) => (
-                              <div
-                                key={meet.id}
-                                className="list-item-row"
-                                style={{ gridTemplateColumns: "46px 1fr 70px" }}
-                              >
-                                <label className="checkbox-container">
-                                  <input
-                                    type="checkbox"
-                                    checked={meet.completed}
-                                    onChange={() => handleToggleMeeting(meet.id)}
-                                  />
-                                  <span className="checkmark"></span>
-                                </label>
-
-                                <div className="schedule-item-info">
-                                  <span
-                                    className={`schedule-item-title ${meet.completed ? "completed" : ""
-                                      }`}
-                                  >
-                                    {meet.title}
-                                  </span>
-                                  <span className="schedule-item-time">
-                                    {formatDate(meet.date)}
-                                  </span>
-                                </div>
-
-                                <div className="item-actions">
-                                  <button
-                                    className="action-icon-btn"
-                                    onClick={() =>
-                                      setEditItemModal({
-                                        type: "meeting",
-                                        itemId: meet.id,
-                                        name: meet.title,
-                                        date: meet.date,
-                                      })
-                                    }
-                                    aria-label="Edit Meeting"
-                                  >
-                                    <Edit2 size={13} />
-                                  </button>
-                                  <button
-                                    className="action-icon-btn delete"
-                                    onClick={() => handleDeleteMeeting(meet.id)}
-                                    aria-label="Delete Meeting"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div
-                              style={{
-                                textAlign: "center",
-                                padding: "30px 20px",
-                                color: "var(--text-muted)",
-                                fontSize: "13px",
-                              }}
-                            >
-                              No meetings scheduled.
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* No FAB here, handled in bottom-nav */}
-                </>
+                <MeetingsView
+                  setIsTodoScreenOpen={setIsTodoScreenOpen}
+                  isTodoScreenOpen={isTodoScreenOpen}
+                  todos={todos}
+                  setTodos={setTodos}
+                  handleAddTodo={handleAddTodo}
+                  handleToggleTodo={handleToggleTodo}
+                  handleEditTodo={handleEditTodo}
+                  handleDeleteTodo={handleDeleteTodo}
+                  todayMeetingsCount={todayMeetingsCount}
+                  tomorrowMeetingsCount={tomorrowMeetingsCount}
+                  setEditItemModal={setEditItemModal}
+                  handleDeleteMeeting={handleDeleteMeeting}
+                  handleToggleMeeting={handleToggleMeeting}
+                  calendarCollapsed={calendarCollapsed}
+                  setCalendarCollapsed={setCalendarCollapsed}
+                  selectedCalendarDate={selectedCalendarDate}
+                  setSelectedCalendarDate={setSelectedCalendarDate}
+                  formatDate={formatDate}
+                  currentCalendarDate={currentCalendarDate}
+                  handlePrevMonth={handlePrevMonth}
+                  handleNextMonth={handleNextMonth}
+                  getDaysInMonth={getDaysInMonth}
+                  meetings={meetings}
+                  sortedAndFilteredMeetings={sortedAndFilteredMeetings}
+                />
               )}
 
               {/* TAB 4: ACCOUNT */}
@@ -1508,7 +1239,7 @@ function AuthenticatedApp() {
                   db={db}
                   isConfigured={isConfigured}
                   setHasLoadedProjectsFromCloud={setHasLoadedProjectsFromCloud}
-                  setHasLoadedScheduleFromCloud={setHasLoadedScheduleFromCloud}
+                  setHasLoadedMeetingsFromCloud={setHasLoadedMeetingsFromCloud}
                   isAuthorized={isAuthorized}
                   setIsTrashBinOpen={setIsTrashBinOpen}
                   projects={projects}
@@ -1688,7 +1419,7 @@ function App() {
     }
   }, [isAuthenticated, activeWorkspaceId, isLocalMode, checkPendingInvitations]);
 
-  if (isLoading || sessionLoading) {
+  if (sessionLoading) {
     return (
       <div style={{
         display: "flex",
@@ -1701,7 +1432,7 @@ function App() {
         fontSize: "18px",
         fontWeight: "700"
       }}>
-        {sessionLoading ? `Loading Workspace...` : `Loading ${APPLICATION.name}...`}
+        Loading Workspace...
       </div>
     );
   }

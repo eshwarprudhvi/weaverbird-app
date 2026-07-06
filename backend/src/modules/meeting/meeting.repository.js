@@ -33,7 +33,28 @@ class MeetingRepository {
     return { id: doc.id, ...data };
   }
 
+  async findByTempId(workspaceId, tempId) {
+    const snap = await db
+      .collection('workspaces')
+      .doc(workspaceId)
+      .collection('meetings')
+      .where('tempId', '==', tempId)
+      .limit(1)
+      .get();
+      
+    if (snap.empty) return null;
+    const doc = snap.docs[0];
+    return { id: doc.id, ...doc.data() };
+  }
+
   async create(workspaceId, meetingData) {
+    if (meetingData.tempId) {
+      const existing = await this.findByTempId(workspaceId, meetingData.tempId);
+      if (existing) {
+        return existing;
+      }
+    }
+
     const docRef = await db
       .collection('workspaces')
       .doc(workspaceId)

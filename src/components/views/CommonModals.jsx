@@ -3,10 +3,14 @@ import AddProjectModal from "../modals/AddProjectModal";
 import AddMeetingModal from "../modals/AddMeetingModal";
 import { Plus, CheckSquare, Clock, MapPin, X, Trash2, Edit2, FileText, Download, User, ArrowLeft, MoreHorizontal, Image, Camera, AlertCircle, Save, FolderPlus, Folder, MoreVertical, RefreshCw , Mail, Undo, RotateCcw } from "lucide-react";
 import { useWorkspace } from "../../contexts/WorkspaceContext";
+import { projectRepository } from "../../repositories/ProjectRepository";
+import { useWorkspaceScope } from "../../application/session";
 
 const CommonModals = (props) => {
   const { reportPreview, setReportPreview, formatDisplayDateStr, handleDownloadPDF, handleSharePDF, recipientEmail, setRecipientEmail, userEmail, backupRecipients, authorizedUsers, handleEmailReportManually, isSendingEmail, customRecipientEmail, setCustomRecipientEmail, emailJsServiceId, isTrashBinOpen, setIsTrashBinOpen, projects, userRole, setCustomConfirm, setProjects, setDeletedProjectIds, isBackupsListOpen, setIsBackupsListOpen, isRemoteChange, deletedProjectIds, syncProjectToCloud, isConfigured, db, cloudSyncEnabled, isAuthorized, deleteProject, doc, deleteProjectFromCloud, isNewProjModalOpen, setIsNewProjModalOpen, handleAddProject, isNewMeetingModalOpen, setIsNewMeetingModalOpen, handleAddMeeting, newMeetTitle, setNewMeetTitle, newMeetDate, setNewMeetDate, editItemModal, setEditItemModal, handleSaveEdit, customConfirm } = props;
   const { workspace } = useWorkspace();
+  const scope = useWorkspaceScope();
+  const safeProjects = Array.isArray(projects) ? projects : [];
   const companyName = workspace?.companyName || "My Workspace";
   const studioName = workspace?.studioName || "Interior Studio";
   
@@ -318,7 +322,7 @@ const CommonModals = (props) => {
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "400px", overflowY: "auto", padding: "8px 0" }}>
-                      {projects.filter(p => p.isTrashed).length === 0 ? (
+                      {safeProjects.filter(p => p.isTrashed).length === 0 ? (
                         <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
                           <Trash2 size={40} style={{ opacity: 0.3, marginBottom: "12px" }} />
                           <p style={{ fontSize: "14px" }}>Your Recycle Bin is empty.</p>
@@ -326,21 +330,21 @@ const CommonModals = (props) => {
                       ) : (
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            {userRole !== "admin" && (
+                            {userRole !== "admin" && userRole !== "owner" && (
                               <span style={{ fontSize: "11.5px", color: "var(--text-muted)", fontStyle: "italic" }}>
                                 * Only Administrators can permanently empty trash.
                               </span>
                             )}
-                            {userRole === "admin" && (
+                            {(userRole === "admin" || userRole === "owner") && (
                               <button
                                 onClick={() => {
                                   setCustomConfirm({
                                     title: "Empty Trash",
                                     message: "Are you sure you want to permanently delete all projects in the trash? This cannot be undone!",
                                     onConfirm: () => {
-                                      const trashedIds = projects.filter(p => p.isTrashed).map(p => p.id);
-                                      setProjects(projects.filter(p => !p.isTrashed));
-                                      setDeletedProjectIds(prev => [...new Set([...prev, ...trashedIds])]);
+                                      const trashedIds = safeProjects.filter(p => p.isTrashed).map(p => p.id);
+                                      setProjects(prev => (Array.isArray(prev) ? prev : []).filter(p => !p.isTrashed));
+                                      setDeletedProjectIds(prev => [...new Set([...(Array.isArray(prev) ? prev : []), ...trashedIds])]);
                                     }
                                   });
                                 }}
@@ -365,7 +369,7 @@ const CommonModals = (props) => {
                             )}
                           </div>
 
-                          {projects.filter(p => p.isTrashed).map((p) => (
+                          {safeProjects.filter(p => p.isTrashed).map((p) => (
                             <div key={p.id} style={{
                               padding: "16px",
                               borderRadius: "12px",
@@ -391,7 +395,15 @@ const CommonModals = (props) => {
                                       title: "Restore Project",
                                       message: `Are you sure you want to restore the project "${p.name}"?`,
                                       onConfirm: () => {
-                                        setProjects(projects.map(proj => proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null } : proj));
+                                        setProjects(prev =>
+                                          (Array.isArray(prev) ? prev : []).map(proj =>
+                                            proj.id === p.id ? { ...proj, isTrashed: false, trashedAt: null } : proj
+                                          )
+                                        );
+                                        if (scope && scope.workspaceId) {
+                                          projectRepository.update(scope.workspaceId, p.id, { isTrashed: false, trashedAt: null })
+                                            .catch(err => console.error("Failed to restore project from trash:", err));
+                                        }
                                       }
                                     });
                                   }}
@@ -413,16 +425,20 @@ const CommonModals = (props) => {
                                   Restore
                                 </button>
 
-                                {/* Delete Permanently Button - Admin Only */}
-                                {userRole === "admin" && (
+                                {/* Delete Permanently Button - Admin/Owner Only */}
+                                {(userRole === "admin" || userRole === "owner") && (
                                   <button
                                     onClick={() => {
                                       setCustomConfirm({
                                         title: "Permanently Delete Project",
                                         message: `Are you sure you want to permanently delete "${p.name}"? This cannot be undone!`,
                                         onConfirm: () => {
-                                          setProjects(projects.filter(proj => proj.id !== p.id));
-                                          setDeletedProjectIds(prev => [...new Set([...prev, p.id])]);
+                                          setProjects(prev => (Array.isArray(prev) ? prev : []).filter(proj => proj.id !== p.id));
+                                          setDeletedProjectIds(prev => [...new Set([...(Array.isArray(prev) ? prev : []), p.id])]);
+                                          if (scope && scope.workspaceId) {
+                                            projectRepository.delete(scope.workspaceId, p.id)
+                                              .catch(err => console.error("Failed to permanently delete project:", err));
+                                          }
                                         }
                                       });
                                     }}
@@ -522,7 +538,7 @@ const CommonModals = (props) => {
                                         {b.projects.length} project(s)
                                       </span>
                                     </div>
-                                    {userRole === "admin" ? (
+                                    {(userRole === "admin" || userRole === "owner") ? (
                                       <button
                                         onClick={() => {
                                           if (window.confirm(`Are you sure you want to restore the backup from ${new Date(b.timestamp).toLocaleString()}?`)) {
@@ -540,7 +556,7 @@ const CommonModals = (props) => {
                                                   .catch(err => console.error("Failed to remove from deleted_projects:", err));
                                               }
                                             });
-                                            projects.forEach((proj) => {
+                                            safeProjects.forEach((proj) => {
                                               if (!b.projects.some(bp => bp.id === proj.id)) {
                                                 deleteProjectFromCloud(proj.id);
                                               }
@@ -602,7 +618,7 @@ const CommonModals = (props) => {
                                         Saved at {new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {b.projects.length} project(s)
                                       </span>
                                     </div>
-                                    {userRole === "admin" ? (
+                                    {(userRole === "admin" || userRole === "owner") ? (
                                       <button
                                         onClick={() => {
                                           if (window.confirm(`Are you sure you want to restore the daily backup from ${new Date(b.timestamp).toLocaleDateString()}?`)) {
@@ -620,7 +636,7 @@ const CommonModals = (props) => {
                                                   .catch(err => console.error("Failed to remove from deleted_projects:", err));
                                               }
                                             });
-                                            projects.forEach((proj) => {
+                                            safeProjects.forEach((proj) => {
                                               if (!b.projects.some(bp => bp.id === proj.id)) {
                                                 deleteProjectFromCloud(proj.id);
                                               }
@@ -880,7 +896,8 @@ const CommonModals = (props) => {
 
                           {/* Dependencies Multi-select Grid */}
                           {(() => {
-                            const activeProj = projects.find(p => p.id === editItemModal.projectId);
+                            const safeProjects = projects || [];
+                            const activeProj = safeProjects.find(p => p.id === editItemModal.projectId);
                             const otherTasks = activeProj ? (activeProj.tasks || []).filter(t => t.id !== editItemModal.itemId) : [];
                             if (otherTasks.length === 0) return null;
 

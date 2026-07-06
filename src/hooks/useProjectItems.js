@@ -1,74 +1,92 @@
 
+import { meetingRepository } from '../repositories/MeetingRepository';
+import { catalogRepository } from '../repositories/CatalogRepository';
+import { projectRepository } from '../repositories/ProjectRepository';
+import { useWorkspaceScope } from '../application/session';
+
 export const useProjectItems = (props) => {
-  const { newMaterialInput, activeProjectId, setProjects, projects, activeRoomId, setNewMaterialInput, activeProject, setCustomConfirm, newWorkInput, newTaskPriority, setNewWorkInput, setNewTaskPriority, setDraggedTaskId, draggedTaskId, editItemModal, schedule, setSchedule, setMaterialCatalog, materialCatalog, setEditItemModal } = props;
-  // Auto-destructure will be injected here
+  const { newMaterialInput, activeProjectId, setProjects, projects, activeRoomId, setNewMaterialInput, activeProject, setCustomConfirm, newWorkInput, newTaskPriority, setNewWorkInput, setNewTaskPriority, setDraggedTaskId, draggedTaskId, editItemModal, meetings, setMeetings, setMaterialCatalog, materialCatalog, setEditItemModal } = props;
+  const scope = useWorkspaceScope();
+
+  const updateProjectInRepository = (projId, updatedData) => {
+    if (!scope || !scope.workspaceId || !projId) return;
+    projectRepository.update(scope.workspaceId, projId, updatedData)
+      .catch(err => console.error(`Failed to update project ${projId} in repository:`, err));
+  };
 
   const handleAddMaterial = (e) => {
     e.preventDefault();
     if (!newMaterialInput.trim() || !activeProjectId) return;
 
-    setProjects(
-      projects.map((p) => {
-        if (p.id === activeProjectId) {
-          const newMaterial = {
-            id: "m_" + Date.now(),
-            name: newMaterialInput.trim(),
-            completed: false,
-            roomId: activeRoomId,
-          };
-          return {
-            ...p,
-            materials: [newMaterial, ...(p.materials || [])],
-          };
-        }
-        return p;
-      })
-    );
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === activeProjectId);
+    if (!targetProj) return;
 
+    const newMaterial = {
+      id: "m_" + Date.now(),
+      name: newMaterialInput.trim(),
+      completed: false,
+      roomId: activeRoomId,
+    };
+    const updatedMaterials = [newMaterial, ...(targetProj.materials || [])];
+    const nowStr = new Date().toISOString();
+
+    setProjects(prev =>
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p.id === activeProjectId
+          ? { ...p, materials: updatedMaterials, updatedAt: nowStr }
+          : p
+      )
+    );
     setNewMaterialInput("");
+    updateProjectInRepository(activeProjectId, { materials: updatedMaterials, updatedAt: nowStr });
   };
 
   const handleToggleMaterial = (matId) => {
-    setProjects(
-      projects.map((p) => {
-        if (p.id === activeProjectId) {
-          return {
-            ...p,
-            materials: p.materials.map((m) => {
-              if (m.id === matId) {
-                return { ...m, completed: !m.completed };
-              }
-              return m;
-            }),
-          };
-        }
-        return p;
-      })
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === activeProjectId);
+    if (!targetProj) return;
+
+    const updatedMaterials = (targetProj.materials || []).map((m) =>
+      m.id === matId ? { ...m, completed: !m.completed } : m
     );
+    const nowStr = new Date().toISOString();
+
+    setProjects(prev =>
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p.id === activeProjectId
+          ? { ...p, materials: updatedMaterials, updatedAt: nowStr }
+          : p
+      )
+    );
+    updateProjectInRepository(activeProjectId, { materials: updatedMaterials, updatedAt: nowStr });
   };
 
   const handleDeleteMaterial = (matId) => {
-    setProjects(
-      projects.map((p) => {
-        if (p.id === activeProjectId) {
-          return {
-            ...p,
-            materials: p.materials.filter((m) => m.id !== matId),
-          };
-        }
-        return p;
-      })
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === activeProjectId);
+    if (!targetProj) return;
+
+    const updatedMaterials = (targetProj.materials || []).filter((m) => m.id !== matId);
+    const nowStr = new Date().toISOString();
+
+    setProjects(prev =>
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p.id === activeProjectId
+          ? { ...p, materials: updatedMaterials, updatedAt: nowStr }
+          : p
+      )
     );
+    updateProjectInRepository(activeProjectId, { materials: updatedMaterials, updatedAt: nowStr });
   };
 
   const handleClearCompletedMaterials = () => {
     if (!activeProjectId) return;
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === activeProjectId);
+    if (!targetProj) return;
     
     let roomName = "this room";
     if (activeRoomId === "general") {
       roomName = "General / Unassigned";
     } else if (activeRoomId) {
-      const room = activeProject?.rooms?.find(r => r.id === activeRoomId);
+      const room = targetProj.rooms?.find(r => r.id === activeRoomId);
       if (room) roomName = room.name;
     }
     
@@ -76,22 +94,22 @@ export const useProjectItems = (props) => {
       title: "Clear Completed Materials",
       message: `Are you sure you want to clear all completed materials in ${roomName}?`,
       onConfirm: () => {
-        setProjects(
-          projects.map((p) => {
-            if (p.id === activeProjectId) {
-              return {
-                ...p,
-                materials: (p.materials || []).filter((m) => {
-                  const belongsToActiveRoom = activeRoomId === "general"
-                    ? (!m.roomId || m.roomId === "general")
-                    : m.roomId === activeRoomId;
-                  return !m.completed || !belongsToActiveRoom;
-                }),
-              };
-            }
-            return p;
-          })
+        const updatedMaterials = (targetProj.materials || []).filter((m) => {
+          const belongsToActiveRoom = activeRoomId === "general"
+            ? (!m.roomId || m.roomId === "general")
+            : m.roomId === activeRoomId;
+          return !m.completed || !belongsToActiveRoom;
+        });
+        const nowStr = new Date().toISOString();
+
+        setProjects(prev =>
+          (Array.isArray(prev) ? prev : []).map((p) =>
+            p.id === activeProjectId
+              ? { ...p, materials: updatedMaterials, updatedAt: nowStr }
+              : p
+          )
         );
+        updateProjectInRepository(activeProjectId, { materials: updatedMaterials, updatedAt: nowStr });
       }
     });
   };
@@ -100,88 +118,92 @@ export const useProjectItems = (props) => {
     e.preventDefault();
     if (!newWorkInput.trim() || !activeProjectId) return;
 
-    setProjects(
-      projects.map((p) => {
-        if (p.id === activeProjectId) {
-          const newTask = {
-            id: "t_" + Date.now(),
-            name: newWorkInput.trim(),
-            completed: false,
-            priority: newTaskPriority, // Use state priority
-            roomId: activeRoomId,
-          };
-          return {
-            ...p,
-            tasks: [newTask, ...(p.tasks || [])],
-          };
-        }
-        return p;
-      })
-    );
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === activeProjectId);
+    if (!targetProj) return;
 
+    const newTask = {
+      id: "t_" + Date.now(),
+      name: newWorkInput.trim(),
+      completed: false,
+      priority: newTaskPriority, // Use state priority
+      roomId: activeRoomId,
+    };
+    const updatedTasks = [newTask, ...(targetProj.tasks || [])];
+    const nowStr = new Date().toISOString();
+
+    setProjects(prev =>
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p.id === activeProjectId
+          ? { ...p, tasks: updatedTasks, updatedAt: nowStr }
+          : p
+      )
+    );
     setNewWorkInput("");
     setNewTaskPriority("medium"); // Reset to default
+    updateProjectInRepository(activeProjectId, { tasks: updatedTasks, updatedAt: nowStr });
   };
 
   const handleToggleTask = (taskId, projId = activeProjectId) => {
-    const targetProj = projects.find((p) => p.id === projId);
-    if (targetProj) {
-      const task = targetProj.tasks.find((t) => t.id === taskId);
-      if (task && !task.completed) {
-        const uncompletedDeps = (task.dependencies || [])
-          .map((depId) => targetProj.tasks.find((t) => t.id === depId))
-          .filter((t) => t && !t.completed);
+    const targetProj = Array.isArray(projects) ? projects.find((p) => p.id === projId) : null;
+    if (!targetProj) return;
 
-        if (uncompletedDeps.length > 0) {
-          const depNames = uncompletedDeps.map((t) => `"${t.name}"`).join(", ");
-          alert(
-            `Cannot complete this task. It depends on preceding tasks: ${depNames} which are not yet completed.`
-          );
-          return;
-        }
+    const task = (targetProj.tasks || []).find((t) => t.id === taskId);
+    if (task && !task.completed) {
+      const uncompletedDeps = (task.dependencies || [])
+        .map((depId) => (targetProj.tasks || []).find((t) => t.id === depId))
+        .filter((t) => t && !t.completed);
+
+      if (uncompletedDeps.length > 0) {
+        const depNames = uncompletedDeps.map((t) => `"${t.name}"`).join(", ");
+        alert(
+          `Cannot complete this task. It depends on preceding tasks: ${depNames} which are not yet completed.`
+        );
+        return;
       }
     }
 
-    setProjects(
-      projects.map((p) => {
-        if (p.id === projId) {
-          return {
-            ...p,
-            tasks: p.tasks.map((t) => {
-              if (t.id === taskId) {
-                return { ...t, completed: !t.completed };
-              }
-              return t;
-            }),
-          };
-        }
-        return p;
-      })
+    const updatedTasks = (targetProj.tasks || []).map((t) =>
+      t.id === taskId ? { ...t, completed: !t.completed } : t
     );
+    const nowStr = new Date().toISOString();
+
+    setProjects(prev =>
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p.id === projId
+          ? { ...p, tasks: updatedTasks, updatedAt: nowStr }
+          : p
+      )
+    );
+    updateProjectInRepository(projId, { tasks: updatedTasks, updatedAt: nowStr });
   };
 
   const handleDeleteTask = (taskId) => {
-    setProjects(
-      projects.map((p) => {
-        if (p.id === activeProjectId) {
-          return {
-            ...p,
-            tasks: p.tasks.filter((t) => t.id !== taskId),
-          };
-        }
-        return p;
-      })
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === activeProjectId);
+    if (!targetProj) return;
+
+    const updatedTasks = (targetProj.tasks || []).filter((t) => t.id !== taskId);
+    const nowStr = new Date().toISOString();
+
+    setProjects(prev =>
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p.id === activeProjectId
+          ? { ...p, tasks: updatedTasks, updatedAt: nowStr }
+          : p
+      )
     );
+    updateProjectInRepository(activeProjectId, { tasks: updatedTasks, updatedAt: nowStr });
   };
 
   const handleClearCompletedTasks = () => {
     if (!activeProjectId) return;
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === activeProjectId);
+    if (!targetProj) return;
     
     let roomName = "this room";
     if (activeRoomId === "general") {
       roomName = "General / Unassigned";
     } else if (activeRoomId) {
-      const room = activeProject?.rooms?.find(r => r.id === activeRoomId);
+      const room = targetProj.rooms?.find(r => r.id === activeRoomId);
       if (room) roomName = room.name;
     }
     
@@ -189,22 +211,22 @@ export const useProjectItems = (props) => {
       title: "Clear Completed Tasks",
       message: `Are you sure you want to clear all completed tasks in ${roomName}?`,
       onConfirm: () => {
-        setProjects(
-          projects.map((p) => {
-            if (p.id === activeProjectId) {
-              return {
-                ...p,
-                tasks: (p.tasks || []).filter((t) => {
-                  const belongsToActiveRoom = activeRoomId === "general"
-                    ? (!t.roomId || t.roomId === "general")
-                    : t.roomId === activeRoomId;
-                  return !t.completed || !belongsToActiveRoom;
-                }),
-              };
-            }
-            return p;
-          })
+        const updatedTasks = (targetProj.tasks || []).filter((t) => {
+          const belongsToActiveRoom = activeRoomId === "general"
+            ? (!t.roomId || t.roomId === "general")
+            : t.roomId === activeRoomId;
+          return !t.completed || !belongsToActiveRoom;
+        });
+        const nowStr = new Date().toISOString();
+
+        setProjects(prev =>
+          (Array.isArray(prev) ? prev : []).map((p) =>
+            p.id === activeProjectId
+              ? { ...p, tasks: updatedTasks, updatedAt: nowStr }
+              : p
+          )
         );
+        updateProjectInRepository(activeProjectId, { tasks: updatedTasks, updatedAt: nowStr });
       }
     });
   };
@@ -222,23 +244,28 @@ export const useProjectItems = (props) => {
     e.preventDefault();
     if (!draggedTaskId || draggedTaskId === targetId) return;
 
-    setProjects((prevProjects) =>
-      prevProjects.map((proj) => {
-        if (proj.id === activeProjectId) {
-          const tasks = [...proj.tasks];
-          const draggedIndex = tasks.findIndex((t) => t.id === draggedTaskId);
-          const targetIndex = tasks.findIndex((t) => t.id === targetId);
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === activeProjectId);
+    if (!targetProj) return;
 
-          if (draggedIndex !== -1 && targetIndex !== -1) {
-            const [draggedTask] = tasks.splice(draggedIndex, 1);
-            tasks.splice(targetIndex, 0, draggedTask);
-          }
-          return { ...proj, tasks };
-        }
-        return proj;
-      })
+    const tasks = [...(targetProj.tasks || [])];
+    const draggedIndex = tasks.findIndex((t) => t.id === draggedTaskId);
+    const targetIndex = tasks.findIndex((t) => t.id === targetId);
+
+    if (draggedIndex !== -1 && targetIndex !== -1) {
+      const [draggedTask] = tasks.splice(draggedIndex, 1);
+      tasks.splice(targetIndex, 0, draggedTask);
+    }
+    const nowStr = new Date().toISOString();
+
+    setProjects((prevProjects) =>
+      (Array.isArray(prevProjects) ? prevProjects : []).map((proj) =>
+        proj.id === activeProjectId
+          ? { ...proj, tasks, updatedAt: nowStr }
+          : proj
+      )
     );
     setDraggedTaskId(null);
+    updateProjectInRepository(activeProjectId, { tasks, updatedAt: nowStr });
   };
 
   const handleSaveEdit = (e) => {
@@ -247,86 +274,103 @@ export const useProjectItems = (props) => {
     const { type, projectId, itemId, name, description, time, day, status } =
       editItemModal;
 
+    const targetProj = (Array.isArray(projects) ? projects : []).find(p => p.id === (type === "project" ? itemId : projectId));
+
     if (type === "project") {
       const { completionDate } = editItemModal;
-      setProjects(
-        projects.map((p) => {
+      const nowStr = new Date().toISOString();
+      setProjects(prev =>
+        (Array.isArray(prev) ? prev : []).map((p) => {
           if (p.id === itemId) {
             return {
               ...p,
               name,
               status,
               completionDate: completionDate || "",
+              updatedAt: nowStr,
             };
           }
           return p;
         })
       );
+      updateProjectInRepository(itemId, {
+        name,
+        status,
+        completionDate: completionDate || "",
+        updatedAt: nowStr,
+      });
     } else if (type === "room") {
-      setProjects(
-        projects.map((p) => {
+      if (!targetProj) return;
+      const updatedRooms = (targetProj.rooms || []).map((r) =>
+        r.id === itemId ? { ...r, name: name.trim() } : r
+      );
+      const nowStr = new Date().toISOString();
+      setProjects(prev =>
+        (Array.isArray(prev) ? prev : []).map((p) => {
           if (p.id === projectId) {
-            return {
-              ...p,
-              rooms: (p.rooms || []).map((r) =>
-                r.id === itemId ? { ...r, name: name.trim() } : r
-              ),
-            };
+            return { ...p, rooms: updatedRooms, updatedAt: nowStr };
           }
           return p;
         })
       );
+      updateProjectInRepository(projectId, { rooms: updatedRooms, updatedAt: nowStr });
     } else if (type === "new_room") {
       if (name && name.trim()) {
-        setProjects(
-          projects.map((p) => {
+        if (!targetProj) return;
+        const newRoom = { id: "room_" + Date.now(), name: name.trim() };
+        const updatedRooms = [...(targetProj.rooms || []), newRoom];
+        const nowStr = new Date().toISOString();
+        setProjects(prev =>
+          (Array.isArray(prev) ? prev : []).map((p) => {
             if (p.id === projectId) {
-              const newRoom = { id: "room_" + Date.now(), name: name.trim() };
-              return { ...p, rooms: [...(p.rooms || []), newRoom] };
+              return { ...p, rooms: updatedRooms, updatedAt: nowStr };
             }
             return p;
           })
         );
+        updateProjectInRepository(projectId, { rooms: updatedRooms, updatedAt: nowStr });
       }
     } else if (type === "material") {
-      setProjects(
-        projects.map((p) => {
+      if (!targetProj) return;
+      const updatedMaterials = (targetProj.materials || []).map((m) =>
+        m.id === itemId ? { ...m, name } : m
+      );
+      const nowStr = new Date().toISOString();
+      setProjects(prev =>
+        (Array.isArray(prev) ? prev : []).map((p) => {
           if (p.id === projectId) {
-            return {
-              ...p,
-              materials: p.materials.map((m) =>
-                m.id === itemId ? { ...m, name } : m
-              ),
-            };
+            return { ...p, materials: updatedMaterials, updatedAt: nowStr };
           }
           return p;
         })
       );
+      updateProjectInRepository(projectId, { materials: updatedMaterials, updatedAt: nowStr });
     } else if (type === "task") {
+      if (!targetProj) return;
       const { priority, dependencies } = editItemModal;
-      setProjects(
-        projects.map((p) => {
+      const updatedTasks = (targetProj.tasks || []).map((t) =>
+        t.id === itemId
+          ? {
+            ...t,
+            name,
+            priority: priority || "medium",
+            dependencies: dependencies || [],
+          }
+          : t
+      );
+      const nowStr = new Date().toISOString();
+      setProjects(prev =>
+        (Array.isArray(prev) ? prev : []).map((p) => {
           if (p.id === projectId) {
-            return {
-              ...p,
-              tasks: p.tasks.map((t) =>
-                t.id === itemId
-                  ? {
-                    ...t,
-                    name,
-                    priority: priority || "medium",
-                    dependencies: dependencies || [],
-                  }
-                  : t
-              ),
-            };
+            return { ...p, tasks: updatedTasks, updatedAt: nowStr };
           }
           return p;
         })
       );
+      updateProjectInRepository(projectId, { tasks: updatedTasks, updatedAt: nowStr });
     } else if (type === "meeting") {
       const { date } = editItemModal;
-      const exists = schedule.some(
+      const exists = meetings.some(
         (s) => s.date === date && s.id !== itemId && !s.completed
       );
       if (exists) {
@@ -335,21 +379,34 @@ export const useProjectItems = (props) => {
         );
         if (!proceed) return;
       }
-      setSchedule(
-        schedule.map((s) => {
+      
+      const oldMeetings = [...meetings];
+      setMeetings(
+        meetings.map((s) => {
           if (s.id === itemId) {
             return { ...s, title: name, date };
           }
           return s;
         })
       );
+
+      meetingRepository.update(scope.workspaceId, itemId, { title: name, date }).catch(err => {
+        console.error("Failed to update meeting:", err);
+        setMeetings(oldMeetings);
+      });
     } else if (type === "catalog_material") {
       const { price } = editItemModal;
+      const oldCatalog = [...materialCatalog];
       setMaterialCatalog(
         materialCatalog.map((item) =>
           item.id === itemId ? { ...item, name: name.trim(), price: price.trim() } : item
         )
       );
+
+      catalogRepository.update(scope.workspaceId, itemId, { name: name.trim(), price: price.trim() }).catch(err => {
+        console.error("Failed to update catalog item:", err);
+        setMaterialCatalog(oldCatalog);
+      });
     }
 
     setEditItemModal(null);
