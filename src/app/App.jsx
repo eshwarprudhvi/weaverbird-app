@@ -1450,12 +1450,15 @@ function App() {
     if (isAuthenticated && !isLocalMode && !isWorkspaceSelected) {
       const uid = user?.uid || null;
       const email = user?.email || null;
+      console.log("[App Gate] Checking for user:", { uid, email, user });
       checkPendingInvitations()
         .then(async (invs) => {
+          console.log("[App Gate] Pending invitations:", invs);
           if (invs && invs.length > 0) {
             setInitialAuthRoute('pending-invitations');
           } else {
             const hasWorkspaces = await checkHasWorkspaces(uid, email);
+            console.log("[App Gate] Has workspaces:", hasWorkspaces);
             if (hasWorkspaces) {
               setInitialAuthRoute('switch');
             } else {
@@ -1463,12 +1466,12 @@ function App() {
             }
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("[App Gate] Error in check:", err);
           setInitialAuthRoute('no-workspace');
         });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, isLocalMode, isWorkspaceSelected]);
+  }, [isAuthenticated, isLocalMode, isWorkspaceSelected, user]);
 
   // Load and show pending invitations in-app only AFTER the user is in the dashboard
   // (they may receive new invitations while working inside a workspace)

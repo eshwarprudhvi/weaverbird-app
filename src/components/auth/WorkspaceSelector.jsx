@@ -38,22 +38,40 @@ const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
         const list = [];
         const seenIds = new Set();
 
-        // 2. Add current active workspace if any
-        if (activeWorkspaceId) {
+        // 2. Fetch workspaceIndex from Firestore for the user to restore active/owned workspace
+        let indexedWorkspaceId = activeWorkspaceId;
+        let indexedRole = user?.role || "member";
+        
+        try {
+          const indexSnap = await getDoc(doc(db, 'workspaceIndex', user.uid));
+          if (indexSnap.exists()) {
+            const data = indexSnap.data();
+            if (data.status === 'active' && data.workspaceId) {
+              indexedWorkspaceId = data.workspaceId;
+              indexedRole = data.role || 'member';
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to fetch workspace index in selector:", e);
+        }
+
+        // 3. Add the resolved indexed workspace (or current active workspace) if any
+        const targetWsId = indexedWorkspaceId || activeWorkspaceId;
+        if (targetWsId) {
           try {
-            const activeWsSnap = await getDoc(doc(db, "workspaces", activeWorkspaceId));
+            const activeWsSnap = await getDoc(doc(db, "workspaces", targetWsId));
             if (activeWsSnap.exists()) {
               list.push({
-                id: activeWorkspaceId,
+                id: targetWsId,
                 name: activeWsSnap.data().companyName || activeWsSnap.data().name || "Active Workspace",
-                role: user.role || "member"
+                role: indexedRole
               });
-              seenIds.add(activeWorkspaceId);
+              seenIds.add(targetWsId);
             }
           } catch (e) {
             console.warn("Failed to fetch active workspace info:", e);
-            list.push({ id: activeWorkspaceId, name: "Active Workspace", role: user.role || "member" });
-            seenIds.add(activeWorkspaceId);
+            list.push({ id: targetWsId, name: "Active Workspace", role: indexedRole });
+            seenIds.add(targetWsId);
           }
         }
 

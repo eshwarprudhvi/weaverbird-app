@@ -32,8 +32,12 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
       setActiveWorkspaceId(null);
 
-      // Reset the server-side workspaceIndex to prevent boot loops if the workspace doesn't exist
-      if (auth.currentUser && db) {
+      // Reset the server-side workspaceIndex to prevent boot loops ONLY if the workspace document does not exist.
+      // Doing this for transient errors (permissions, network) would incorrectly lock users out of their workspaces.
+      const isWorkspaceDeleted = error?.message === 'Workspace document does not exist.' || 
+                                 error?.toString().includes('Workspace document does not exist');
+      
+      if (auth.currentUser && db && isWorkspaceDeleted) {
         try {
           const indexRef = doc(db, 'workspaceIndex', auth.currentUser.uid);
           await setDoc(indexRef, {
