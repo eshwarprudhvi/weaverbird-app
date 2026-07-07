@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Building2, Check, ChevronDown, Plus } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import { failedWorkspaceIds } from "../../contexts/AuthContext";
 import { db } from "../../firebase";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 
@@ -23,20 +24,18 @@ const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
     let isMounted = true;
     
     const loadWorkspaces = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        const userEmail = user.email.trim().toLowerCase();
-        
-        // 1. Fetch invitations where user was invited and accepted
+        const list = [];
+        const seenIds = new Set();
+
+        // 1. Fetch all accepted invitations for the user's email
         const q = query(
           collection(db, "invitations"),
-          where("email", "==", userEmail),
+          where("email", "==", user.email.trim().toLowerCase()),
           where("status", "==", "accepted")
         );
         const inviteSnap = await getDocs(q);
-        
-        const list = [];
-        const seenIds = new Set();
 
         // 2. Fetch workspaceIndex from Firestore for the user to restore active/owned workspace
         let indexedWorkspaceId = activeWorkspaceId;
@@ -46,7 +45,7 @@ const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
           const indexSnap = await getDoc(doc(db, 'workspaceIndex', user.uid));
           if (indexSnap.exists()) {
             const data = indexSnap.data();
-            if (data.status === 'active' && data.workspaceId) {
+            if (data.status === 'active' && data.workspaceId && !failedWorkspaceIds.has(data.workspaceId)) {
               indexedWorkspaceId = data.workspaceId;
               indexedRole = data.role || 'member';
             }
@@ -57,7 +56,7 @@ const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
 
         // 3. Add the resolved indexed workspace (or current active workspace) if any
         const targetWsId = indexedWorkspaceId || activeWorkspaceId;
-        if (targetWsId) {
+        if (targetWsId && !failedWorkspaceIds.has(targetWsId)) {
           try {
             const activeWsSnap = await getDoc(doc(db, "workspaces", targetWsId));
             if (activeWsSnap.exists()) {
@@ -79,7 +78,7 @@ const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
         for (const inviteDoc of inviteSnap.docs) {
           const data = inviteDoc.data();
           const wsId = data.workspaceId;
-          if (wsId && !seenIds.has(wsId)) {
+          if (wsId && !seenIds.has(wsId) && !failedWorkspaceIds.has(wsId)) {
             try {
               const wsSnap = await getDoc(doc(db, "workspaces", wsId));
               if (wsSnap.exists()) {

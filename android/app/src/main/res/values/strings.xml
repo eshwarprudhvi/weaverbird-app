@@ -4,4 +4,5 @@
     <string name="title_activity_main">weaverBirdProjectManager</string>
     <string name="package_name">com.projectmanager.app.test</string>
     <string name="custom_url_scheme">com.projectmanager.app.test</string>
+    <string name="server_client_id">973323732782-2ugis6kng1h45gbptqkqpohplauheb84.apps.googleusercontent.com</string>
 </resources>

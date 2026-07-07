@@ -12,6 +12,7 @@ import { useCatalog } from "../hooks/useCatalog";
 import { useCloudSync } from "../hooks/useCloudSync";
 import UnauthorizedScreen from "../components/auth/UnauthorizedScreen";
 import { useAuth } from "../hooks/useAuth";
+import { failedWorkspaceIds } from "../contexts/AuthContext";
 import AuthRouter from "../components/auth/AuthRouter";
 import { WorkspaceProvider } from "../contexts/WorkspaceContext";
 import { APPLICATION } from "../config/application";
@@ -289,17 +290,23 @@ function AuthenticatedApp() {
       // 1. Notify Capacitor that the app loaded successfully (prevents rollback)
       try {
         CapacitorUpdater.notifyAppReady();
+        // Only run reset once per APK install to avoid infinite webview reload loops on Android
+        const otaKey = 'app_ota_bundle_cleared_v10';
+        if (!localStorage.getItem(otaKey)) {
+          localStorage.setItem(otaKey, 'true');
+          CapacitorUpdater.reset().catch(() => {});
+        }
       } catch (err) {
-        console.warn("CapacitorUpdater notifyAppReady failed:", err);
+        console.warn("CapacitorUpdater notifyAppReady/reset failed:", err);
       }
 
-      // Add a 5s delay on startup to prevent blocking the UI layout load
-      const timer = setTimeout(() => checkUpdate(false), 5000);
-      return () => clearTimeout(timer);
+      // Disabled automatic OTA check on startup as requested ("dont give any update to ota and all")
+      // const timer = setTimeout(() => checkUpdate(false), 5000);
+      // return () => clearTimeout(timer);
     } else {
       setUpdateDebugInfo(prev => ({ ...prev, status: "Not native platform" }));
     }
-  }, [isConfigured]);
+  }, []);
 
   const [isNetworkOnline, setIsNetworkOnline] = useState(navigator.onLine);
 
@@ -1404,7 +1411,10 @@ function App() {
   useEffect(() => {
     const unsubInit = workspaceEventBus.on('workspace.initializing', () => setSessionLoading(true));
     const unsubReady = workspaceEventBus.on('workspace.ready', () => setSessionLoading(false));
-    const unsubFailed = workspaceEventBus.on('workspace.failed', () => setSessionLoading(false));
+    const unsubFailed = workspaceEventBus.on('workspace.failed', () => {
+      setSessionLoading(false);
+      setIsWorkspaceSelected(false);
+    });
     
     return () => {
       unsubInit();
@@ -1424,7 +1434,7 @@ function App() {
       // 1. Check workspaceIndex for owner/previously active workspace
       if (uid) {
         const indexSnap = await getDoc(doc(db, 'workspaceIndex', uid));
-        if (indexSnap.exists() && indexSnap.data().workspaceId) {
+        if (indexSnap.exists() && indexSnap.data().workspaceId && !failedWorkspaceIds.has(indexSnap.data().workspaceId)) {
           return true;
         }
       }
@@ -1436,7 +1446,9 @@ function App() {
           where('status', '==', 'accepted')
         );
         const snap = await getDocs(q);
-        if (!snap.empty) return true;
+        for (const d of snap.docs) {
+          if (!failedWorkspaceIds.has(d.data().workspaceId)) return true;
+        }
       }
       return false;
     } catch (e) {

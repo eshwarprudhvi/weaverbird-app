@@ -1,13 +1,13 @@
 import React, { useState } from "react";
-import { Building2, LogIn, HardDrive } from "lucide-react";
+import { LogIn, HardDrive } from "lucide-react";
 import AuthCard from "../../components/auth/AuthCard";
 import AuthHeader from "../../components/auth/AuthHeader";
 import AuthActionCard from "../../components/auth/AuthActionCard";
 import useAuth from "../../hooks/useAuth";
 
 const WelcomePage = ({ onNavigate }) => {
-  const { continueOffline, loginWithGoogle } = useAuth();
-  const [error, setError] = useState("");
+  const { continueOffline } = useAuth();
+  const [error] = useState("");
 
   return (
     <AuthCard maxWidth="520px" padding="40px 36px">
@@ -23,28 +23,13 @@ const WelcomePage = ({ onNavigate }) => {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "14px", width: "100%", marginBottom: "28px" }}>
-        {/* Continue with Google */}
-        <AuthActionCard
-          icon={LogIn}
-          title="Continue with Google"
-          description="Sign in securely using your Google account."
-          onClick={async () => {
-             setError("");
-             try {
-                await loginWithGoogle();
-             } catch (err) {
-                setError(err.message || "Failed to sign in with Google.");
-             }
-          }}
-          isPrimary={true}
-        />
-
         {/* Continue with Email */}
         <AuthActionCard
-          icon={Building2}
+          icon={LogIn}
           title="Continue with Email"
           description="Sign in or create an account using your business email."
           onClick={() => onNavigate("login")}
+          isPrimary={true}
         />
       </div>
 

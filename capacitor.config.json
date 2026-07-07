@@ -4,7 +4,12 @@
   "webDir": "dist",
   "plugins": {
     "CapacitorUpdater": {
-      "autoUpdate": false
+      "autoUpdate": false,
+      "resetWhenUpdate": true
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
     }
   }
 }

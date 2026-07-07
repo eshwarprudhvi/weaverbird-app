@@ -1,7 +1,9 @@
 import apiClient from './client';
 import { ENDPOINTS } from './endpoints';
 import invitationRepository from '../repositories/InvitationRepository';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { auth, db, isConfigured } from '../firebase';
 
 /**
@@ -146,11 +148,25 @@ export const authApi = {
     
     if (isConfigured && auth) {
       try {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({
-          prompt: 'select_account'
-        });
-        userCredential = await signInWithPopup(auth, provider);
+        if (Capacitor.isNativePlatform()) {
+          let result;
+          try {
+            // Bypass Credential Manager API (which throws "No credentials available" on debug APKs or first sign-in)
+            // and use the classic Google Account Picker popup!
+            result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
+          } catch (nativeErr) {
+            console.warn("Classic Account Picker failed, retrying with Credential Manager:", nativeErr);
+            result = await FirebaseAuthentication.signInWithGoogle();
+          }
+          const credential = GoogleAuthProvider.credential(result.credential?.idToken);
+          userCredential = await signInWithCredential(auth, credential);
+        } else {
+          const provider = new GoogleAuthProvider();
+          provider.setCustomParameters({
+            prompt: 'select_account'
+          });
+          userCredential = await signInWithPopup(auth, provider);
+        }
       } catch (firebaseError) {
         throw new Error(mapFirebaseError(firebaseError));
       }

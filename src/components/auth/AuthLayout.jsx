@@ -7,15 +7,16 @@ const AuthLayout = ({ children }) => {
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
-      justifyContent: "center",
+      justifyContent: "flex-start",
       minHeight: "100vh",
       width: "100%",
       backgroundColor: "var(--bg-app)",
       color: "var(--text-main)",
-      padding: "24px 16px",
+      padding: "calc(48px + env(safe-area-inset-top, 0px)) 16px calc(36px + env(safe-area-inset-bottom, 0px)) 16px",
       position: "relative",
       overflowX: "hidden",
-      fontFamily: "var(--font-body)"
+      fontFamily: "var(--font-body)",
+      boxSizing: "border-box"
     }}>
       {/* Background Subtle Gradient & Glow */}
       <div style={{
@@ -37,7 +38,8 @@ const AuthLayout = ({ children }) => {
         zIndex: 1,
         display: "flex",
         flexDirection: "column",
-        alignItems: "center"
+        alignItems: "center",
+        margin: "auto 0"
       }}>
         {children}
         <AuthFooter />

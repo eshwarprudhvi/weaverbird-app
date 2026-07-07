@@ -19,7 +19,7 @@ const AppHeader = ({
     return (
       <div style={{
         backgroundColor: 'var(--bg-nav-solid)',
-        padding: '16px 20px',
+        padding: 'calc(16px + env(safe-area-inset-top, 0px)) 20px 16px 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -70,7 +70,7 @@ const AppHeader = ({
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'space-between',
-      padding: '20px',
+      padding: 'calc(20px + env(safe-area-inset-top, 0px)) 20px 20px 20px',
       backgroundColor: 'var(--bg-nav-solid)',
       borderBottom: '1px solid var(--border)',
       position: 'sticky',

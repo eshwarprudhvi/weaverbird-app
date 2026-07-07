@@ -15,7 +15,8 @@ const AuthCard = ({ children, maxWidth = "440px", padding = "36px 32px" }) => {
       position: "relative",
       overflow: "hidden",
       transition: "all 0.3s ease",
-      margin: "0 auto"
+      margin: "0 auto",
+      boxSizing: "border-box"
     }}>
       {/* Top Gold Accent Border Line */}
       <div style={{

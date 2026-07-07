@@ -4,7 +4,7 @@ import authApi from "../api/auth.api";
 import { workspaceEventBus } from "../application/session";
 import { auth, db, isConfigured } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 
 export const WORKSPACE_CONNECTION_STATES = {
   UNCONFIGURED: "UNCONFIGURED",
@@ -14,6 +14,8 @@ export const WORKSPACE_CONNECTION_STATES = {
   SYNCING: "SYNCING",
   SYNC_ERROR: "SYNC_ERROR"
 };
+
+export const failedWorkspaceIds = new Set();
 
 const AuthContext = createContext(null);
 
@@ -29,23 +31,28 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubFailed = workspaceEventBus.on('workspace.failed', async ({ workspaceId, error }) => {
       console.error("Workspace bootstrapper failed, clearing workspace session:", error);
+      if (workspaceId) failedWorkspaceIds.add(workspaceId);
       localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
       setActiveWorkspaceId(null);
 
-      // Reset the server-side workspaceIndex to prevent boot loops ONLY if the workspace document does not exist.
-      // Doing this for transient errors (permissions, network) would incorrectly lock users out of their workspaces.
-      const isWorkspaceDeleted = error?.message === 'Workspace document does not exist.' || 
-                                 error?.toString().includes('Workspace document does not exist');
+      // Reset the server-side workspaceIndex to prevent boot loops when the workspace is deleted, user is removed, or unauthorized.
+      const errStr = error?.message || error?.toString() || "";
+      const isInvalidWorkspace = errStr.includes('does not exist') || 
+                                 errStr.includes('not active') || 
+                                 errStr.includes('permission-denied') || 
+                                 errStr.includes('PERMISSION_DENIED');
       
-      if (auth.currentUser && db && isWorkspaceDeleted) {
+      if (auth.currentUser && db && isInvalidWorkspace) {
         try {
           const indexRef = doc(db, 'workspaceIndex', auth.currentUser.uid);
-          await setDoc(indexRef, {
-            workspaceId: null,
-            role: null,
-            status: 'inactive',
-            updatedAt: serverTimestamp()
-          }, { merge: true });
+          await deleteDoc(indexRef).catch(async () => {
+            await setDoc(indexRef, {
+              workspaceId: null,
+              role: null,
+              status: 'inactive',
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          });
         } catch (e) {
           console.warn("Failed to clear invalid server-side workspaceIndex:", e);
         }
@@ -97,14 +104,17 @@ export const AuthProvider = ({ children }) => {
             const indexSnap = await getDoc(indexRef);
             if (indexSnap.exists()) {
               const data = indexSnap.data();
-              serverWorkspaceId = data.workspaceId;
-              serverRole = data.role || 'member';
+              if (data.workspaceId && !failedWorkspaceIds.has(data.workspaceId)) {
+                serverWorkspaceId = data.workspaceId;
+                serverRole = data.role || 'member';
+              }
             }
           } catch (e) {
             console.warn("Failed to check workspace index:", e);
           }
 
-          const finalWorkspaceId = serverWorkspaceId || storedWorkspace || null;
+          const validStored = storedWorkspace && !failedWorkspaceIds.has(storedWorkspace) ? storedWorkspace : null;
+          const finalWorkspaceId = serverWorkspaceId || validStored || null;
 
           setUser({
             uid: firebaseUser.uid,

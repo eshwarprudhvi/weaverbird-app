@@ -38,12 +38,12 @@ service cloud.firestore {
 
     // --- Workspace User Mapping Rules ---
     match /workspaceIndex/{userId} {
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      allow write: if isAuthenticated() && request.auth.uid == userId
+      allow read, delete: if isAuthenticated() && request.auth.uid == userId;
+      allow create, update: if isAuthenticated() && request.auth.uid == userId
         && request.resource.data.keys().hasOnly(['workspaceId', 'role', 'status', 'updatedAt'])
-        && request.resource.data.workspaceId is string
-        && request.resource.data.role in ['owner', 'admin', 'member', 'editor']
-        && request.resource.data.status == 'active';
+        && (request.resource.data.workspaceId is string || request.resource.data.workspaceId == null)
+        && (request.resource.data.role in ['owner', 'admin', 'member', 'editor'] || request.resource.data.role == null)
+        && (request.resource.data.status in ['active', 'inactive']);
     }
 
     // --- Workspaces Rules ---

@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 
 const AuthActionCard = ({
   icon: Icon,
@@ -7,14 +7,15 @@ const AuthActionCard = ({
   description,
   onClick,
   isPrimary = false,
-  badge = null
+  badge = null,
+  isLoading = false
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
 
   return (
     <div
-      onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
+      onClick={isLoading ? undefined : onClick}
+      onMouseEnter={() => !isLoading && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{
         display: "flex",
@@ -23,17 +24,18 @@ const AuthActionCard = ({
         padding: "18px 20px",
         borderRadius: "16px",
         backgroundColor: isPrimary 
-          ? (isHovered ? "rgba(212, 175, 55, 0.15)" : "rgba(212, 175, 55, 0.08)")
-          : (isHovered ? "var(--bg-app)" : "var(--bg-card)"),
+          ? (isHovered && !isLoading ? "rgba(212, 175, 55, 0.15)" : "rgba(212, 175, 55, 0.08)")
+          : (isHovered && !isLoading ? "var(--bg-app)" : "var(--bg-card)"),
         border: isPrimary 
           ? "1.5px solid var(--accent-gold)" 
           : "1px solid var(--border)",
-        boxShadow: isHovered 
+        boxShadow: isHovered && !isLoading
           ? "0 8px 20px rgba(0, 0, 0, 0.15)" 
           : "0 2px 8px rgba(0, 0, 0, 0.05)",
-        cursor: "pointer",
+        cursor: isLoading ? "wait" : "pointer",
+        opacity: isLoading ? 0.8 : 1,
         transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
-        transform: isHovered ? "translateY(-2px)" : "none",
+        transform: isHovered && !isLoading ? "translateY(-2px)" : "none",
         position: "relative",
         overflow: "hidden"
       }}
@@ -50,9 +52,9 @@ const AuthActionCard = ({
             justifyContent: "center",
             color: isPrimary ? "#000" : "var(--accent-gold)",
             transition: "transform 0.2s",
-            transform: isHovered ? "scale(1.08)" : "none"
+            transform: isHovered && !isLoading ? "scale(1.08)" : "none"
           }}>
-            <Icon size={22} />
+            {isLoading ? <Loader2 size={22} className="spin" style={{ animation: "spin 1s linear infinite" }} /> : <Icon size={22} />}
           </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -96,11 +98,15 @@ const AuthActionCard = ({
       <div style={{
         color: isPrimary ? "var(--accent-gold)" : "var(--text-muted)",
         transition: "transform 0.2s, color 0.2s",
-        transform: isHovered ? "translateX(3px)" : "none",
+        transform: isHovered && !isLoading ? "translateX(3px)" : "none",
         display: "flex",
         alignItems: "center"
       }}>
-        <ChevronRight size={20} />
+        {isLoading ? (
+          <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
+        ) : (
+          <ChevronRight size={20} />
+        )}
       </div>
     </div>
   );
