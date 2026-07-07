@@ -47,21 +47,17 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
   }, [checkPendingInvitations, user]);
 
   const handleAccept = async (inv) => {
-    const idOrToken = inv.token || inv.id;
-    setProcessingId(idOrToken);
+    const invitationId = inv.id;
+    setProcessingId(invitationId);
     setErrorMsg(null);
     try {
-      const result = await acceptInvitation(idOrToken);
+      const result = await acceptInvitation(invitationId);
       
       if (result?.workspaceId) {
-        // 1-4. Refresh workspaceIndex, workspace list, session, and switch active workspace
         await switchWorkspace(result.workspaceId);
-        
-        // 5. Invalidate cached repositories, reconnect listeners, and reload data
         await workspaceSessionManager.transitionTo(result.workspaceId);
       }
       
-      // 6-7. Close modal/Invitation Center and navigate to dashboard
       if (onWorkspaceSelected) {
         onWorkspaceSelected();
       }
@@ -73,12 +69,12 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
   };
 
   const handleDecline = async (inv) => {
-    const idOrToken = inv.token || inv.id;
-    setProcessingId(idOrToken);
+    const invitationId = inv.id;
+    setProcessingId(invitationId);
     setErrorMsg(null);
     try {
-      await declineInvitation(idOrToken);
-      setInvitations(prev => prev.filter(i => (i.token !== idOrToken && i.id !== idOrToken)));
+      await declineInvitation(invitationId);
+      setInvitations(prev => prev.filter(i => i.id !== invitationId));
     } catch (err) {
       console.error(err);
       setErrorMsg(err?.message || "Failed to decline invitation");
@@ -143,16 +139,16 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
 
       {loading ? (
         <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-secondary)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-          <Clock className="spin" size={24} color="#6366f1" />
+          <Clock className="spin" size={24} color="var(--accent-gold, #D4AF37)" />
           <span>Checking secure invitations...</span>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "18px", marginBottom: "28px", width: "100%" }}>
           {invitations.map((inv) => {
-            const isProcessing = processingId === inv.token || processingId === inv.id;
+            const isProcessing = processingId === inv.id;
             return (
               <div 
-                key={inv.id || inv.token}
+                key={inv.id}
                 style={{
                   display: "flex",
                   flexDirection: "column",
@@ -164,7 +160,7 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
                   gap: "16px",
                   transition: "transform 0.2s, border-color 0.2s"
                 }}
-                onMouseOver={(e) => e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.4)"}
+                onMouseOver={(e) => e.currentTarget.style.borderColor = "rgba(212, 175, 55, 0.4)"}
                 onMouseOut={(e) => e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)"}
               >
                 {/* Header Info */}
@@ -184,9 +180,9 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
                     gap: "6px",
                     padding: "4px 12px",
                     borderRadius: '20px',
-                    background: "rgba(99, 102, 241, 0.15)",
-                    border: "1px solid rgba(99, 102, 241, 0.3)",
-                    color: "#818cf8",
+                    background: "rgba(212, 175, 55, 0.12)",
+                    border: "1px solid rgba(212, 175, 55, 0.25)",
+                    color: "var(--accent-gold, #D4AF37)",
                     fontSize: "12px",
                     fontWeight: "600"
                   }}>
@@ -201,7 +197,7 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
                     padding: "12px 14px",
                     borderRadius: "10px",
                     background: "rgba(0, 0, 0, 0.25)",
-                    borderLeft: "3px solid #6366f1",
+                    borderLeft: "3px solid var(--accent-gold, #D4AF37)",
                     color: "#cbd5e1",
                     fontSize: "13px",
                     fontStyle: "italic",
@@ -209,7 +205,7 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
                     alignItems: "flex-start",
                     gap: "10px"
                   }}>
-                    <MessageSquare size={16} color="#818cf8" style={{ flexShrink: 0, marginTop: "2px" }} />
+                    <MessageSquare size={16} color="var(--accent-gold, #D4AF37)" style={{ flexShrink: 0, marginTop: "2px" }} />
                     <span>"{inv.message}"</span>
                   </div>
                 )}
@@ -234,13 +230,13 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
                       gap: "8px",
                       borderRadius: "10px",
                       border: "none",
-                      background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
-                      color: "#fff",
+                      background: "linear-gradient(135deg, var(--accent-gold, #D4AF37) 0%, var(--accent-gold-dark, #AA7C11) 100%)",
+                      color: "#1e1b18",
                       fontSize: "14px",
-                      fontWeight: "600",
+                      fontWeight: "700",
                       cursor: processingId ? "not-allowed" : "pointer",
                       opacity: isProcessing ? 0.7 : 1,
-                      boxShadow: "0 4px 14px rgba(99, 102, 241, 0.3)",
+                      boxShadow: "0 4px 14px rgba(212, 175, 55, 0.25)",
                       transition: "all 0.2s"
                     }}
                   >

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, Mail, Shield, MessageSquare, Clock, Send, AlertCircle, CheckCircle, UserPlus } from 'lucide-react';
+import { X, Mail, Shield, Send, AlertCircle, CheckCircle, UserPlus } from 'lucide-react';
 import invitationRepository from '../../../repositories/InvitationRepository';
-import { sendInvitationEmail } from '../../../utils/emailService';
 import { useWorkspace } from '../../../contexts/WorkspaceContext';
+import { db } from '../../../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin', desc: 'Can manage workspace settings, members, and all projects.' },
@@ -12,19 +13,10 @@ const ROLE_OPTIONS = [
   { value: 'viewer', label: 'Viewer', desc: 'Read-only access to view projects and documentation.' }
 ];
 
-const EXPIRATION_OPTIONS = [
-  { value: 3, label: '3 days' },
-  { value: 7, label: '7 days (Default)' },
-  { value: 14, label: '14 days' },
-  { value: 30, label: '30 days' }
-];
-
 const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) => {
   const { workspace } = useWorkspace();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('member');
-  const [message, setMessage] = useState('');
-  const [expiresInDays, setExpiresInDays] = useState(7);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -44,21 +36,42 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
 
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      const workspaceName = workspace?.companyName || workspaceId;
+
+      // 1. Check if user is already a workspace member
+      const memberQuery = query(
+        collection(db, 'workspaces', workspaceId, 'members'),
+        where('email', '==', normalizedEmail)
+      );
+      const memberSnap = await getDocs(memberQuery);
+      if (!memberSnap.empty) {
+        setError("This user is already a member of this workspace.");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Check if user already has a pending invitation
+      const inviteQuery = query(
+        collection(db, 'invitations'),
+        where('workspaceId', '==', workspaceId),
+        where('email', '==', normalizedEmail),
+        where('status', '==', 'pending')
+      );
+      const inviteSnap = await getDocs(inviteQuery);
+      if (!inviteSnap.empty) {
+        setError("This user already has a pending invitation.");
+        setLoading(false);
+        return;
+      }
+
       const createdInvite = await invitationRepository.create(workspaceId, {
         email: normalizedEmail,
         role,
-        message: message.trim(),
-        expiresInDays: Number(expiresInDays)
+        message: "",
+        expiresInDays: 7
       });
 
-      sendInvitationEmail(normalizedEmail, role, workspaceName, "", message.trim()).catch(err => {
-        console.error("Frontend email delivery fallback error:", err);
-      });
-
-      setSuccessMsg(`Invitation sent successfully to ${email}!`);
+      setSuccessMsg("Invitation created successfully.");
       setEmail('');
-      setMessage('');
       setRole('member');
 
       if (onInviteSuccess) {
@@ -68,9 +81,10 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
       setTimeout(() => {
         setSuccessMsg(null);
         onClose();
-      }, 1500);
+      }, 3000);
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || 'Failed to send invitation. Please try again.');
+      console.error("Firestore create invitation error details:", err);
+      setError("Unable to create invitation. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -115,17 +129,17 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
               width: '40px',
               height: '40px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+              background: 'linear-gradient(135deg, var(--accent-gold, #D4AF37) 0%, var(--accent-gold-dark, #AA7C11) 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+              boxShadow: '0 4px 12px rgba(212, 175, 55, 0.25)'
             }}>
-              <UserPlus size={20} color="#fff" />
+              <UserPlus size={20} color="#1e1b18" />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Invite Team Member</h3>
-              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Send a secure workspace invitation</p>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Add Team Member</h3>
+              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Create a workspace invitation for an existing Weaverbird account.</p>
             </div>
           </div>
           <button
@@ -170,25 +184,30 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
 
           {successMsg && (
             <div style={{
-              padding: '12px 16px',
+              padding: '16px',
               borderRadius: '8px',
               backgroundColor: 'rgba(34, 197, 94, 0.1)',
               border: '1px solid rgba(34, 197, 94, 0.2)',
               color: '#4ade80',
               fontSize: '13px',
               display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
+              flexDirection: 'column',
+              gap: '6px'
             }}>
-              <CheckCircle size={16} />
-              <span>{successMsg}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <CheckCircle size={16} />
+                <span style={{ fontWeight: '600' }}>{successMsg}</span>
+              </div>
+              <p style={{ margin: 0, paddingLeft: '26px', fontSize: '12px', color: '#86efac' }}>
+                The invited user will see this invitation automatically after signing in with this email.
+              </p>
             </div>
           )}
 
           {/* Email Input */}
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '500', color: '#cbd5e1', marginBottom: '8px' }}>
-              <Mail size={15} color="#818cf8" />
+              <Mail size={15} color="var(--accent-gold, #D4AF37)" />
               <span>Email Address</span>
             </label>
             <input
@@ -209,15 +228,18 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
                 boxSizing: 'border-box',
                 transition: 'border-color 0.2s'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+              onFocus={(e) => e.target.style.borderColor = 'var(--accent-gold, #D4AF37)'}
               onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
             />
+            <span style={{ display: 'block', fontSize: '12px', color: '#64748b', marginTop: '6px', paddingLeft: '4px' }}>
+              Must match the user's Weaverbird account email.
+            </span>
           </div>
 
           {/* Role Selection */}
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '500', color: '#cbd5e1', marginBottom: '8px' }}>
-              <Shield size={15} color="#818cf8" />
+              <Shield size={15} color="var(--accent-gold, #D4AF37)" />
               <span>Workspace Role</span>
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -247,62 +269,6 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
                 {ROLE_OPTIONS.find(o => o.value === role)?.desc}
               </span>
             </div>
-          </div>
-
-          {/* Expiration Selector */}
-          <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '500', color: '#cbd5e1', marginBottom: '8px' }}>
-              <Clock size={15} color="#818cf8" />
-              <span>Invitation Expires In</span>
-            </label>
-            <select
-              value={expiresInDays}
-              onChange={(e) => setExpiresInDays(Number(e.target.value))}
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                backgroundColor: '#181a20',
-                color: '#fff',
-                fontSize: '14px',
-                outline: 'none',
-                boxSizing: 'border-box',
-                cursor: 'pointer'
-              }}
-            >
-              {EXPIRATION_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Optional Message */}
-          <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '500', color: '#cbd5e1', marginBottom: '8px' }}>
-              <MessageSquare size={15} color="#818cf8" />
-              <span>Personal Message <span style={{ color: '#64748b', fontWeight: 'normal' }}>(Optional)</span></span>
-            </label>
-            <textarea
-              placeholder="We would love for you to join our studio project team!"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={3}
-              maxLength={500}
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                color: '#fff',
-                fontSize: '14px',
-                outline: 'none',
-                resize: 'none',
-                boxSizing: 'border-box',
-                fontFamily: 'inherit'
-              }}
-            />
           </div>
 
           {/* Footer Buttons */}
@@ -338,20 +304,20 @@ const InviteMemberModal = ({ isOpen, onClose, workspaceId, onInviteSuccess }) =>
                 padding: '10px 22px',
                 borderRadius: '8px',
                 border: 'none',
-                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                color: '#fff',
+                background: 'linear-gradient(135deg, var(--accent-gold, #D4AF37) 0%, var(--accent-gold-dark, #AA7C11) 100%)',
+                color: '#1e1b18',
                 fontSize: '14px',
-                fontWeight: '600',
+                fontWeight: '700',
                 cursor: (loading || successMsg) ? 'not-allowed' : 'pointer',
                 opacity: (loading || successMsg) ? 0.7 : 1,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                boxShadow: '0 4px 12px rgba(212, 175, 55, 0.25)'
               }}
             >
               <Send size={16} />
-              <span>{loading ? 'Sending...' : 'Send Invitation'}</span>
+              <span>{loading ? 'Creating...' : 'Create Invitation'}</span>
             </button>
           </div>
         </form>

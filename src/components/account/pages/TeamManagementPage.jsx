@@ -110,6 +110,12 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
     return roleStr.charAt(0).toUpperCase() + roleStr.slice(1).toLowerCase();
   };
 
+  const currentUser = useMemo(() => {
+    return authorizedUsers.find(u => u.email === (userEmail || '').toLowerCase().trim());
+  }, [authorizedUsers, userEmail]);
+  
+  const isWorkspaceAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'owner');
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-app)', color: 'var(--text-main)' }}>
       {/* Header */}
@@ -135,26 +141,28 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
           </div>
         </div>
 
-        <button
-          onClick={() => setIsInviteModalOpen(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 14px',
-            borderRadius: '8px',
-            border: 'none',
-            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-            color: '#fff',
-            fontSize: '13px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-          }}
-        >
-          <Plus size={15} />
-          <span>Invite Member</span>
-        </button>
+        {isWorkspaceAdmin && (
+          <button
+            onClick={() => setIsInviteModalOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+            }}
+          >
+            <Plus size={15} />
+            <span>Invite Member</span>
+          </button>
+        )}
       </div>
 
       <div className="screen-content fade-in" style={{ padding: '20px 20px 120px 20px' }}>
@@ -478,22 +486,24 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                     ? 'No invitations match your current filter criteria.'
                     : 'Get started by inviting colleagues to collaborate on this workspace.'}
                 </p>
-                <button
-                  onClick={() => setIsInviteModalOpen(true)}
-                  style={{
-                    marginTop: '8px',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'var(--accent-gold-dark, #6366f1)',
-                    color: '#fff',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Send First Invitation
-                </button>
+                {isWorkspaceAdmin && (
+                  <button
+                    onClick={() => setIsInviteModalOpen(true)}
+                    style={{
+                      marginTop: '8px',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'var(--accent-gold-dark, #6366f1)',
+                      color: '#fff',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Send First Invitation
+                  </button>
+                )}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -541,7 +551,7 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
 
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {(inv.status === 'pending' || inv.status === 'expired') && (
+                      {isWorkspaceAdmin && (inv.status === 'pending' || inv.status === 'expired') && (
                         <button
                           onClick={() => handleResend(inv)}
                           disabled={actionLoadingId === inv.id}
@@ -564,7 +574,7 @@ const TeamManagementPage = ({ onBack, authorizedUsers = [], userEmail, db, proje
                         </button>
                       )}
 
-                      {inv.status === 'pending' && (
+                      {isWorkspaceAdmin && inv.status === 'pending' && (
                         <button
                           onClick={() => handleCancel(inv)}
                           disabled={actionLoadingId === inv.id}

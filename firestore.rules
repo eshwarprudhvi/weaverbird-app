@@ -48,12 +48,7 @@ service cloud.firestore {
 
     // --- Workspaces Rules ---
     match /workspaces/{workspaceId} {
-      allow read: if isWorkspaceMember(workspaceId) || (
-        isAuthenticated() && 
-        request.auth.token.email != null &&
-        exists(/databases/$(database)/documents/invitationsActive/$(workspaceId + "_" + request.auth.token.email.lower())) &&
-        get(/databases/$(database)/documents/invitationsActive/$(workspaceId + "_" + request.auth.token.email.lower())).data.status == 'pending'
-      );
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update, delete: if isWorkspaceAdmin(workspaceId);
 
@@ -139,32 +134,8 @@ service cloud.firestore {
 
     // --- Invitation Security Rules ---
     match /invitations/{invitationId} {
-      allow read: if isAuthenticated() && (
-        request.auth.token.email == resource.data.email ||
-        (request.auth.token.email != null && request.auth.token.email.lower() == resource.data.email)
-      );
-      allow read: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
-      allow create: if isAuthenticated() && isWorkspaceAdmin(request.resource.data.workspaceId)
-        && request.resource.data.keys().hasAll(['email', 'workspaceId', 'role', 'status', 'schemaVersion'])
-        && request.resource.data.status == 'pending'
-        && request.resource.data.schemaVersion == 1;
-      allow update: if isAuthenticated() && (
-        isWorkspaceAdmin(resource.data.workspaceId) || 
-        request.auth.token.email == resource.data.email ||
-        (request.auth.token.email != null && request.auth.token.email.lower() == resource.data.email)
-      ) && isUnchanged('email') && isUnchanged('workspaceId') && isUnchanged('schemaVersion');
-      allow delete: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
-    }
-
-    // --- Active Invitation Pointer Rules ---
-    match /invitationsActive/{lookupId} {
-      allow read: if isAuthenticated() && (
-        request.auth.token.email == resource.data.email ||
-        (request.auth.token.email != null && request.auth.token.email.lower() == resource.data.email) ||
-        isWorkspaceAdmin(resource.data.workspaceId)
-      );
-      allow create: if isAuthenticated() && isWorkspaceAdmin(request.resource.data.workspaceId)
-        && request.resource.data.status == 'pending';
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isWorkspaceAdmin(request.resource.data.workspaceId);
       allow update: if isAuthenticated() && (
         isWorkspaceAdmin(resource.data.workspaceId) || 
         request.auth.token.email == resource.data.email ||
