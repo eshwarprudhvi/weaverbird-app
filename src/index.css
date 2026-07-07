@@ -1954,8 +1954,8 @@ textarea.form-control {
   }
 
   .nav-add-btn {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     top: -8px;
   }
 }
@@ -2178,6 +2178,18 @@ textarea.form-control {
 
 .nav-add-btn:active {
   transform: translateY(0) scale(0.95);
+}
+
+/* High contrast Plus (+) button in Dark Theme */
+.dark-theme .nav-add-btn {
+  background-color: var(--accent-gold);
+  color: #111827;
+  box-shadow: 0 4px 16px rgba(245, 166, 35, 0.45);
+}
+
+.dark-theme .nav-add-btn:hover {
+  background-color: #fbbf24;
+  box-shadow: 0 6px 20px rgba(245, 166, 35, 0.65);
 }
 
 /* PDF Export Button Style */
@@ -4130,3 +4142,144 @@ textarea.form-control {
 
 .spin-animation { animation: spin 2s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* ==========================================================================
+   COMPREHENSIVE RESPONSIVENESS & TOUCH ACCESSIBILITY SYSTEM
+   ========================================================================== */
+
+/* 1. Touch Target Size Enhancement (Minimum 44px on touch/mobile viewports) */
+@media (max-width: 600px), (pointer: coarse) {
+  .nav-add-btn,
+  .profile-avatar-btn,
+  .todo-add-btn,
+  .room-action-btn,
+  .action-icon-btn,
+  .catalog-action-btn,
+  .icon-btn,
+  .tab-btn-new,
+  .calendar-clear-btn,
+  button[type="button"],
+  button[type="submit"] {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Keep table/row checkbox hit area accessible */
+  .checkbox-container {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* 2. iOS Auto-Zoom Prevention & Keyboard Occlusion Protection */
+@media (max-width: 600px) {
+  input,
+  select,
+  textarea,
+  .form-control,
+  .search-input,
+  .todo-edit-input,
+  .catalog-input {
+    font-size: 16px !important;
+    scroll-margin-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 3. Horizontal Scroll Protection & Responsive Cards/Grids (320px - 480px) */
+@media (max-width: 480px) {
+  /* Prevent overflow on tables, grids, and cards */
+  .app-container,
+  .screen-content,
+  .projects-grid,
+  .rooms-grid,
+  .overview-card,
+  .project-card,
+  .room-card,
+  .calendar-card {
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  /* Wrap multi-column input grids on mobile */
+  .catalog-add-form {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .catalog-add-form button {
+    width: 100%;
+  }
+
+  /* Responsive task and checklist rows on small screens */
+  .list-item-row-new.task-row-new {
+    grid-template-columns: 24px 36px minmax(0, 1fr) auto;
+    padding: 12px 8px;
+    gap: 6px;
+  }
+
+  .checklist-table-new,
+  .list-columns-subheader-new,
+  .list-item-row-new {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    padding: 12px 10px;
+    gap: 6px;
+  }
+
+  .todo-item-row {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    padding: 10px 6px;
+    gap: 6px;
+  }
+}
+
+/* 4. Extra-Small Phone Adaptations (320px - 375px e.g., iPhone SE) */
+@media (max-width: 375px) {
+  .screen-content {
+    padding: 10px 10px calc(84px + env(safe-area-inset-bottom, 0px)) 10px;
+  }
+
+  .overview-card,
+  .project-card,
+  .room-card {
+    padding: 12px 10px;
+  }
+
+  /* Tighten calendar gap to fit 7 columns cleanly on 320px screens */
+  .calendar-grid,
+  .calendar-weekdays {
+    gap: 3px;
+  }
+}
+
+/* 5. Tablets (600px+) & Foldables/Intermediate Breakpoints */
+@media (min-width: 600px) and (max-width: 1024px) {
+  /* Ensure phone-frame scales and fits tablet screens without clipping */
+  .phone-frame {
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    max-width: calc(100vw - 32px);
+    margin: auto;
+  }
+
+  .modal-content {
+    max-width: 520px;
+    margin: 0 auto;
+    border-radius: 28px;
+  }
+}
+
+/* 6. Safe Area Support for Notches & Gesture Navigation */
+.modal-content,
+.bottom-nav,
+.app-header {
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+

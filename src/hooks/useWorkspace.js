@@ -22,8 +22,18 @@ export const useWorkspace = () => {
     return null;
   });
 
-  const [status, setStatus] = useState('loading');
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState(() => {
+    try {
+      if (localStorage.getItem(WORKSPACE_CACHE_KEY)) return 'synced';
+    } catch (e) {}
+    return 'loading';
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      if (localStorage.getItem(WORKSPACE_CACHE_KEY)) return false;
+    } catch (e) {}
+    return true;
+  });
   const [error, setError] = useState(null);
   const [lastSynced, setLastSynced] = useState(null);
   const [isDirty, setIsDirty] = useState(false);

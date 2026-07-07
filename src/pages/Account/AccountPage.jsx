@@ -6,6 +6,7 @@ import ListRow from "../../components/account/ListRow";
 import TeamManagementPage from "../../components/account/pages/TeamManagementPage";
 import EmailReportsPage from "../../components/account/pages/EmailReportsPage";
 import BusinessProfilePage from "../../components/account/pages/BusinessProfilePage";
+import DefaultRoomsSettingsPage from "../../components/account/pages/DefaultRoomsSettingsPage";
 import CloudSyncModal from "../../components/account/modals/CloudSyncModal";
 import BottomSheet from "../../components/account/modals/BottomSheet";
 import { APPLICATION } from "../../config/application";
@@ -17,7 +18,7 @@ import WorkspaceCreationForm from "../../components/auth/WorkspaceCreationForm";
 import { WORKSPACE_CONNECTION_STATES } from "../../contexts/AuthContext";
 import { useWorkspace } from "../../contexts/WorkspaceContext";
 
-import { Moon, Sun, Trash2, Mail, Shield, CheckCircle2, Sliders, LogOut, Cloud, Users, Save, Smartphone, Palette, Bell, HelpCircle, FileText, Info, ExternalLink, User, Lock, KeyRound } from "lucide-react";
+import { Moon, Sun, Trash2, Mail, Shield, CheckCircle2, Sliders, LogOut, Cloud, Users, Save, Smartphone, Palette, Bell, HelpCircle, FileText, Info, ExternalLink, User, Lock, KeyRound, Home } from "lucide-react";
 import { auth as firebaseAuth, isConfigured as firebaseIsConfigured } from "../../firebase";
 import { EmailAuthProvider, linkWithCredential, sendPasswordResetEmail } from "firebase/auth";
 
@@ -203,6 +204,9 @@ const AccountPage = (props) => {
   if (activeView === 'profile') {
     return <BusinessProfilePage onBack={() => setActiveView('main')} companyName={companyName} companySubtitle={companySubtitle} />;
   }
+  if (activeView === 'default_rooms') {
+    return <DefaultRoomsSettingsPage onBack={() => setActiveView('main')} authorizedUsers={authorizedUsers} userEmail={userEmail} />;
+  }
   if (activeView === 'reports') {
     return <EmailReportsPage
       onBack={() => setActiveView('main')}
@@ -308,6 +312,7 @@ const AccountPage = (props) => {
           <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border)' }}>
             <ListRow icon={Sliders} title="Language" rightElement={<span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>English</span>} />
             <ListRow icon={Cloud} title="Data & Storage" rightElement={<span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>{getStorageUsedStr()}</span>} onClick={() => window.alert(`Storage footprint: ${getStorageUsedStr()}\nLocal cached assets: Optimized & synchronized.`)} />
+            <ListRow icon={Home} title="Default Project Rooms" rightElement={<span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>{((workspace && workspace.defaultRooms) || []).length} Rooms</span>} onClick={() => setActiveView('default_rooms')} />
             <ListRow icon={Smartphone} title="App Update" borderBottom={false} rightElement={<span style={{ fontSize: '13px', color: 'var(--accent-gold)', fontWeight: 600 }}>v{WEB_APP_VERSION}</span>} onClick={() => checkUpdate(true)} />
           </div>
         </div>

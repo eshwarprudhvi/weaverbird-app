@@ -73,25 +73,38 @@ export const AuthProvider = ({ children }) => {
         const storedWorkspace = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId);
 
         if (firebaseUser) {
+          const validStored = storedWorkspace && !failedWorkspaceIds.has(storedWorkspace) ? storedWorkspace : null;
           let serverWorkspaceId = null;
           let serverRole = storedRole;
           
-          try {
-            const indexRef = doc(db, 'workspaceIndex', firebaseUser.uid);
-            const indexSnap = await getDoc(indexRef);
-            if (indexSnap.exists()) {
-              const data = indexSnap.data();
-              if (data.workspaceId && !failedWorkspaceIds.has(data.workspaceId)) {
-                serverWorkspaceId = data.workspaceId;
-                serverRole = data.role || 'member';
+          if (!validStored) {
+            try {
+              const indexRef = doc(db, 'workspaceIndex', firebaseUser.uid);
+              const indexSnap = await getDoc(indexRef);
+              if (indexSnap.exists()) {
+                const data = indexSnap.data();
+                if (data.workspaceId && !failedWorkspaceIds.has(data.workspaceId)) {
+                  serverWorkspaceId = data.workspaceId;
+                  serverRole = data.role || 'member';
+                }
               }
+            } catch (e) {
+              console.warn("Failed to check workspace index:", e);
             }
-          } catch (e) {
-            console.warn("Failed to check workspace index:", e);
+          } else {
+            // Asynchronously verify index in background without blocking startup
+            doc(db, 'workspaceIndex', firebaseUser.uid);
+            getDoc(doc(db, 'workspaceIndex', firebaseUser.uid)).then(indexSnap => {
+              if (indexSnap.exists()) {
+                const data = indexSnap.data();
+                if (data.role && data.role !== storedRole) {
+                  localStorage.setItem(APPLICATION.storageKeys.userRole, data.role);
+                }
+              }
+            }).catch(() => {});
           }
 
-          const validStored = storedWorkspace && !failedWorkspaceIds.has(storedWorkspace) ? storedWorkspace : null;
-          const finalWorkspaceId = serverWorkspaceId || validStored || null;
+          const finalWorkspaceId = validStored || serverWorkspaceId || null;
 
           setUser({
             uid: firebaseUser.uid,

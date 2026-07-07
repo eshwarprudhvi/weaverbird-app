@@ -31,16 +31,18 @@ class WorkspaceRegistry {
 
   async initializeAll(workspaceId) {
     const sortedModules = this.getRegisteredModules();
-    for (const mod of sortedModules) {
-      if (mod.initialize) {
-        try {
-          await mod.initialize(workspaceId);
-        } catch (error) {
-          console.error(`WorkspaceRegistry: Module '${mod.name}' failed to initialize`, error);
-          throw error;
+    await Promise.all(
+      sortedModules.map(async (mod) => {
+        if (mod.initialize) {
+          try {
+            await mod.initialize(workspaceId);
+          } catch (error) {
+            console.error(`WorkspaceRegistry: Module '${mod.name}' failed to initialize`, error);
+            throw error;
+          }
         }
-      }
-    }
+      })
+    );
   }
 
   async resetAll() {

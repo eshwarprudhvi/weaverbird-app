@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useWorkspace } from '../../contexts/WorkspaceContext';
 
-const defaultRoomsList = ["MBR", "Kitchen", "KBR", "Living Area", "GBR", "Foyer", "Pooja"];
+const defaultRoomsList = [];
 
 export default function AddProjectModal({ isOpen, onClose, onAddProject }) {
+  const { workspace } = useWorkspace();
+  const activeDefaultRooms = (workspace && Array.isArray(workspace.defaultRooms))
+    ? workspace.defaultRooms
+    : defaultRoomsList;
+
   const [newProjName, setNewProjName] = useState("");
   const [newProjStatus, setNewProjStatus] = useState("not-started");
   const [newProjCompletionDate, setNewProjCompletionDate] = useState("");
-  const [newProjAllAvailableRooms, setNewProjAllAvailableRooms] = useState([...defaultRoomsList]);
-  const [newProjSelectedRooms, setNewProjSelectedRooms] = useState([...defaultRoomsList]);
+  const [newProjAllAvailableRooms, setNewProjAllAvailableRooms] = useState([...activeDefaultRooms]);
+  const [newProjSelectedRooms, setNewProjSelectedRooms] = useState([...activeDefaultRooms]);
   const [newProjCustomRoomInput, setNewProjCustomRoomInput] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setNewProjAllAvailableRooms([...activeDefaultRooms]);
+      setNewProjSelectedRooms([...activeDefaultRooms]);
+    }
+  }, [isOpen, workspace]);
 
   const handleAddCustomRoomToNewProj = () => {
     const r = newProjCustomRoomInput.trim();
@@ -50,8 +63,8 @@ export default function AddProjectModal({ isOpen, onClose, onAddProject }) {
     setNewProjName("");
     setNewProjStatus("not-started");
     setNewProjCompletionDate("");
-    setNewProjSelectedRooms([...defaultRoomsList]);
-    setNewProjAllAvailableRooms([...defaultRoomsList]);
+    setNewProjSelectedRooms([...activeDefaultRooms]);
+    setNewProjAllAvailableRooms([...activeDefaultRooms]);
     setNewProjCustomRoomInput("");
     onClose();
   };

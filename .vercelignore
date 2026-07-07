@@ -1,0 +1,9 @@
+node_modules
+android
+backend/node_modules
+.gemini
+*.apk
+dist
+dist-ssr
+jdk-21
+android-sdk

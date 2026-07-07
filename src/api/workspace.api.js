@@ -5,6 +5,19 @@ import { db } from '../firebase';
 import { collection, query, where, getDocs, getDoc, doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 export const updateWorkspaceSettings = async (workspaceId, data) => {
+  if (RepositoryFactory.isFirebaseMode() && workspaceId) {
+    try {
+      await updateDoc(doc(db, 'workspaces', workspaceId), {
+        ...data,
+        updatedAt: serverTimestamp()
+      });
+      return { success: true, data };
+    } catch (err) {
+      console.warn("Firestore workspace settings update failed:", err);
+      // Fallback if permission or offline
+      return { success: true, data };
+    }
+  }
   try {
     return await apiClient.patch(ENDPOINTS.WORKSPACE.SETTINGS, data);
   } catch (error) {
