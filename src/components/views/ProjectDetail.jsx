@@ -359,13 +359,6 @@ const ProjectDetail = (props) => {
                                               >
                                                 Edit
                                               </button>
-                                              <span className="action-separator-new">|</span>
-                                              <button
-                                                className="action-text-btn-new delete"
-                                                onClick={() => handleDeleteMaterial(mat.id)}
-                                              >
-                                                Delete
-                                              </button>
                                             </div>
                                           </div>
                                         ))
@@ -445,14 +438,6 @@ const ProjectDetail = (props) => {
                                             <span className="list-item-text-new completed">
                                               {mat.name}
                                             </span>
-                                            <div className="item-actions-new">
-                                              <button
-                                                className="action-text-btn-new delete"
-                                                onClick={() => handleDeleteMaterial(mat.id)}
-                                              >
-                                                Delete
-                                              </button>
-                                            </div>
                                           </div>
                                         ))
                                     ) : (
@@ -597,13 +582,6 @@ const ProjectDetail = (props) => {
                                               >
                                                 Edit
                                               </button>
-                                              <span className="action-separator-new">|</span>
-                                              <button
-                                                className="action-text-btn-new delete"
-                                                onClick={() => handleDeleteTask(task.id)}
-                                              >
-                                                Delete
-                                              </button>
                                             </div>
                                           </div>
                                         ))
@@ -683,14 +661,6 @@ const ProjectDetail = (props) => {
                                             <span className="list-item-text-new completed">
                                               {task.name}
                                             </span>
-                                            <div className="item-actions-new">
-                                              <button
-                                                className="action-text-btn-new delete"
-                                                onClick={() => handleDeleteTask(task.id)}
-                                              >
-                                                Delete
-                                              </button>
-                                            </div>
                                           </div>
                                         ))
                                     ) : (
