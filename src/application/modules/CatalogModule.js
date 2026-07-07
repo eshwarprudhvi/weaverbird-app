@@ -50,6 +50,14 @@ export const CatalogModule = {
 
                EntityIdentityResolver.resolve(localCatalogMap, catalogList);
 
+               // Prune items that have been hard deleted from Firestore
+               const cloudIds = new Set(catalogList.map(i => i.id));
+               for (const key of localCatalogMap.keys()) {
+                 if (!cloudIds.has(key)) {
+                   localCatalogMap.delete(key);
+                 }
+               }
+
                const parseTime = (val) => {
                  if (!val) return 0;
                  if (val.toDate && typeof val.toDate === 'function') return val.toDate().getTime();

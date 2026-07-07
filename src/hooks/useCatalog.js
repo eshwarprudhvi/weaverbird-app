@@ -30,11 +30,15 @@ export const useCatalog = (setCustomConfirm) => {
     setMaterialCatalog((prev) => [newItem, ...prev]);
 
     try {
-      await catalogRepository.create(scope.workspaceId, {
+      const createdItem = await catalogRepository.create(scope.workspaceId, {
         tempId,
         name: name.trim(),
         price: price.trim()
       });
+      // Replace the temp ID in React state immediately with the real Firestore item
+      setMaterialCatalog((prev) => 
+        prev.map((item) => (item.id === tempId ? createdItem : item))
+      );
     } catch (err) {
       console.error("Failed to add catalog item:", err);
       setMaterialCatalog((prev) => prev.filter((item) => item.id !== tempId));
@@ -43,15 +47,20 @@ export const useCatalog = (setCustomConfirm) => {
 
   const handleDeleteCatalogItem = (e, itemId) => {
     if (e) e.stopPropagation();
+    console.log("[useCatalog] handleDeleteCatalogItem called with itemId:", itemId);
+    console.log("[useCatalog] Current materialCatalog state:", materialCatalog);
+    
     setCustomConfirm({
       title: "Delete Catalog Item",
       message: "Are you sure you want to delete this material price reference? This action cannot be undone.",
       onConfirm: async () => {
+        console.log("[useCatalog] Confirming delete for itemId:", itemId);
         const oldCatalog = [...materialCatalog];
         setMaterialCatalog((prev) => prev.filter((item) => item.id !== itemId));
 
         try {
           await catalogRepository.delete(scope.workspaceId, itemId);
+          console.log("[useCatalog] Delete successful for itemId:", itemId);
         } catch (err) {
           console.error("Failed to delete catalog item:", err);
           setMaterialCatalog(oldCatalog);

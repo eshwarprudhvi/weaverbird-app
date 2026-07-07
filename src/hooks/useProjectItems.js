@@ -395,6 +395,7 @@ export const useProjectItems = (props) => {
         setMeetings(oldMeetings);
       });
     } else if (type === "catalog_material") {
+      console.log("[useProjectItems] handleSaveEdit for catalog_material. itemId:", itemId);
       const { price } = editItemModal;
       const oldCatalog = [...materialCatalog];
       setMaterialCatalog(
@@ -403,7 +404,9 @@ export const useProjectItems = (props) => {
         )
       );
 
-      catalogRepository.update(scope.workspaceId, itemId, { name: name.trim(), price: price.trim() }).catch(err => {
+      catalogRepository.update(scope.workspaceId, itemId, { name: name.trim(), price: price.trim() }).then(() => {
+        console.log("[useProjectItems] Update successful for itemId:", itemId);
+      }).catch(err => {
         console.error("Failed to update catalog item:", err);
         setMaterialCatalog(oldCatalog);
       });

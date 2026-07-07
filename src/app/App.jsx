@@ -1448,6 +1448,12 @@ function App() {
   useEffect(() => {
     // Launch gate: when user is authenticated, route them through the structured onboarding flow
     if (isAuthenticated && !isLocalMode && !isWorkspaceSelected) {
+      // Fast-path: if they already have an active workspace, take them straight to it!
+      if (activeWorkspaceId) {
+        setIsWorkspaceSelected(true);
+        return;
+      }
+
       const uid = user?.uid || null;
       const email = user?.email || null;
       console.log("[App Gate] Checking for user:", { uid, email, user });
@@ -1471,7 +1477,7 @@ function App() {
           setInitialAuthRoute('no-workspace');
         });
     }
-  }, [isAuthenticated, isLocalMode, isWorkspaceSelected, user]);
+  }, [isAuthenticated, isLocalMode, isWorkspaceSelected, user, activeWorkspaceId, checkPendingInvitations]);
 
   // Load and show pending invitations in-app only AFTER the user is in the dashboard
   // (they may receive new invitations while working inside a workspace)

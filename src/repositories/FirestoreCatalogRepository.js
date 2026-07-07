@@ -1,4 +1,4 @@
-import { doc, setDoc, updateDoc, collection, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { ICatalogRepository } from './contracts/ICatalogRepository';
 import { publishMetrics } from './utils/metrics';
@@ -137,7 +137,46 @@ export class FirestoreCatalogRepository extends ICatalogRepository {
   }
 
   async delete(workspaceId, itemId) {
-    return this.update(workspaceId, itemId, { status: 'deleted' });
+    return await this.lock.acquire(itemId, async () => {
+      const startTime = performance.now();
+      const itemRef = doc(db, 'workspaces', workspaceId, 'catalog', itemId);
+      try {
+        await deleteDoc(itemRef);
+        const duration = performance.now() - startTime;
+        publishMetrics({
+          operation: 'delete',
+          duration,
+          retryCount: 0,
+          success: true,
+          workspaceId,
+          entityType: 'catalog',
+          entityId: itemId
+        });
+        
+        const buildEvent = (type, entityId, payload) => ({
+          type,
+          workspaceId,
+          entityId,
+          timestamp: new Date().toISOString(),
+          payload
+        });
+        workspaceEventBus.emit('catalogItem.deleted', buildEvent('catalogItem.deleted', itemId, {}));
+        return true;
+      } catch (err) {
+        const duration = performance.now() - startTime;
+        publishMetrics({
+          operation: 'delete',
+          duration,
+          retryCount: 0,
+          success: false,
+          failure: err,
+          workspaceId,
+          entityType: 'catalog',
+          entityId: itemId
+        });
+        throw err;
+      }
+    });
   }
 
   async restore(workspaceId, itemId) {
