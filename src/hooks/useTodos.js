@@ -32,11 +32,15 @@ export const useTodos = () => {
     scope.storage.setItem(scope.workspaceId, 'todos', updated);
 
     try {
-      await taskRepository.create(scope.workspaceId, {
+      const createdItem = await taskRepository.create(scope.workspaceId, {
         tempId,
         text: text.trim(),
         completed: false
       });
+      // Replace the temp ID in React state immediately with the real Firestore item
+      const newUpdated = updated.map((t) => (t.id === tempId ? createdItem : t));
+      setTodos(newUpdated);
+      scope.storage.setItem(scope.workspaceId, 'todos', newUpdated);
     } catch (err) {
       console.error("Failed to add task:", err);
       const reverted = todos.filter((t) => t.id !== tempId);

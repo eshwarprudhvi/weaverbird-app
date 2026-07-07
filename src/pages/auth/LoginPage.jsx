@@ -126,6 +126,26 @@ const LoginPage = ({ onNavigate }) => {
               }}
             />
           </div>
+          
+          {!isRegistering && (
+            <div style={{ textAlign: "right", marginTop: "8px" }}>
+              <button
+                type="button"
+                onClick={() => onNavigate("forgot-password")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--accent-gold)",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  padding: 0
+                }}
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
         </div>
 
         <button

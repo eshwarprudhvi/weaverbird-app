@@ -17,7 +17,7 @@ import { useWorkspace } from "../../contexts/WorkspaceContext";
 
 import { Moon, Sun, Trash2, Mail, Shield, CheckCircle2, Sliders, LogOut, Cloud, Users, Save, Smartphone, Palette, Bell, HelpCircle, FileText, Info, ExternalLink, User, Lock, KeyRound } from "lucide-react";
 import { auth as firebaseAuth, isConfigured as firebaseIsConfigured } from "../../firebase";
-import { EmailAuthProvider, linkWithCredential } from "firebase/auth";
+import { EmailAuthProvider, linkWithCredential, sendPasswordResetEmail } from "firebase/auth";
 
 const AccountPage = (props) => {
   const {
@@ -67,6 +67,11 @@ const AccountPage = (props) => {
   const [passwordMessage, setPasswordMessage] = useState({ type: "", text: "" });
   const [isSettingPassword, setIsSettingPassword] = useState(false);
 
+  // Change Password
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [changePasswordMessage, setChangePasswordMessage] = useState({ type: "", text: "" });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
   const [hasPasswordProvider, setHasPasswordProvider] = useState(false);
   const [hasGoogleProvider, setHasGoogleProvider] = useState(false);
 
@@ -96,6 +101,7 @@ const AccountPage = (props) => {
       setNewPassword("");
       setConfirmPassword("");
       setShowSetPassword(false);
+      setHasPasswordProvider(true);
     } catch (err) {
       if (err.code === "auth/provider-already-linked") {
         setPasswordMessage({ type: "error", text: "A password is already set for this account." });
@@ -106,6 +112,25 @@ const AccountPage = (props) => {
       }
     } finally {
       setIsSettingPassword(false);
+    }
+  };
+
+  const handleSendPasswordReset = async () => {
+    setIsChangingPassword(true);
+    setChangePasswordMessage({ type: "", text: "" });
+    try {
+      await sendPasswordResetEmail(firebaseAuth, firebaseAuth.currentUser.email);
+      setChangePasswordMessage({ type: "success", text: "Success! A secure password reset link has been sent. Please check your inbox (and Spam/Junk folder) to set your new password." });
+      
+      // Hide the message after a short delay
+      setTimeout(() => {
+        setShowChangePassword(false);
+        setChangePasswordMessage({ type: "", text: "" });
+      }, 5000);
+    } catch (err) {
+      setChangePasswordMessage({ type: "error", text: err.message || "Failed to send reset email." });
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -267,6 +292,59 @@ const AccountPage = (props) => {
             <ListRow icon={Smartphone} title="App Update" borderBottom={false} rightElement={<span style={{ fontSize: '13px', color: 'var(--accent-gold)', fontWeight: 600 }}>v{WEB_APP_VERSION}</span>} onClick={() => checkUpdate(true)} />
           </div>
         </div>
+
+        {/* SECURITY & LOGIN (For users WITH password) */}
+        {hasPasswordProvider && (
+          <div style={{ marginBottom: '28px' }}>
+            <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '14px' }}>
+              Security & Login
+            </h3>
+            <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '16px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+              
+              {!showChangePassword ? (
+                <ListRow icon={KeyRound} title="Change Password" onClick={() => setShowChangePassword(true)} borderBottom={false} />
+              ) : (
+                <div style={{ padding: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(212, 175, 55, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-gold)' }}>
+                      <KeyRound size={20} />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text-title)' }}>Change Password</h4>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>Click below to receive a secure link to reset your password.</p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+                    {changePasswordMessage.text && (
+                      <div style={{ padding: '10px', borderRadius: '8px', fontSize: '13px', backgroundColor: changePasswordMessage.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: changePasswordMessage.type === 'error' ? '#ef4444' : '#10b981' }}>
+                        {changePasswordMessage.text}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                      <button
+                        onClick={() => {
+                          setShowChangePassword(false);
+                          setChangePasswordMessage({ type: "", text: "" });
+                        }}
+                        style={{ flex: 1, padding: '10px', backgroundColor: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSendPasswordReset}
+                        disabled={isChangingPassword}
+                        style={{ flex: 1, padding: '10px', backgroundColor: 'var(--accent-gold)', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: isChangingPassword ? 'not-allowed' : 'pointer', opacity: isChangingPassword ? 0.7 : 1 }}
+                      >
+                        {isChangingPassword ? 'Sending...' : 'Send Reset Link'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* SECURITY & LOGIN (For Google users without password) */}
         {hasGoogleProvider && !hasPasswordProvider && (

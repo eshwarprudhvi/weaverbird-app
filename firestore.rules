@@ -100,13 +100,13 @@ service cloud.firestore {
       match /tasks/{taskId} {
         allow read: if isWorkspaceMember(workspaceId);
         allow create: if isWorkspaceMember(workspaceId)
-          && request.resource.data.keys().hasAll(['title', 'completed', 'schemaVersion'])
+          && (request.resource.data.keys().hasAll(['text', 'completed', 'schemaVersion']) || request.resource.data.keys().hasAll(['title', 'completed', 'schemaVersion']))
           && request.resource.data.schemaVersion == 1;
         allow update: if isWorkspaceMember(workspaceId)
           && isUnchanged('createdAt')
           && isUnchanged('createdBy')
           && isUnchanged('schemaVersion');
-        allow delete: if isWorkspaceAdmin(workspaceId);
+        allow delete: if isWorkspaceMember(workspaceId);
       }
 
       match /meetings/{meetingId} {

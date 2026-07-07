@@ -55,6 +55,14 @@ export const TasksModule = {
 
                EntityIdentityResolver.resolve(localTodosMap, todosList);
 
+               // Prune items that have been hard deleted from Firestore
+               const cloudIds = new Set(todosList.map(i => i.id));
+               for (const key of localTodosMap.keys()) {
+                 if (!cloudIds.has(key)) {
+                   localTodosMap.delete(key);
+                 }
+               }
+
                const parseTime = (val) => {
                  if (!val) return 0;
                  if (val.toDate && typeof val.toDate === 'function') return val.toDate().getTime();
