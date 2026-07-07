@@ -35,8 +35,11 @@ const WorkspaceOverviewCard = ({
       statusBadgeText = "Sync Failed";
       statusBadgeColor = "#ef4444";
       break;
-    case WORKSPACE_CONNECTION_STATES.OFFLINE:
     case WORKSPACE_CONNECTION_STATES.UNCONFIGURED:
+      statusBadgeText = "Cloud Account";
+      statusBadgeColor = "#3b82f6";
+      break;
+    case WORKSPACE_CONNECTION_STATES.OFFLINE:
     default:
       statusBadgeText = "Offline";
       statusBadgeColor = "var(--text-muted)";

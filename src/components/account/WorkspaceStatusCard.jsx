@@ -53,8 +53,15 @@ const WorkspaceStatusCard = ({
       displayCompany = companyName || "Workspace";
       break;
 
-    case WORKSPACE_CONNECTION_STATES.OFFLINE:
     case WORKSPACE_CONNECTION_STATES.UNCONFIGURED:
+      statusText = "● Cloud Signed In";
+      statusColor = "#3b82f6";
+      actionText = "Select / Create Workspace →";
+      onAction = onConnect;
+      displayCompany = "No Workspace Selected";
+      break;
+
+    case WORKSPACE_CONNECTION_STATES.OFFLINE:
     default:
       statusText = "● Offline";
       statusColor = "var(--text-muted)";

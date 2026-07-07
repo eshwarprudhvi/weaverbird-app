@@ -34,29 +34,6 @@ export const AuthProvider = ({ children }) => {
       if (workspaceId) failedWorkspaceIds.add(workspaceId);
       localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
       setActiveWorkspaceId(null);
-
-      // Reset the server-side workspaceIndex to prevent boot loops when the workspace is deleted, user is removed, or unauthorized.
-      const errStr = error?.message || error?.toString() || "";
-      const isInvalidWorkspace = errStr.includes('does not exist') || 
-                                 errStr.includes('not active') || 
-                                 errStr.includes('permission-denied') || 
-                                 errStr.includes('PERMISSION_DENIED');
-      
-      if (auth.currentUser && db && isInvalidWorkspace) {
-        try {
-          const indexRef = doc(db, 'workspaceIndex', auth.currentUser.uid);
-          await deleteDoc(indexRef).catch(async () => {
-            await setDoc(indexRef, {
-              workspaceId: null,
-              role: null,
-              status: 'inactive',
-              updatedAt: serverTimestamp()
-            }, { merge: true });
-          });
-        } catch (e) {
-          console.warn("Failed to clear invalid server-side workspaceIndex:", e);
-        }
-      }
     });
     return () => unsubFailed();
   }, []);

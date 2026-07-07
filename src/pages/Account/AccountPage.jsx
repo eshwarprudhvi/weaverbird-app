@@ -11,6 +11,8 @@ import BottomSheet from "../../components/account/modals/BottomSheet";
 import { APPLICATION } from "../../config/application";
 import useAuth from "../../hooks/useAuth";
 import WorkspaceStatusCard from "../../components/account/WorkspaceStatusCard";
+import WorkspaceSelector from "../../components/auth/WorkspaceSelector";
+import WorkspaceCreationForm from "../../components/auth/WorkspaceCreationForm";
 
 import { WORKSPACE_CONNECTION_STATES } from "../../contexts/AuthContext";
 import { useWorkspace } from "../../contexts/WorkspaceContext";
@@ -55,6 +57,8 @@ const AccountPage = (props) => {
   const { workspace, lastSynced } = useWorkspace();
 
   const [activeView, setActiveView] = useState('main'); // 'main', 'team', 'reports', 'profile'
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [workspaceModalMode, setWorkspaceModalMode] = useState('select'); // 'select' or 'create'
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
   const [isAppearanceSheetOpen, setIsAppearanceSheetOpen] = useState(false);
   const [isNotificationsSheetOpen, setIsNotificationsSheetOpen] = useState(false);
@@ -218,13 +222,13 @@ const AccountPage = (props) => {
         variant="branding"
         subtitleNode={
           <span style={{
-            color: (workspaceConnectionState === WORKSPACE_CONNECTION_STATES.CONNECTED || workspaceConnectionState === WORKSPACE_CONNECTION_STATES.SYNCING) ? "#10b981" : "var(--text-muted)",
+            color: (workspaceConnectionState === WORKSPACE_CONNECTION_STATES.CONNECTED || workspaceConnectionState === WORKSPACE_CONNECTION_STATES.SYNCING) ? "#10b981" : (isAuthenticated ? "#3b82f6" : "var(--text-muted)"),
             display: "inline-flex",
             alignItems: "center",
             gap: "5px"
           }}>
-            <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: (workspaceConnectionState === WORKSPACE_CONNECTION_STATES.CONNECTED || workspaceConnectionState === WORKSPACE_CONNECTION_STATES.SYNCING) ? "#10b981" : "var(--text-muted)", display: "inline-block" }} />
-            {(workspaceConnectionState === WORKSPACE_CONNECTION_STATES.CONNECTED || workspaceConnectionState === WORKSPACE_CONNECTION_STATES.SYNCING) ? "Connected Cloud Workspace" : "Offline Workspace"}
+            <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: (workspaceConnectionState === WORKSPACE_CONNECTION_STATES.CONNECTED || workspaceConnectionState === WORKSPACE_CONNECTION_STATES.SYNCING) ? "#10b981" : (isAuthenticated ? "#3b82f6" : "var(--text-muted)"), display: "inline-block" }} />
+            {(workspaceConnectionState === WORKSPACE_CONNECTION_STATES.CONNECTED || workspaceConnectionState === WORKSPACE_CONNECTION_STATES.SYNCING) ? "Connected Cloud Workspace" : (isAuthenticated ? "Cloud Account (Select Workspace)" : "Offline Workspace")}
           </span>
         }
       />
@@ -236,9 +240,24 @@ const AccountPage = (props) => {
           <WorkspaceStatusCard
             connectionState={workspaceConnectionState}
             companyName={companyName || workspace?.companyName}
-            onConnect={connectFromOffline}
-            onManage={() => setActiveView('team')}
-            onRetry={connectFromOffline}
+            onConnect={() => {
+              if (isLocalMode) connectFromOffline();
+              setWorkspaceModalMode('select');
+              setIsWorkspaceModalOpen(true);
+            }}
+            onManage={() => {
+              if (workspaceConnectionState === WORKSPACE_CONNECTION_STATES.UNCONFIGURED || !workspace?.id) {
+                setWorkspaceModalMode('select');
+                setIsWorkspaceModalOpen(true);
+              } else {
+                setActiveView('team');
+              }
+            }}
+            onRetry={() => {
+              if (isLocalMode) connectFromOffline();
+              setWorkspaceModalMode('select');
+              setIsWorkspaceModalOpen(true);
+            }}
           />
         </div>
 
@@ -580,6 +599,28 @@ const AccountPage = (props) => {
               </span>
             </div>
           </div>
+        </div>
+      </BottomSheet>
+
+      <BottomSheet
+        isOpen={isWorkspaceModalOpen}
+        onClose={() => setIsWorkspaceModalOpen(false)}
+        title={workspaceModalMode === 'create' ? "Create a Workspace" : "Your Workspaces"}
+      >
+        <div style={{ padding: '8px 0', minHeight: '300px' }}>
+          {workspaceModalMode === 'create' ? (
+            <WorkspaceCreationForm
+              onBack={() => setWorkspaceModalMode('select')}
+              onSuccess={() => setIsWorkspaceModalOpen(false)}
+            />
+          ) : (
+            <WorkspaceSelector
+              onSelectWorkspace={(wsId) => {
+                setIsWorkspaceModalOpen(false);
+              }}
+              onAddNewWorkspace={() => setWorkspaceModalMode('create')}
+            />
+          )}
         </div>
       </BottomSheet>
 

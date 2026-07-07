@@ -40,7 +40,7 @@ import AddProjectModal from "../components/modals/AddProjectModal";
 import AddMeetingModal from "../components/modals/AddMeetingModal";
 import ReportPreviewModal from "../components/modals/ReportPreviewModal";
 import BottomNav from "../components/navigation/BottomNav";
-import { collection, onSnapshot, getDocs, getDoc, doc, query, where } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, getDoc, setDoc, serverTimestamp, doc, query, where } from "firebase/firestore";
 import { createProject } from "../api/project.api";
 import {
   Folder,
@@ -1450,6 +1450,30 @@ function App() {
           if (!failedWorkspaceIds.has(d.data().workspaceId)) return true;
         }
       }
+      // 3. Fallback check: Direct member documents across workspaces
+      if (uid) {
+        try {
+          const allWsSnap = await getDocs(collection(db, "workspaces"));
+          for (const wsDoc of allWsSnap.docs) {
+            const wsId = wsDoc.id;
+            if (!failedWorkspaceIds.has(wsId)) {
+              try {
+                const memSnap = await getDoc(doc(db, "workspaces", wsId, "members", uid));
+                if (memSnap.exists() && memSnap.data().status !== "inactive") {
+                  // Self-heal workspaceIndex if it was missing!
+                  setDoc(doc(db, 'workspaceIndex', uid), {
+                    workspaceId: wsId,
+                    role: memSnap.data().role || "member",
+                    status: "active",
+                    updatedAt: serverTimestamp()
+                  }).catch(() => {});
+                  return true;
+                }
+              } catch (memErr) {}
+            }
+          }
+        } catch (wsListErr) {}
+      }
       return false;
     } catch (e) {
       console.warn('[App] Error checking existing workspaces:', e);
@@ -1508,7 +1532,7 @@ function App() {
   }, [isAuthenticated, isLocalMode, isWorkspaceSelected, checkPendingInvitations]);
 
 
-  if (sessionLoading) {
+  if (isLoading || sessionLoading) {
     return (
       <div style={{
         display: "flex",

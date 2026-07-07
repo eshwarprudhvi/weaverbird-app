@@ -114,12 +114,17 @@ export const useCloudSync = ({
         
         unsubscribeMembers = onSnapshot(membersCol, (snapshot) => {
           const usersList = [];
+          let isCurrentUserStillActiveMember = false;
           snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             const emailVal = data.email || "";
-            usersList.push({ email: emailVal, role: data.role || "editor", status: data.status || "active", name: data.name || "" });
+            const memberStatus = data.status || "active";
+            usersList.push({ id: docSnap.id, uid: docSnap.id, email: emailVal, role: data.role || "editor", status: memberStatus, name: data.name || "" });
 
-            if (auth.currentUser && docSnap.id === auth.currentUser.uid) {
+            if (auth.currentUser && (docSnap.id === auth.currentUser.uid || (emailVal && emailVal.toLowerCase().trim() === (auth.currentUser.email || '').toLowerCase().trim()))) {
+              if (memberStatus !== 'inactive' && memberStatus !== 'revoked') {
+                isCurrentUserStillActiveMember = true;
+              }
               const fetchedRole = data.role || "editor";
               if (setUserRole) {
                 setUserRole(fetchedRole);
@@ -128,6 +133,15 @@ export const useCloudSync = ({
             }
           });
           
+          // Instant kick if revoked!
+          if (auth.currentUser && !isCurrentUserStillActiveMember && snapshot.size > 0) {
+            console.warn("User access revoked from active workspace!");
+            alert("Your access to this workspace has been revoked by an administrator.");
+            localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
+            window.location.reload();
+            return;
+          }
+
           if (setAuthorizedUsers) {
             setAuthorizedUsers(usersList);
           }

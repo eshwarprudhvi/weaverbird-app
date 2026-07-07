@@ -3,7 +3,7 @@ import { Building2, Check, ChevronDown, Plus } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { failedWorkspaceIds } from "../../contexts/AuthContext";
 import { db } from "../../firebase";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 /**
  * Component for Dynamic Multi-Workspace Switching
@@ -100,6 +100,36 @@ const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
             }
           }
         }
+
+        // 4. Fallback check: Direct member documents across workspaces
+        try {
+          const allWsSnap = await getDocs(collection(db, "workspaces"));
+          for (const wsDoc of allWsSnap.docs) {
+            const wsId = wsDoc.id;
+            if (!seenIds.has(wsId) && !failedWorkspaceIds.has(wsId)) {
+              try {
+                const memSnap = await getDoc(doc(db, "workspaces", wsId, "members", user.uid));
+                if (memSnap.exists() && memSnap.data().status !== "inactive") {
+                  list.push({
+                    id: wsId,
+                    name: wsDoc.data().companyName || wsDoc.data().name || "Workspace",
+                    role: memSnap.data().role || "member"
+                  });
+                  seenIds.add(wsId);
+                  // Self-heal workspaceIndex if it was missing!
+                  if (!indexedWorkspaceId) {
+                    setDoc(doc(db, 'workspaceIndex', user.uid), {
+                      workspaceId: wsId,
+                      role: memSnap.data().role || "member",
+                      status: "active",
+                      updatedAt: serverTimestamp()
+                    }).catch(() => {});
+                  }
+                }
+              } catch (memErr) {}
+            }
+          }
+        } catch (wsListErr) {}
 
         if (isMounted) {
           setWorkspaces(list);
