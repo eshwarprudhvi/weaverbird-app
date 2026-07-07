@@ -159,16 +159,16 @@ service cloud.firestore {
     // --- Active Invitation Pointer Rules ---
     match /invitationsActive/{lookupId} {
       allow read: if isAuthenticated() && (
-        lookupId.endsWith('_' + request.auth.token.email) ||
-        (request.auth.token.email != null && lookupId.endsWith('_' + request.auth.token.email.lower()))
+        request.auth.token.email == resource.data.email ||
+        (request.auth.token.email != null && request.auth.token.email.lower() == resource.data.email) ||
+        isWorkspaceAdmin(resource.data.workspaceId)
       );
-      allow read: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
       allow create: if isAuthenticated() && isWorkspaceAdmin(request.resource.data.workspaceId)
         && request.resource.data.status == 'pending';
       allow update: if isAuthenticated() && (
         isWorkspaceAdmin(resource.data.workspaceId) || 
-        lookupId.endsWith('_' + request.auth.token.email) ||
-        (request.auth.token.email != null && lookupId.endsWith('_' + request.auth.token.email.lower()))
+        request.auth.token.email == resource.data.email ||
+        (request.auth.token.email != null && request.auth.token.email.lower() == resource.data.email)
       );
       allow delete: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
     }
