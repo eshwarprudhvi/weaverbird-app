@@ -28,3 +28,6 @@ serviceAccountKey.json
 *.apk
 android-sdk/
 jdk-21/
+
+.vercel
+.env*

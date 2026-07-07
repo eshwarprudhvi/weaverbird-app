@@ -143,5 +143,11 @@ service cloud.firestore {
       );
       allow delete: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
     }
+
+    // --- System / OTA Configuration ---
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
   }
 }
