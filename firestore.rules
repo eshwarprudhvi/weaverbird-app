@@ -48,12 +48,20 @@ service cloud.firestore {
 
     // --- Workspaces Rules ---
     match /workspaces/{workspaceId} {
-      allow read: if isWorkspaceMember(workspaceId);
+      allow read: if isWorkspaceMember(workspaceId) || (
+        isAuthenticated() && 
+        request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/invitationsActive/$(workspaceId + "_" + request.auth.token.email.lower())) &&
+        get(/databases/$(database)/documents/invitationsActive/$(workspaceId + "_" + request.auth.token.email.lower())).data.status == 'pending'
+      );
       allow create: if isAuthenticated();
       allow update, delete: if isWorkspaceAdmin(workspaceId);
 
       match /members/{memberId} {
-        allow read: if isWorkspaceMember(workspaceId);
+        allow read: if isWorkspaceMember(workspaceId) || (
+          isAuthenticated() && 
+          request.auth.uid == memberId
+        );
         // WARNING: This rule assumes that workspaces/{workspaceId} and 
         // workspaces/{workspaceId}/members/{ownerUid} are created in the 
         // same writeBatch() or runTransaction(). Changing the creation flow 
@@ -145,6 +153,23 @@ service cloud.firestore {
         request.auth.token.email == resource.data.email ||
         (request.auth.token.email != null && request.auth.token.email.lower() == resource.data.email)
       ) && isUnchanged('email') && isUnchanged('workspaceId') && isUnchanged('schemaVersion');
+      allow delete: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
+    }
+
+    // --- Active Invitation Pointer Rules ---
+    match /invitationsActive/{lookupId} {
+      allow read: if isAuthenticated() && (
+        lookupId.endsWith('_' + request.auth.token.email) ||
+        (request.auth.token.email != null && lookupId.endsWith('_' + request.auth.token.email.lower()))
+      );
+      allow read: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
+      allow create: if isAuthenticated() && isWorkspaceAdmin(request.resource.data.workspaceId)
+        && request.resource.data.status == 'pending';
+      allow update: if isAuthenticated() && (
+        isWorkspaceAdmin(resource.data.workspaceId) || 
+        lookupId.endsWith('_' + request.auth.token.email) ||
+        (request.auth.token.email != null && lookupId.endsWith('_' + request.auth.token.email.lower()))
+      );
       allow delete: if isAuthenticated() && isWorkspaceAdmin(resource.data.workspaceId);
     }
   }

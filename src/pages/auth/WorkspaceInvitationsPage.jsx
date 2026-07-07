@@ -3,6 +3,7 @@ import { Users, CheckCircle, XCircle, ArrowRight, Clock, MessageSquare, Shield, 
 import AuthCard from "../../components/auth/AuthCard";
 import AuthHeader from "../../components/auth/AuthHeader";
 import useAuth from "../../hooks/useAuth";
+import { workspaceSessionManager } from "../../application/session";
 
 const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
   const { user, acceptInvitation, declineInvitation, checkPendingInvitations, logout, switchWorkspace } = useAuth();
@@ -12,18 +13,38 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
   const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchInvitations = async () => {
+      // Guard: Ensure user and authentication is fully complete before querying
+      if (!user?.email) {
+        return;
+      }
       try {
+        setLoading(true);
         const invs = await checkPendingInvitations();
-        setInvitations(invs || []);
+        
+        // Client-side filtering to exclude any expired invitations
+        const activeInvs = (invs || []).filter(inv => {
+          if (!inv.expiresAt) return true;
+          return new Date(inv.expiresAt).getTime() > Date.now();
+        });
+
+        if (isMounted) {
+          setInvitations(activeInvs || []);
+        }
       } catch (err) {
         console.error("Failed to fetch invitations:", err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     fetchInvitations();
-  }, [checkPendingInvitations]);
+    return () => {
+      isMounted = false;
+    };
+  }, [checkPendingInvitations, user]);
 
   const handleAccept = async (inv) => {
     const idOrToken = inv.token || inv.id;
@@ -31,16 +52,22 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
     setErrorMsg(null);
     try {
       const result = await acceptInvitation(idOrToken);
-      // Set the accepted workspace as the active workspace in Auth context
-      // so WorkspaceBootstrapper can bootstrap it correctly.
+      
       if (result?.workspaceId) {
+        // 1-4. Refresh workspaceIndex, workspace list, session, and switch active workspace
         await switchWorkspace(result.workspaceId);
+        
+        // 5. Invalidate cached repositories, reconnect listeners, and reload data
+        await workspaceSessionManager.transitionTo(result.workspaceId);
       }
-      // Gate passed — surface the dashboard
-      if (onWorkspaceSelected) onWorkspaceSelected();
+      
+      // 6-7. Close modal/Invitation Center and navigate to dashboard
+      if (onWorkspaceSelected) {
+        onWorkspaceSelected();
+      }
     } catch (err) {
       console.error(err);
-      setErrorMsg(err?.response?.data?.message || err?.message || "Failed to accept invitation");
+      setErrorMsg(err?.message || "Failed to accept invitation");
       setProcessingId(null);
     }
   };
@@ -54,7 +81,7 @@ const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
       setInvitations(prev => prev.filter(i => (i.token !== idOrToken && i.id !== idOrToken)));
     } catch (err) {
       console.error(err);
-      setErrorMsg(err?.response?.data?.message || err?.message || "Failed to decline invitation");
+      setErrorMsg(err?.message || "Failed to decline invitation");
     } finally {
       setProcessingId(null);
     }

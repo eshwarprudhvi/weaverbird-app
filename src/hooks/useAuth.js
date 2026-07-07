@@ -164,49 +164,7 @@ export const useAuth = () => {
     }
   }, [setUser, setIsLocalMode, setIsLoading, setWorkspaceConnectionState, isLocalMode, setSyncErrorDetails]);
 
-  /**
-   * Join an existing workspace via invitation code or link
-   */
-  const joinWorkspace = useCallback(async (joinData) => {
-    setIsLoading(true);
-    setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.CONNECTING);
-    try {
-      // Try backend endpoint, or fallback to simulated invite acceptance
-      let result;
-      try {
-        result = await authApi.joinWorkspace(joinData);
-      } catch (err) {
-        // If API is not present yet on backend, simulate joining without creating a new workspace
-        const emailVal = joinData.email || `invited-${Date.now()}@example.com`;
-        result = {
-          user: { email: emailVal, role: "editor", id: `user-${Date.now()}` },
-          workspaceId: joinData.workspaceId || null
-        };
-      }
 
-      if (result && result.user) {
-        setUser(result.user);
-        setActiveWorkspaceId(result.workspaceId || null);
-        setIsLocalMode(false);
-        setWorkspaceConnectionState(result.workspaceId ? WORKSPACE_CONNECTION_STATES.CONNECTED : WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
-        setSyncErrorDetails(null);
-        localStorage.setItem(APPLICATION.storageKeys.userEmail, result.user.email);
-        localStorage.setItem(APPLICATION.storageKeys.userRole, result.user.role || "editor");
-        localStorage.setItem(APPLICATION.storageKeys.cloudSync, "true");
-        if (result.workspaceId) {
-          localStorage.setItem(APPLICATION.storageKeys.activeWorkspaceId, result.workspaceId);
-        }
-      }
-      return result;
-    } catch (err) {
-      setWorkspaceConnectionState(
-        isLocalMode ? WORKSPACE_CONNECTION_STATES.OFFLINE : WORKSPACE_CONNECTION_STATES.UNCONFIGURED
-      );
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [setUser, setActiveWorkspaceId, setIsLocalMode, setIsLoading, setWorkspaceConnectionState, isLocalMode, setSyncErrorDetails]);
 
   /**
    * Continue Offline (Local Projects Only)
@@ -262,7 +220,6 @@ export const useAuth = () => {
     loginWithGoogle,
     logout,
     registerWorkspace,
-    joinWorkspace,
     continueOffline,
     connectFromOffline,
     restoreSession,

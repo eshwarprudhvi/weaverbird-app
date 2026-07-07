@@ -20,6 +20,11 @@ export class FirestoreInvitationRepository {
       const inviteRef = doc(db, 'invitations', invitationId);
 
       const normalizedEmail = data.email.trim().toLowerCase();
+      
+      const expiresInDays = data.expiresInDays || 7;
+      const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+      const invitedBy = auth.currentUser?.displayName || auth.currentUser?.email || 'Administrator';
+      
       const inviteDoc = {
         id: invitationId,
         token,
@@ -30,10 +35,22 @@ export class FirestoreInvitationRepository {
         status: 'pending',
         createdAt: serverTimestamp(),
         createdBy: auth.currentUser?.uid || 'system',
+        invitedBy,
+        expiresAt,
         schemaVersion: 1
       };
       
       batch.set(inviteRef, inviteDoc);
+
+      // Create a deterministic lookup pointer in invitationsActive to allow security rule verification
+      const activeRef = doc(db, 'invitationsActive', `${workspaceId}_${normalizedEmail}`);
+      batch.set(activeRef, {
+        invitationId: invitationId,
+        workspaceId: workspaceId,
+        email: normalizedEmail,
+        status: 'pending',
+        updatedAt: serverTimestamp()
+      });
 
 
       try {
@@ -83,8 +100,11 @@ export class FirestoreInvitationRepository {
   }
 
   async listMy() {
+    if (!auth.currentUser) {
+      throw new Error('[FirestoreInvitationRepository] Cannot query invitations: authentication is not complete or user is logged out.');
+    }
     try {
-      const userEmail = auth.currentUser?.email;
+      const userEmail = auth.currentUser.email;
       if (!userEmail) return [];
       const normalizedEmail = userEmail.trim().toLowerCase();
       console.log(`[FirestoreInvitationRepository] Querying pending invitations for email: ${normalizedEmail}`);
@@ -161,7 +181,7 @@ export class FirestoreInvitationRepository {
         if (!qSnap.empty) {
           inviteDocRef = doc(db, 'invitations', qSnap.docs[0].id);
         } else {
-          throw new Error('Invitation not found');
+          throw new Error('This invitation is no longer available.');
         }
       }
 
@@ -171,27 +191,51 @@ export class FirestoreInvitationRepository {
         const txSnap = await transaction.get(inviteDocRef);
         
         if (!txSnap.exists()) {
-          throw new Error('Invitation not found');
+          throw new Error('This invitation is no longer available.');
         }
 
         const inviteData = txSnap.data();
 
-        // Note: We intentionally do NOT read the workspace document here because
-        // the invitee is not yet a workspace member and would get a permissions error.
-        // If the workspace no longer exists the member create below will fail gracefully.
+        // 1. Ownership validation
+        const normalizedInviteEmail = inviteData.email.trim().toLowerCase();
+        if (normalizedInviteEmail !== normalizedUserEmail) {
+          throw new Error('This invitation belongs to another user.');
+        }
 
+        // 2. Status & Idempotency check
+        if (inviteData.status === 'accepted') {
+          return { 
+            workspaceId: inviteData.workspaceId, 
+            role: inviteData.role, 
+            workspaceName: inviteData.workspaceName || 'Studio Workspace',
+            alreadyAccepted: true 
+          };
+        }
         if (inviteData.status !== 'pending') {
           throw new Error(`Invitation is already ${inviteData.status}`);
         }
 
-        const normalizedInviteEmail = inviteData.email.trim().toLowerCase();
-        if (normalizedInviteEmail !== normalizedUserEmail) {
-          throw new Error(`This invitation was sent to ${normalizedInviteEmail} but you are logged in as ${normalizedUserEmail}`);
+        // 3. Expiration validation
+        if (inviteData.expiresAt && new Date(inviteData.expiresAt).getTime() < Date.now()) {
+          throw new Error('This invitation has expired.');
         }
 
-        // 1. Create membership document
-        console.log(`[FirestoreInvitationRepository] [Transaction] Creating member document in workspace: ${inviteData.workspaceId}`);
+        // 4. Verify that the workspace actually exists in the database
+        const wsRef = doc(db, 'workspaces', inviteData.workspaceId);
+        const wsSnap = await transaction.get(wsRef);
+        if (!wsSnap.exists()) {
+          throw new Error('Workspace no longer exists.');
+        }
+
+        // 5. Verify the user is not already a member
         const memberRef = doc(db, 'workspaces', inviteData.workspaceId, 'members', userId);
+        const memberSnap = await transaction.get(memberRef);
+        if (memberSnap.exists()) {
+          throw new Error('You are already a member of this workspace.');
+        }
+
+        // 6. Create membership document
+        console.log(`[FirestoreInvitationRepository] [Transaction] Creating member document in workspace: ${inviteData.workspaceId}`);
         transaction.set(memberRef, {
           email: inviteData.email,
           name: auth.currentUser?.displayName || auth.currentUser?.email || 'Collaborator',
@@ -202,7 +246,7 @@ export class FirestoreInvitationRepository {
           invitationId: inviteDocRef.id // Store the invitation ID for security rules validation!
         });
 
-        // 2. Create workspaceIndex reference
+        // 7. Create workspaceIndex reference
         console.log(`[FirestoreInvitationRepository] [Transaction] Creating workspaceIndex for user: ${userId}`);
         const indexRef = doc(db, 'workspaceIndex', userId);
         transaction.set(indexRef, {
@@ -212,12 +256,19 @@ export class FirestoreInvitationRepository {
           updatedAt: serverTimestamp()
         });
 
-        // 3. Mark invitation as accepted
+        // 8. Mark invitation as accepted
         console.log(`[FirestoreInvitationRepository] [Transaction] Marking invitation status as accepted`);
         transaction.update(inviteDocRef, {
           status: 'accepted',
           acceptedAt: serverTimestamp(),
           acceptedBy: userId
+        });
+
+        // 9. Update the active invitation pointer status
+        const activeRef = doc(db, 'invitationsActive', `${inviteData.workspaceId}_${normalizedUserEmail}`);
+        transaction.update(activeRef, {
+          status: 'accepted',
+          updatedAt: serverTimestamp()
         });
 
         return { workspaceId: inviteData.workspaceId, role: inviteData.role, workspaceName: inviteData.workspaceName || 'Studio Workspace' };
@@ -270,6 +321,13 @@ export class FirestoreInvitationRepository {
         declinedAt: serverTimestamp()
       });
 
+      // Update the active invitation pointer status
+      const activeRef = doc(db, 'invitationsActive', `${inviteData.workspaceId}_${normalizedUserEmail}`);
+      await updateDoc(activeRef, {
+        status: 'declined',
+        updatedAt: serverTimestamp()
+      }).catch(err => console.warn('Active invitation pointer not found/updated:', err));
+
       if (workspaceEventBus) {
         workspaceEventBus.emit('invitation.declined', { idOrToken });
       }
@@ -284,10 +342,21 @@ export class FirestoreInvitationRepository {
   async cancel(id) {
     try {
       const inviteRef = doc(db, 'invitations', id);
+      const snap = await getDoc(inviteRef);
+      
       await updateDoc(inviteRef, {
         status: 'cancelled',
         cancelledAt: serverTimestamp()
       });
+
+      if (snap.exists()) {
+        const inviteData = snap.data();
+        const activeRef = doc(db, 'invitationsActive', `${inviteData.workspaceId}_${inviteData.email}`);
+        await updateDoc(activeRef, {
+          status: 'cancelled',
+          updatedAt: serverTimestamp()
+        }).catch(err => console.warn('Active invitation pointer status sync warning:', err));
+      }
 
       if (workspaceEventBus) {
         workspaceEventBus.emit('invitation.cancelled', { id });
@@ -303,12 +372,23 @@ export class FirestoreInvitationRepository {
   async resend(id, data = {}) {
     try {
       const inviteRef = doc(db, 'invitations', id);
+      const snap = await getDoc(inviteRef);
+      
       const updateData = {
         status: 'pending',
         updatedAt: serverTimestamp(),
         ...data
       };
       await updateDoc(inviteRef, updateData);
+
+      if (snap.exists()) {
+        const inviteData = snap.data();
+        const activeRef = doc(db, 'invitationsActive', `${inviteData.workspaceId}_${inviteData.email}`);
+        await updateDoc(activeRef, {
+          status: 'pending',
+          updatedAt: serverTimestamp()
+        }).catch(err => console.warn('Active invitation pointer status sync warning:', err));
+      }
 
       if (workspaceEventBus) {
         workspaceEventBus.emit('invitation.resent', { id, ...updateData });
