@@ -52,7 +52,12 @@ export const ProjectsModule = {
                  querySnapshot.forEach((docSnap) => {
                      const data = docSnap.data();
                      
-                     if (data && data.status === 'deleted') {
+                     // Hard-deleted projects have no `isTrashed` flag — they were removed
+                     // via projectRepository.delete() and moved to the deleted_projects collection.
+                     // Soft-deleted/trashed projects have isTrashed: true and MUST be kept in the
+                     // projects list so the Recycle Bin can display and restore them.
+                     if (data && data.status === 'deleted' && !data.isTrashed) {
+                         // Permanently deleted (no isTrashed flag) — exclude and track
                          deletedFromCloud.push(docSnap.id);
                          if (data.tempId) deletedFromCloud.push(data.tempId);
                          return;

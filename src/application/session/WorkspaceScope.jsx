@@ -25,8 +25,12 @@ export const WorkspaceScopeProvider = ({ children }) => {
       }
     });
 
-    const unsubReady = workspaceEventBus.on('workspace.ready', () => {
+    const unsubReady = workspaceEventBus.on('workspace.ready', (payload) => {
       setSessionState('READY');
+      // Also sync workspaceId on ready in case initializing was missed
+      if (payload && payload.workspaceId !== undefined) {
+        setWorkspaceId(payload.workspaceId);
+      }
     });
 
     const unsubSwitch = workspaceEventBus.on('workspace.switching', () => {

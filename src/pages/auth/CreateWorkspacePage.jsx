@@ -2,13 +2,14 @@ import React from "react";
 import AuthCard from "../../components/auth/AuthCard";
 import WorkspaceCreationForm from "../../components/auth/WorkspaceCreationForm";
 
-const CreateWorkspacePage = ({ onNavigate }) => {
+const CreateWorkspacePage = ({ onNavigate, onWorkspaceSelected }) => {
   return (
     <AuthCard maxWidth="520px" padding="36px 32px">
       <WorkspaceCreationForm
-        onBack={() => onNavigate("welcome")}
+        onBack={() => onNavigate("no-workspace")}
         onSuccess={() => {
-          // Authentication state is resolved in useAuth, App will re-render and mount WorkspaceProvider
+          // Workspace registered — confirm the session gate is passed
+          if (onWorkspaceSelected) onWorkspaceSelected();
         }}
       />
     </AuthCard>

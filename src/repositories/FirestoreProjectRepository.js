@@ -18,8 +18,14 @@ export class FirestoreProjectRepository extends IProjectRepository {
       const startTime = performance.now();
       const batch = writeBatch(db);
 
+      // Guard: reject null/undefined workspaceId early with a meaningful error
+      if (!workspaceId) {
+        throw new Error('[FirestoreProjectRepository] Cannot create project: workspaceId is null or undefined. Workspace scope may not be initialized yet.');
+      }
+
       // Generate a permanent Firestore ID synchronously on the client
       const projectRef = doc(collection(db, 'workspaces', workspaceId, 'projects'));
+
       const projectId = projectRef.id;
 
       const projectDoc = {
@@ -110,12 +116,8 @@ export class FirestoreProjectRepository extends IProjectRepository {
       const projectRef = doc(db, 'workspaces', workspaceId, 'projects', projectId);
       const deletedRef = doc(db, 'workspaces', workspaceId, 'deleted_projects', projectId);
 
-      // 1. Mark as status: 'deleted'
-      batch.update(projectRef, {
-        status: 'deleted',
-        updatedAt: serverTimestamp(),
-        updatedBy: auth.currentUser?.uid || 'system'
-      });
+      // 1. Hard delete: Delete the project document from the collection
+      batch.delete(projectRef);
 
       // 2. Add to deleted_projects subcollection
       batch.set(deletedRef, {

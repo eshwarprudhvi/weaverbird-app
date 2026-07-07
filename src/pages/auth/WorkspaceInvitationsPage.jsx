@@ -4,8 +4,8 @@ import AuthCard from "../../components/auth/AuthCard";
 import AuthHeader from "../../components/auth/AuthHeader";
 import useAuth from "../../hooks/useAuth";
 
-const WorkspaceInvitationsPage = ({ onNavigate }) => {
-  const { user, acceptInvitation, declineInvitation, checkPendingInvitations, logout } = useAuth();
+const WorkspaceInvitationsPage = ({ onNavigate, onWorkspaceSelected }) => {
+  const { user, acceptInvitation, declineInvitation, checkPendingInvitations, logout, switchWorkspace } = useAuth();
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
@@ -30,8 +30,14 @@ const WorkspaceInvitationsPage = ({ onNavigate }) => {
     setProcessingId(idOrToken);
     setErrorMsg(null);
     try {
-      await acceptInvitation(idOrToken);
-      // If accept is successful, parent auth state should transition to connected dashboard
+      const result = await acceptInvitation(idOrToken);
+      // Set the accepted workspace as the active workspace in Auth context
+      // so WorkspaceBootstrapper can bootstrap it correctly.
+      if (result?.workspaceId) {
+        await switchWorkspace(result.workspaceId);
+      }
+      // Gate passed — surface the dashboard
+      if (onWorkspaceSelected) onWorkspaceSelected();
     } catch (err) {
       console.error(err);
       setErrorMsg(err?.response?.data?.message || err?.message || "Failed to accept invitation");
@@ -54,11 +60,14 @@ const WorkspaceInvitationsPage = ({ onNavigate }) => {
     }
   };
 
+  // When no invitations remain, decide where to go next
   useEffect(() => {
-    if (!loading && invitations.length === 0) {
-      if (onNavigate) {
-        onNavigate("no-workspace");
-      }
+    if (!loading && invitations.length === 0 && onNavigate) {
+      // If there are accepted invitations / existing workspaces, go to switcher
+      // otherwise go to no-workspace. Checking via checkPendingInvitations alone
+      // is not enough here; we simply send them to 'switch' so WorkspaceSwitcherPage
+      // can render their workspaces (it handles the empty case gracefully).
+      onNavigate("switch");
     }
   }, [invitations, loading, onNavigate]);
 

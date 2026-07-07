@@ -39,7 +39,7 @@ import AddProjectModal from "../components/modals/AddProjectModal";
 import AddMeetingModal from "../components/modals/AddMeetingModal";
 import ReportPreviewModal from "../components/modals/ReportPreviewModal";
 import BottomNav from "../components/navigation/BottomNav";
-import { collection, onSnapshot, getDocs, getDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, getDoc, doc, query, where } from "firebase/firestore";
 import { createProject } from "../api/project.api";
 import {
   Folder,
@@ -1386,17 +1386,20 @@ function AuthenticatedApp() {
 import { WorkspaceScopeProvider, WorkspaceDiagnostics, workspaceEventBus, workspaceSessionManager } from "../application/session";
 import "../application/modules";
 function App() {
-  const { isAuthenticated, isLocalMode, isLoading, activeWorkspaceId, checkPendingInvitations, switchWorkspace } = useAuth();
+  const { isAuthenticated, isLocalMode, isLoading, activeWorkspaceId, user, checkPendingInvitations, switchWorkspace } = useAuth();
   const [initialAuthRoute, setInitialAuthRoute] = useState("welcome");
   const [sessionLoading, setSessionLoading] = useState(false);
   const [inAppInvites, setInAppInvites] = useState([]);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  // Tracks whether the user has explicitly confirmed a workspace for this session.
+  // Always false on launch so every session goes through the onboarding gate.
+  const [isWorkspaceSelected, setIsWorkspaceSelected] = useState(false);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && isWorkspaceSelected) {
       workspaceSessionManager.transitionTo(activeWorkspaceId).catch(console.error);
     }
-  }, [activeWorkspaceId, isLoading]);
+  }, [activeWorkspaceId, isLoading, isWorkspaceSelected]);
 
   useEffect(() => {
     const unsubInit = workspaceEventBus.on('workspace.initializing', () => setSessionLoading(true));
@@ -1410,25 +1413,67 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    // If authenticated but no workspace, determine if they have invites
-    if (isAuthenticated && !activeWorkspaceId && !isLocalMode) {
-      checkPendingInvitations().then(invs => {
-        if (invs && invs.length > 0) {
-          setInitialAuthRoute("pending-invitations");
-        } else {
-          setInitialAuthRoute("no-workspace");
+  /**
+   * Checks if the authenticated user belongs to any workspaces:
+   * 1. Via their workspaceIndex entry (owner / previously active workspace)
+   * 2. Via accepted invitations in the invitations collection
+   */
+  const checkHasWorkspaces = async (uid, userEmail) => {
+    if (!uid && !userEmail) return false;
+    try {
+      // 1. Check workspaceIndex for owner/previously active workspace
+      if (uid) {
+        const indexSnap = await getDoc(doc(db, 'workspaceIndex', uid));
+        if (indexSnap.exists() && indexSnap.data().workspaceId) {
+          return true;
         }
-      }).catch(() => {
-        // If invitations check fails, still navigate to no-workspace
-        setInitialAuthRoute("no-workspace");
-      });
+      }
+      // 2. Check for accepted invitations
+      if (userEmail) {
+        const q = query(
+          collection(db, 'invitations'),
+          where('email', '==', userEmail.trim().toLowerCase()),
+          where('status', '==', 'accepted')
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('[App] Error checking existing workspaces:', e);
+      return false;
     }
-  }, [isAuthenticated, activeWorkspaceId, isLocalMode, checkPendingInvitations]);
+  };
 
-  // Load and show pending invitations in-app if authenticated
   useEffect(() => {
-    if (isAuthenticated && !isLocalMode) {
+    // Launch gate: when user is authenticated, route them through the structured onboarding flow
+    if (isAuthenticated && !isLocalMode && !isWorkspaceSelected) {
+      const uid = user?.uid || null;
+      const email = user?.email || null;
+      checkPendingInvitations()
+        .then(async (invs) => {
+          if (invs && invs.length > 0) {
+            setInitialAuthRoute('pending-invitations');
+          } else {
+            const hasWorkspaces = await checkHasWorkspaces(uid, email);
+            if (hasWorkspaces) {
+              setInitialAuthRoute('switch');
+            } else {
+              setInitialAuthRoute('no-workspace');
+            }
+          }
+        })
+        .catch(() => {
+          setInitialAuthRoute('no-workspace');
+        });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isLocalMode, isWorkspaceSelected]);
+
+  // Load and show pending invitations in-app only AFTER the user is in the dashboard
+  // (they may receive new invitations while working inside a workspace)
+  useEffect(() => {
+    if (isAuthenticated && !isLocalMode && isWorkspaceSelected) {
       checkPendingInvitations().then(invs => {
         setInAppInvites(invs || []);
         if (invs && invs.length > 0) {
@@ -1439,7 +1484,8 @@ function App() {
       setInAppInvites([]);
       setIsInviteModalOpen(false);
     }
-  }, [isAuthenticated, isLocalMode, activeWorkspaceId, checkPendingInvitations]);
+  }, [isAuthenticated, isLocalMode, isWorkspaceSelected, checkPendingInvitations]);
+
 
   if (sessionLoading) {
     return (
@@ -1459,9 +1505,16 @@ function App() {
     );
   }
 
-  // If not authenticated or (authenticated but no workspace)
-  if ((!isAuthenticated && !isLocalMode) || (isAuthenticated && !activeWorkspaceId && !isLocalMode)) {
-    return <AuthRouter initialRoute={isAuthenticated ? initialAuthRoute : "welcome"} />;
+  // Show the auth gate if:
+  // - User is not authenticated and not in local/offline mode, OR
+  // - User is authenticated but has not yet confirmed a workspace for this session
+  if ((!isAuthenticated && !isLocalMode) || (isAuthenticated && !isWorkspaceSelected && !isLocalMode)) {
+    return (
+      <AuthRouter
+        initialRoute={isAuthenticated ? initialAuthRoute : "welcome"}
+        onWorkspaceSelected={() => setIsWorkspaceSelected(true)}
+      />
+    );
   }
 
   const appContent = (

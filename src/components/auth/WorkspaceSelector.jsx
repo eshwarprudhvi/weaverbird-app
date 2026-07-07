@@ -104,8 +104,13 @@ const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
   }, [activeWorkspaceId, user?.email, isLocalMode]);
 
   const handleSelectWorkspace = async (wsId) => {
-    if (wsId === activeWorkspaceId) return;
+    if (wsId === activeWorkspaceId) {
+      // Already the active workspace — just confirm selection to open it
+      if (onSelectWorkspace) onSelectWorkspace(wsId);
+      return;
+    }
     if (onSelectWorkspace) {
+      await switchWorkspace(wsId);
       onSelectWorkspace(wsId);
     } else {
       await switchWorkspace(wsId);
@@ -134,6 +139,12 @@ const WorkspaceSelector = ({ onSelectWorkspace, onAddNewWorkspace }) => {
       <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>
         Your Workspaces
       </div>
+
+      {workspaces.length === 0 && (
+        <div style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: "13px", lineHeight: "1.6" }}>
+          No workspaces found. Create a new workspace or wait for an invitation.
+        </div>
+      )}
 
       {workspaces.map((ws) => (
         <div

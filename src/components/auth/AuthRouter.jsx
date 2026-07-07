@@ -9,7 +9,7 @@ import ForgotPasswordPage from "../../pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "../../pages/auth/ResetPasswordPage";
 import WorkspaceSwitcherPage from "../../pages/auth/WorkspaceSwitcherPage";
 
-const AuthRouter = ({ initialRoute = "welcome" }) => {
+const AuthRouter = ({ initialRoute = "welcome", onWorkspaceSelected }) => {
   const [currentRoute, setCurrentRoute] = useState(initialRoute);
 
   // Sync with parent when initialRoute prop changes (e.g., after auth check)
@@ -24,17 +24,17 @@ const AuthRouter = ({ initialRoute = "welcome" }) => {
       case "login":
         return <LoginPage onNavigate={setCurrentRoute} />;
       case "create":
-        return <CreateWorkspacePage onNavigate={setCurrentRoute} />;
+        return <CreateWorkspacePage onNavigate={setCurrentRoute} onWorkspaceSelected={onWorkspaceSelected} />;
       case "pending-invitations":
-        return <WorkspaceInvitationsPage onNavigate={setCurrentRoute} />;
+        return <WorkspaceInvitationsPage onNavigate={setCurrentRoute} onWorkspaceSelected={onWorkspaceSelected} />;
       case "no-workspace":
-        return <YoureAlmostReadyPage onNavigate={setCurrentRoute} />;
+        return <YoureAlmostReadyPage onNavigate={setCurrentRoute} onWorkspaceSelected={onWorkspaceSelected} />;
       case "forgot-password":
         return <ForgotPasswordPage onNavigate={setCurrentRoute} />;
       case "reset-password":
         return <ResetPasswordPage onNavigate={setCurrentRoute} />;
       case "switch":
-        return <WorkspaceSwitcherPage onNavigate={setCurrentRoute} />;
+        return <WorkspaceSwitcherPage onNavigate={setCurrentRoute} onWorkspaceSelected={onWorkspaceSelected} />;
       default:
         return <WelcomePage onNavigate={setCurrentRoute} />;
     }

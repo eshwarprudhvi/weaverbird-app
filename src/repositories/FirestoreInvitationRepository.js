@@ -176,12 +176,9 @@ export class FirestoreInvitationRepository {
 
         const inviteData = txSnap.data();
 
-        // Verify that the workspace actually exists in the database
-        const wsRef = doc(db, 'workspaces', inviteData.workspaceId);
-        const wsSnap = await transaction.get(wsRef);
-        if (!wsSnap.exists()) {
-          throw new Error('The workspace for this invitation no longer exists.');
-        }
+        // Note: We intentionally do NOT read the workspace document here because
+        // the invitee is not yet a workspace member and would get a permissions error.
+        // If the workspace no longer exists the member create below will fail gracefully.
 
         if (inviteData.status !== 'pending') {
           throw new Error(`Invitation is already ${inviteData.status}`);
@@ -225,6 +222,7 @@ export class FirestoreInvitationRepository {
 
         return { workspaceId: inviteData.workspaceId, role: inviteData.role, workspaceName: inviteData.workspaceName || 'Studio Workspace' };
       });
+
 
       console.log(`[FirestoreInvitationRepository] Invitation accepted successfully! Workspace ID: ${result.workspaceId}`);
 

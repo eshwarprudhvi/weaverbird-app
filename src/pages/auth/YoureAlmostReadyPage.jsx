@@ -1,12 +1,12 @@
 import React from "react";
-import { Building2, RefreshCw, LogOut } from "lucide-react";
+import { Building2, RefreshCw, LogOut, HardDrive } from "lucide-react";
 import AuthCard from "../../components/auth/AuthCard";
 import AuthHeader from "../../components/auth/AuthHeader";
 import AuthActionCard from "../../components/auth/AuthActionCard";
 import useAuth from "../../hooks/useAuth";
 
-const YoureAlmostReadyPage = ({ onNavigate }) => {
-  const { logout, checkPendingInvitations } = useAuth();
+const YoureAlmostReadyPage = ({ onNavigate, onWorkspaceSelected }) => {
+  const { logout, checkPendingInvitations, continueOffline } = useAuth();
   const [refreshing, setRefreshing] = React.useState(false);
 
   const handleRefresh = async () => {
@@ -23,6 +23,11 @@ const YoureAlmostReadyPage = ({ onNavigate }) => {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handleContinueOffline = () => {
+    continueOffline();
+    if (onWorkspaceSelected) onWorkspaceSelected();
   };
 
   return (
@@ -48,6 +53,14 @@ const YoureAlmostReadyPage = ({ onNavigate }) => {
           title={refreshing ? "Refreshing..." : "Check for Invitations"}
           description="Wait for an invitation from your Workspace Administrator."
           onClick={handleRefresh}
+        />
+
+        {/* Continue Offline */}
+        <AuthActionCard
+          icon={HardDrive}
+          title="Continue in Offline Mode"
+          description="Work locally on your device without connecting to a workspace."
+          onClick={handleContinueOffline}
         />
       </div>
 

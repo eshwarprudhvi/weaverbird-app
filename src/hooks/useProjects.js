@@ -77,6 +77,12 @@ export const useProjects = (activeProjectId, setActiveProjectId, setCustomConfir
     setOptimisticProjects(prev => [projectWithTempId, ...prev]);
     setIsNewProjModalOpen(false);
 
+    // Guard: workspace scope must be initialized before writing to Firestore
+    if (!scope.workspaceId) {
+      console.warn('[useProjects] Workspace scope not initialized, skipping Firestore create.');
+      return projectWithTempId;
+    }
+
     try {
       await projectRepository.create(scope.workspaceId, {
         tempId: tempId,
