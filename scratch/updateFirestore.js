@@ -15,11 +15,11 @@ const db = getFirestore(app);
 
 const updateRef = doc(db, "system", "update");
 setDoc(updateRef, { 
-    version: "1.1.6", 
-    url: "https://weaverbird-app.vercel.app/1.1.6.zip" 
+    version: "1.1.11", 
+    url: "https://weaverbird-app.vercel.app/1.1.11.zip" 
 }, { merge: true })
 .then(() => {
-    console.log("Firestore updated successfully to 1.1.6.");
+    console.log("Firestore updated successfully to 1.1.11.");
     process.exit(0);
 })
 .catch(err => {

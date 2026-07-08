@@ -75,7 +75,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.1.10";
+const WEB_APP_VERSION = "1.1.11";
 
 
 
