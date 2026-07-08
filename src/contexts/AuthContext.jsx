@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { APPLICATION } from "../config/application";
+import { Capacitor } from "@capacitor/core";
 import authApi from "../api/auth.api";
 import { workspaceEventBus } from "../application/session";
 import { auth, db, isConfigured } from "../firebase";
@@ -25,17 +26,99 @@ export const AuthProvider = ({ children }) => {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [workspaceConnectionState, setWorkspaceConnectionState] = useState(WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+  const [isNetworkOnline, setIsNetworkOnline] = useState(navigator.onLine);
   const [syncErrorDetails, setSyncErrorDetails] = useState(null);
 
-  // Listen to workspace bootstrapper failures to clear invalid workspace context
+  // Listen to workspace bootstrapper events and dynamic network changes
   useEffect(() => {
     const unsubFailed = workspaceEventBus.on('workspace.failed', async ({ workspaceId, error }) => {
-      console.error("Workspace bootstrapper failed, clearing workspace session:", error);
-      if (workspaceId) failedWorkspaceIds.add(workspaceId);
-      localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
-      setActiveWorkspaceId(null);
+      console.error("Workspace bootstrapper failed:", error);
+
+      // Distinguish genuine access errors from transient network/offline failures.
+      // Genuine errors: workspace deleted, member removed, member inactive.
+      // Transient errors: network timeout, offline, Firebase unavailable.
+      const errorMsg = (error?.message || '').toLowerCase();
+      const isGenuineAccessError = 
+        errorMsg.includes('does not exist') || 
+        errorMsg.includes('not active') ||
+        errorMsg.includes('invalid workspace');
+
+      if (isGenuineAccessError) {
+        console.warn("[AuthContext] Genuine access error — clearing workspace session.");
+        if (workspaceId) failedWorkspaceIds.add(workspaceId);
+        localStorage.removeItem(APPLICATION.storageKeys.activeWorkspaceId);
+        setActiveWorkspaceId(null);
+      } else {
+        console.warn("[AuthContext] Transient failure — preserving stored workspace session.");
+      }
     });
-    return () => unsubFailed();
+
+    const unsubOffline = workspaceEventBus.on('workspace.offline', () => {
+      console.warn("[AuthContext] Workspace backend is unreachable — setting connection state to OFFLINE.");
+      setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.OFFLINE);
+    });
+
+    // Dynamic browser/native network events to immediately update UI badge when internet drops/returns
+    const handleOffline = () => {
+      console.log("[AuthContext] Network connection lost — setting state to OFFLINE.");
+      setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.OFFLINE);
+      setIsNetworkOnline(false);
+    };
+
+    const handleOnline = () => {
+      console.log("[AuthContext] Network connection restored.");
+      // Only set to CONNECTED if we have an active workspace selected and we aren't in local mode
+      setWorkspaceConnectionState(prev => 
+        prev === WORKSPACE_CONNECTION_STATES.OFFLINE ? WORKSPACE_CONNECTION_STATES.CONNECTED : prev
+      );
+      setIsNetworkOnline(true);
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    // Also support Capacitor Network listener for native devices/emulators
+    let capacitorListener = null;
+    let isUnmounted = false;
+    
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/network').then(({ Network }) => {
+        if (isUnmounted) return;
+        Network.getStatus().then(status => {
+          if (!isUnmounted) {
+            setIsNetworkOnline(status.connected);
+            if (!status.connected) {
+              setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.OFFLINE);
+            }
+          }
+        }).catch(() => {});
+
+        Network.addListener('networkStatusChange', (status) => {
+          if (status.connected) {
+            handleOnline();
+          } else {
+            handleOffline();
+          }
+        }).then(listener => {
+          if (isUnmounted) {
+            listener.remove();
+          } else {
+            capacitorListener = listener;
+          }
+        });
+      }).catch(() => {});
+    }
+
+    return () => {
+      isUnmounted = true;
+      unsubFailed();
+      unsubOffline();
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+      if (capacitorListener) {
+        capacitorListener.remove();
+      }
+    };
   }, []);
 
   // Session Restoration on mount using Firebase onAuthStateChanged
@@ -130,10 +213,36 @@ export const AuthProvider = ({ children }) => {
             setIsLocalMode(true);
             setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.OFFLINE);
           } else {
-            setUser(null);
-            setActiveWorkspaceId(null);
-            setIsLocalMode(false);
-            setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+            // Firebase Auth returned null user. This can happen when:
+            // 1. The device is offline and Auth can't refresh the token
+            // 2. The user genuinely logged out (but logout clears localStorage)
+            // 3. First-time user (localStorage is empty)
+            //
+            // If localStorage still has stored credentials, this is NOT a logout
+            // or first-time user — it's an offline/auth-refresh-failure cold start.
+            // Restore the previous session from cache.
+            const storedEmail = localStorage.getItem(APPLICATION.storageKeys.userEmail);
+            const storedWorkspaceId = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId);
+
+            if (storedEmail && storedWorkspaceId) {
+              console.log("[AuthContext] Firebase Auth returned null but stored session exists — restoring from cache:", storedEmail);
+              const offlineRole = localStorage.getItem(APPLICATION.storageKeys.userRole) || "editor";
+              setUser({
+                email: storedEmail,
+                role: offlineRole,
+                id: `user-${storedEmail.replace(/[^a-zA-Z0-9]/g, "")}`,
+                _offlineRestored: true
+              });
+              setActiveWorkspaceId(storedWorkspaceId);
+              setIsLocalMode(false);
+              setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.OFFLINE);
+            } else {
+              // Genuine unauthenticated state (first-time user or logged out)
+              setUser(null);
+              setActiveWorkspaceId(null);
+              setIsLocalMode(false);
+              setWorkspaceConnectionState(WORKSPACE_CONNECTION_STATES.UNCONFIGURED);
+            }
           }
         }
       } catch (err) {
@@ -199,6 +308,7 @@ export const AuthProvider = ({ children }) => {
     setSyncErrorDetails,
     isAuthenticated: !!user,
     switchWorkspace,
+    isNetworkOnline,
   };
 
   return (
@@ -217,3 +327,5 @@ export const useAuthContext = () => {
 };
 
 export default AuthContext;
+
+

@@ -19,6 +19,7 @@ export const useAuth = () => {
     setSyncErrorDetails,
     isAuthenticated,
     switchWorkspace,
+    isNetworkOnline,
   } = useAuthContext();
 
   /**
@@ -224,6 +225,7 @@ export const useAuth = () => {
     connectFromOffline,
     restoreSession,
     switchWorkspace,
+    isNetworkOnline,
     checkPendingInvitations: authApi.checkPendingInvitations,
     acceptInvitation: authApi.acceptInvitation,
     declineInvitation: authApi.declineInvitation,

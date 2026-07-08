@@ -34,7 +34,6 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import { Share } from "@capacitor/share";
-import { Network } from "@capacitor/network";
 import { db, isConfigured } from "../firebase";
 import AddProjectModal from "../components/modals/AddProjectModal";
 import AddMeetingModal from "../components/modals/AddMeetingModal";
@@ -76,7 +75,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 
-const WEB_APP_VERSION = "1.1.9";
+const WEB_APP_VERSION = "1.1.10";
 
 
 
@@ -86,7 +85,7 @@ const INITIAL_PROJECTS = []
 const INITIAL_SCHEDULE = [];
 
 function AuthenticatedApp() {
-  const { user, isLocalMode } = useAuth();
+  const { user, isLocalMode, workspaceConnectionState, isNetworkOnline } = useAuth();
   const { workspace } = useWorkspace();
   const companyName = workspace?.companyName || "My Workspace";
   const companySubtitle = workspace?.companySubtitle || "Interior Studio";
@@ -308,46 +307,7 @@ function AuthenticatedApp() {
     }
   }, []);
 
-  const [isNetworkOnline, setIsNetworkOnline] = useState(navigator.onLine);
 
-  useEffect(() => {
-    let networkListener = null;
-    let fallbackCleanup = null;
-
-    const initNetworkStatus = async () => {
-      try {
-        const status = await Network.getStatus();
-        setIsNetworkOnline(status.connected);
-
-        networkListener = await Network.addListener("networkStatusChange", (status) => {
-          setIsNetworkOnline(status.connected);
-        });
-      } catch (err) {
-        // Fallback for web browser testing if native fails
-        const handleOnline = () => setIsNetworkOnline(true);
-        const handleOffline = () => setIsNetworkOnline(false);
-
-        window.addEventListener("online", handleOnline);
-        window.addEventListener("offline", handleOffline);
-
-        fallbackCleanup = () => {
-          window.removeEventListener("online", handleOnline);
-          window.removeEventListener("offline", handleOffline);
-        };
-      }
-    };
-
-    initNetworkStatus();
-
-    return () => {
-      if (networkListener) {
-        networkListener.remove();
-      }
-      if (fallbackCleanup) {
-        fallbackCleanup();
-      }
-    };
-  }, []);
 
 
   // Project detail sub-tabs: 'materials' or 'work'
@@ -1114,7 +1074,7 @@ function AuthenticatedApp() {
                       <ProjectsList
                         companyName={companyName}
                         companySubtitle={companySubtitle}
-                        isNetworkOnline={isNetworkOnline}
+                        isNetworkOnline={isNetworkOnline && workspaceConnectionState !== 'OFFLINE'}
                         cloudSyncEnabled={cloudSyncEnabled}
                         userRole={userRole}
                         setIsCatalogScreenOpen={setIsCatalogScreenOpen}
@@ -1413,7 +1373,13 @@ function App() {
     const unsubReady = workspaceEventBus.on('workspace.ready', () => setSessionLoading(false));
     const unsubFailed = workspaceEventBus.on('workspace.failed', () => {
       setSessionLoading(false);
-      setIsWorkspaceSelected(false);
+      // If the user has a stored workspace, this failure is likely transient (offline/network).
+      // Don't reset workspace selection — let them stay in the app with cached data.
+      // (Logout clears localStorage, so stored workspace only exists for returning users)
+      const hasStoredWorkspace = !!localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId);
+      if (!hasStoredWorkspace) {
+        setIsWorkspaceSelected(false);
+      }
     });
     
     return () => {
@@ -1490,6 +1456,16 @@ function App() {
         return;
       }
 
+      // Cached session fast-path: if localStorage has a stored workspace but activeWorkspaceId
+      // is not set in state (e.g. offline cold start where AuthContext restored user from cache),
+      // restore it directly instead of trying (and failing) network checks.
+      const storedWorkspace = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId);
+      if (storedWorkspace) {
+        console.log("[App Gate] Stored workspace found — restoring session from cache.");
+        setIsWorkspaceSelected(true);
+        return;
+      }
+
       const uid = user?.uid || null;
       const email = user?.email || null;
       console.log("[App Gate] Checking for user:", { uid, email, user });
@@ -1510,7 +1486,15 @@ function App() {
         })
         .catch((err) => {
           console.error("[App Gate] Error in check:", err);
-          setInitialAuthRoute('no-workspace');
+          // If there's a stored workspace, this failure is likely due to being offline.
+          // Restore the session instead of routing to no-workspace.
+          const storedWs = localStorage.getItem(APPLICATION.storageKeys.activeWorkspaceId);
+          if (storedWs) {
+            console.log("[App Gate] Stored workspace found in catch — restoring session.");
+            setIsWorkspaceSelected(true);
+          } else {
+            setInitialAuthRoute('no-workspace');
+          }
         });
     }
   }, [isAuthenticated, isLocalMode, isWorkspaceSelected, user, activeWorkspaceId, checkPendingInvitations]);
