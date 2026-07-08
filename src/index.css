@@ -4200,11 +4200,16 @@ textarea.form-control {
   .rooms-grid,
   .overview-card,
   .project-card,
-  .room-card,
   .calendar-card {
     max-width: 100vw;
     box-sizing: border-box;
     overflow-x: hidden;
+  }
+
+  .room-card {
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow: visible !important;
   }
 
   /* Wrap multi-column input grids on mobile */
